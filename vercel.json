@@ -1,8 +1,6 @@
 {
-  "builds": [
-    { "src": "package.json", "use": "@vercel/static-build" }
-  ],
-  "routes": [
-    { "src": "/(.*)", "dest": "/index.html" }
-  ]
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "outputDirectory": "dist",
+  "framework": "vite"
 }
