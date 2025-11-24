@@ -44,15 +44,11 @@ const CustomDateInput: React.FC<CustomDateInputProps> = ({ label, name, value, o
     </div>
 );
 
-// --- Timeline Stepper (Green Line Logic) ---
+// --- Timeline Stepper (Green Line Logic with Time Calculation) ---
 const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string, proto?: string, dec?: string }, lang: Language }> = ({ status, dates, lang }) => {
   const t = TRANSLATIONS[lang];
   
   // Logic: Calculate progress based on DATES specifically
-  // 0% = Just Submitted
-  // 50% = Protocol Date Entered
-  // 100% = Decision Date Entered
-  
   let progress = 0;
   if (dates.dec) {
       progress = 100;
@@ -60,22 +56,65 @@ const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string,
       progress = 50;
   }
 
+  // Time Calculation Logic
+  const today = new Date().toISOString().split('T')[0];
+  
+  // 1. Submitted -> Protocol (or Today)
+  let subToProtoLabel = "";
+  if (dates.sub) {
+      const endDate = dates.proto || today;
+      const diff = getDaysDiff(dates.sub, endDate);
+      if (diff !== null && diff >= 0) {
+          subToProtoLabel = formatDuration(diff, lang);
+      }
+  }
+
+  // 2. Protocol -> Decision (or Today)
+  let protoToDecLabel = "";
+  if (dates.proto) {
+      const endDate = dates.dec || today;
+      const diff = getDaysDiff(dates.proto, endDate);
+      if (diff !== null && diff >= 0) {
+          protoToDecLabel = formatDuration(diff, lang);
+      }
+  }
+
   const steps = [
-    { label: "Submitted", date: dates.sub, active: true }, // Always active if we are viewing it
+    { label: "Submitted", date: dates.sub, active: true },
     { label: "Protocol (AZ)", date: dates.proto, active: !!dates.proto },
     { label: "Decision", date: dates.dec, active: !!dates.dec }
   ];
 
   return (
-    <div className="relative w-full py-8 mb-6 mt-2 px-6">
+    <div className="relative w-full py-10 mb-6 mt-2 px-6">
         {/* Background Line (Gray) */}
-        <div className="absolute top-10 left-6 right-6 h-1 bg-gray-200 rounded -z-10"></div>
+        <div className="absolute top-12 left-10 right-10 h-1.5 bg-gray-200 rounded-full -z-20"></div>
         
         {/* Active Progress Line (Green) */}
         <div 
-            className="absolute top-10 left-6 h-1 bg-green-500 rounded -z-10 transition-all duration-700 ease-out" 
-            style={{ width: `calc((100% - 3rem) * ${progress / 100})` }}
+            className="absolute top-12 left-10 h-1.5 bg-green-500 rounded-full -z-10 transition-all duration-700 ease-out shadow-[0_0_8px_rgba(34,197,94,0.6)]" 
+            style={{ width: `calc((100% - 5rem) * ${progress / 100})` }}
         ></div>
+
+        {/* Time Labels (Floating above lines) */}
+        <div className="absolute top-5 left-10 right-10 flex justify-between pointer-events-none">
+            {/* First Segment Label (Sub -> Proto) */}
+            <div className="flex-1 text-center pr-4">
+                {subToProtoLabel && (
+                     <span className="text-[11px] font-bold text-blue-500 bg-white/80 px-2 py-0.5 rounded backdrop-blur-sm shadow-sm border border-blue-100">
+                        {subToProtoLabel}
+                     </span>
+                )}
+            </div>
+            {/* Second Segment Label (Proto -> Dec) */}
+            <div className="flex-1 text-center pl-4">
+                {protoToDecLabel && (
+                    <span className="text-[11px] font-bold text-blue-500 bg-white/80 px-2 py-0.5 rounded backdrop-blur-sm shadow-sm border border-blue-100">
+                        {protoToDecLabel}
+                    </span>
+                )}
+            </div>
+        </div>
         
         <div className="flex justify-between items-start w-full">
             {steps.map((step, idx) => {
@@ -83,16 +122,15 @@ const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string,
                 
                 // Align text
                 const alignClass = idx === 0 ? 'items-start text-left' : idx === 2 ? 'items-end text-right' : 'items-center text-center';
-                const translate = idx === 0 ? 'translate-x-0' : idx === 2 ? 'translate-x-0' : 'translate-x-0'; // Flex handles pos, just alignment
 
                 return (
-                    <div key={idx} className={`flex flex-col ${alignClass} w-1/3`}>
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center border-4 mb-2 transition-all duration-500 z-10 bg-white ${
+                    <div key={idx} className={`flex flex-col ${alignClass} w-1/3 relative`}>
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center border-4 mb-2 transition-all duration-500 z-10 bg-white shadow-sm ${
                             isActive 
                                 ? 'border-green-500 scale-110' 
                                 : 'border-gray-300'
                         } ${idx === 0 ? 'self-start' : idx === 2 ? 'self-end' : 'self-center'}`}>
-                            {isActive && <div className="w-2 h-2 rounded-full bg-green-500" />}
+                            {isActive && <div className="w-2.5 h-2.5 rounded-full bg-green-500" />}
                         </div>
                         <div className={`flex flex-col ${alignClass}`}>
                             <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-green-600' : 'text-gray-400'}`}>

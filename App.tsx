@@ -56,7 +56,7 @@ const BG_IMAGES = [
 ];
 
 // Current Version Timestamp
-const APP_VERSION = "V.24.11.2025-10:15";
+const APP_VERSION = "V.24.11.2025-11:00";
 
 // Item 8: Automatic Translation Detection
 const detectLanguage = (): Language => {
@@ -98,20 +98,22 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
         <div style={style} className="px-0 py-0.5">
              <div 
                 onDoubleClick={() => onSelect(c)}
-                className="flex items-center gap-3 text-[11px] px-2 py-1 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none leading-none h-auto"
+                className="flex items-center gap-2 text-[10px] px-2 py-0.5 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none leading-none h-auto min-h-[30px]"
              >
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 c.status === CaseStatus.APPROVED ? 'bg-green-500' : 
                 c.status === CaseStatus.PROTOCOL_RECEIVED ? 'bg-blue-500' : 
                 c.status === CaseStatus.SUBMITTED ? 'bg-gray-300' :
                 c.status === CaseStatus.CLOSED ? 'bg-red-500' : 'bg-orange-400'
                 }`} />
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <p className="font-bold text-de-black truncate mb-0.5">{c.fantasyName}</p>
-                    <p className="text-gray-500 truncate text-[10px]">{c.caseType}</p>
-                </div>
-                <div className="text-[10px] font-mono text-gray-400">
-                   {formatISODateToLocale(c.submissionDate, lang)}
+                <div className="flex-1 min-w-0 grid grid-cols-2 gap-1 items-center">
+                    <div className="truncate">
+                        <span className="font-bold text-de-black">{c.fantasyName}</span>
+                    </div>
+                    <div className="flex justify-end gap-2 text-gray-400 font-mono text-[9px]">
+                        <span className="truncate max-w-[60px]">{c.caseType}</span>
+                        <span>{formatISODateToLocale(c.submissionDate, lang)}</span>
+                    </div>
                 </div>
             </div>
         </div>
