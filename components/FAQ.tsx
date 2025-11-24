@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Language, CaseType } from '../types';
 import { TRANSLATIONS, BVA_LINK } from '../constants';
@@ -48,6 +49,11 @@ ${genName}`;
       navigator.clipboard.writeText(generatedEmail);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+  };
+
+  const getDateFormatPlaceholder = () => {
+    if (lang === 'de') return 'TT.MM.JJJJ';
+    return 'DD.MM.YYYY';
   };
 
   return (
@@ -149,9 +155,9 @@ ${genName}`;
                     />
                 </div>
                 <div className="space-y-1">
-                     <label className="text-xs font-bold text-gray-500">DOB (DD.MM.YYYY)</label>
+                     <label className="text-xs font-bold text-gray-500">DOB ({getDateFormatPlaceholder()})</label>
                     <input 
-                        type="text" placeholder="e.g. 01.05.1990" 
+                        type="text" placeholder={`e.g. ${lang === 'de' ? '01.05.1990' : '01.05.1990'}`}
                         value={genDob} onChange={e => setGenDob(e.target.value)}
                         className="w-full p-2 border rounded text-sm bg-white focus:ring-1 focus:ring-de-gold outline-none"
                     />

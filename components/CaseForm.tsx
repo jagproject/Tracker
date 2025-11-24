@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CitizenshipCase, CaseType, CaseStatus, Language } from '../types';
 import { COUNTRIES, TRANSLATIONS, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { Save, Loader2, AlertTriangle, CheckSquare, Square, Edit2, Share2, Download, Twitter, ChevronDown, Mail, Power, Facebook, Instagram } from 'lucide-react';
-import { getDaysDiff, formatISODateToLocale, formatDuration, formatDateTimeToLocale } from '../services/statsUtils';
+import { Save, Loader2, AlertTriangle, Edit2, Download, Twitter, ChevronDown, Mail, Power, Facebook, Instagram, Share2 } from 'lucide-react';
+import { getDaysDiff, formatISODateToLocale, formatDateTimeToLocale, formatDuration } from '../services/statsUtils';
 
 interface CaseFormProps {
   initialData?: CitizenshipCase;
@@ -48,15 +48,20 @@ const CustomDateInput: React.FC<CustomDateInputProps> = ({ label, name, value, o
 const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string, proto?: string, dec?: string }, lang: Language }> = ({ status, dates, lang }) => {
   const t = TRANSLATIONS[lang];
   
-  // Determine active step index
-  let activeStep = 0;
-  if (status === CaseStatus.PROTOCOL_RECEIVED) activeStep = 1;
-  if (status === CaseStatus.ADDITIONAL_DOCS) activeStep = 1; 
-  if (status === CaseStatus.APPROVED || status === CaseStatus.CLOSED) activeStep = 2;
+  // Logic: Calculate progress based on DATES specifically
+  let activeStep = 0; // 0 = Submitted, 1 = Protocol, 2 = Decision
+  
+  // If we have a protocol date, we are at least at step 1
+  if (dates.proto) {
+      activeStep = 1;
+  }
+  // If we have a decision date (approval or closed), we are at step 2
+  if (dates.dec) {
+      activeStep = 2;
+  }
 
   const today = new Date().toISOString().split('T')[0];
   
-  // Logic: Calculate duration BETWEEN nodes.
   // Node 0 (Sub) -> Node 1 (Proto)
   let duration1 = "";
   let isWaiting1 = false;
@@ -66,7 +71,7 @@ const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string,
           // Completed
           const diff = getDaysDiff(dates.sub, dates.proto);
           if (diff !== null && diff >= 0) duration1 = formatDuration(diff, lang);
-      } else if (activeStep < 1) {
+      } else if (!dates.proto) {
           // Waiting (submitted but no protocol yet)
           const diff = getDaysDiff(dates.sub, today);
           if (diff !== null && diff >= 0) {
@@ -85,7 +90,7 @@ const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string,
            // Completed
            const diff = getDaysDiff(dates.proto, dates.dec);
            if (diff !== null && diff >= 0) duration2 = formatDuration(diff, lang);
-      } else if (activeStep < 2) {
+      } else if (!dates.dec) {
           // Waiting (protocol received but no decision)
            const diff = getDaysDiff(dates.proto, today);
            if (diff !== null && diff >= 0) {
@@ -105,8 +110,9 @@ const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string,
     <div className="relative w-full py-10 mb-8 mt-2 px-4">
         {/* Connector Lines Layer */}
         <div className="absolute top-12 left-0 w-full h-1 bg-gray-100 -z-10 rounded"></div>
+        {/* GREEN PROGRESS LINE */}
         <div 
-            className="absolute top-12 left-0 h-1 bg-de-gold -z-10 rounded transition-all duration-1000" 
+            className="absolute top-12 left-0 h-1 bg-green-500 -z-10 rounded transition-all duration-1000" 
             style={{ width: `${(activeStep / 2) * 100}%` }}
         ></div>
         
@@ -152,7 +158,7 @@ const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string,
                     <div key={idx} className={`flex flex-col ${alignClass} w-1/3 relative`}>
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm border-4 mb-2 transition-colors z-10 bg-white ${
                             isActive 
-                                ? 'text-de-black border-de-gold' 
+                                ? 'text-de-black border-green-500' 
                                 : 'text-gray-400 border-gray-200'
                         } ${idx === 0 ? 'self-start' : idx === 2 ? 'self-end' : 'self-center'}`}>
                             {isCompleted ? '✓' : step.icon}
@@ -384,15 +390,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
       if (isDuplicate) setNameError(t.usernameTaken);
       else if (newName.length < 3) setNameError(t.usernameShort);
       else setNameError(null);
-  };
-
-  const toggleDocument = (doc: string) => {
-      const currentDocs = formData.documents || [];
-      if (currentDocs.includes(doc)) {
-          setFormData(prev => ({...prev, documents: currentDocs.filter(d => d !== doc)}));
-      } else {
-          setFormData(prev => ({...prev, documents: [...currentDocs, doc]}));
-      }
   };
 
   const handleDownloadCard = () => {
@@ -679,27 +676,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
             )}
         </div>
 
-        <div className="border-t border-gray-100 pt-4">
-            <label className={labelClass + " mb-3"}>{t.docsChecklist}</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {currentDocList.map(doc => (
-                    <div 
-                        key={doc} 
-                        onClick={() => !isMaintenanceMode && toggleDocument(doc)}
-                        className={`flex items-center gap-2 p-2 rounded cursor-pointer border transition-colors ${
-                            (formData.documents || []).includes(doc) 
-                            ? 'bg-green-50 border-green-200 text-green-900' 
-                            : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-600'
-                        } ${isMaintenanceMode ? 'opacity-50 pointer-events-none' : ''}`}
-                    >
-                        {(formData.documents || []).includes(doc) 
-                            ? <CheckSquare size={18} className="text-green-600" /> 
-                            : <Square size={18} className="text-gray-300" />}
-                        <span className="text-xs font-medium">{doc}</span>
-                    </div>
-                ))}
-            </div>
-        </div>
+        {/* Removed Documents Checklist as requested */}
 
         <div>
            <label className={labelClass}>{t.comments}</label>

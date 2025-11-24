@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Globe, 
@@ -41,7 +41,7 @@ import { FAQ } from './components/FAQ';
 import { AIModelTab } from './components/AIModelTab';
 import { CommunityFeed } from './components/CommunityFeed'; 
 import { SuccessTicker } from './components/SuccessTicker'; 
-import { TRANSLATIONS, COUNTRIES } from './constants';
+import { TRANSLATIONS, COUNTRIES, STATUS_TRANSLATIONS } from './constants';
 
 // High-quality, attractive German landscapes (No people, no sad concepts)
 const BG_IMAGES = [
@@ -56,7 +56,7 @@ const BG_IMAGES = [
 ];
 
 // Current Version Timestamp
-const APP_VERSION = "V.24.11.2025-10:00";
+const APP_VERSION = "V.24.11.2025-10:15";
 
 // Item 8: Automatic Translation Detection
 const detectLanguage = (): Language => {
@@ -86,26 +86,98 @@ const LanguageSelector = ({ lang, setLang }: { lang: Language, setLang: (l: Lang
 interface CaseRowData {
     cases: CitizenshipCase[];
     lang: Language;
+    onSelect: (c: CitizenshipCase) => void;
 }
 
-// Case Row Component (Removed Virtual Scrolling specific logic but kept prop structure)
+// Case Row Component - Compact Version (2 lines max)
 const CaseRow = ({ index, style, data }: { index: number, style: React.CSSProperties, data: CaseRowData }) => {
-    const { cases, lang } = data;
+    const { cases, lang, onSelect } = data;
     const c = cases[index];
     if (!c) return null;
     return (
         <div style={style} className="px-2 py-1">
-             <div className="flex items-center gap-3 text-sm p-2 hover:bg-gray-50 rounded transition-colors border border-gray-100 hover:border-de-gold h-full">
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+             <div 
+                onDoubleClick={() => onSelect(c)}
+                className="flex items-center gap-2 text-[10px] p-1 hover:bg-gray-50 rounded transition-colors border border-gray-100 hover:border-de-gold h-full cursor-pointer select-none"
+             >
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 c.status === CaseStatus.APPROVED ? 'bg-green-500' : 
                 c.status === CaseStatus.PROTOCOL_RECEIVED ? 'bg-blue-500' : 'bg-gray-300'
                 }`} />
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <p className="font-bold text-de-black truncate text-xs">{c.fantasyName}</p>
-                    <p className="text-[10px] text-gray-500 truncate">{c.caseType}</p>
+                <div className="flex-1 min-w-0 flex flex-col justify-center leading-tight">
+                    <p className="font-bold text-de-black truncate">{c.fantasyName}</p>
+                    <p className="text-gray-500 truncate">{c.caseType}</p>
                 </div>
-                <div className="text-[10px] font-mono bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap">
-                {formatISODateToLocale(c.submissionDate, lang)}
+                <div className="text-[10px] font-mono bg-gray-50 px-1 py-0.5 rounded whitespace-nowrap text-gray-400">
+                   {formatISODateToLocale(c.submissionDate, lang)}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Detail Modal
+const CaseDetailsModal = ({ caseData, onClose, lang }: { caseData: CitizenshipCase, onClose: () => void, lang: Language }) => {
+    const t = TRANSLATIONS[lang];
+    const statusT = STATUS_TRANSLATIONS[lang];
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="bg-de-black p-4 flex justify-between items-center text-white">
+                    <h3 className="font-bold flex items-center gap-2"><User size={18} /> {caseData.fantasyName}</h3>
+                    <button onClick={onClose}><X size={20} className="hover:text-de-gold" /></button>
+                </div>
+                <div className="p-6 space-y-4">
+                     <div className="grid grid-cols-2 gap-4 text-sm">
+                         <div>
+                             <span className="text-xs text-gray-500 font-bold uppercase block">{t.country}</span>
+                             <span className="font-medium">{caseData.countryOfApplication}</span>
+                         </div>
+                         <div>
+                             <span className="text-xs text-gray-500 font-bold uppercase block">{t.caseType}</span>
+                             <span className="font-medium">{caseData.caseType}</span>
+                         </div>
+                     </div>
+                     <div className="border-t border-gray-100 pt-3 space-y-2">
+                         <div className="flex justify-between">
+                            <span className="text-xs text-gray-500 font-bold uppercase">{t.submissionDate}</span>
+                            <span className="text-sm font-mono">{formatISODateToLocale(caseData.submissionDate, lang)}</span>
+                         </div>
+                         {caseData.protocolDate && (
+                             <div className="flex justify-between">
+                                <span className="text-xs text-gray-500 font-bold uppercase">{t.protocolDate}</span>
+                                <span className="text-sm font-mono text-blue-600">{formatISODateToLocale(caseData.protocolDate, lang)}</span>
+                             </div>
+                         )}
+                         {caseData.docsRequestDate && (
+                             <div className="flex justify-between">
+                                <span className="text-xs text-gray-500 font-bold uppercase">{t.docsDate}</span>
+                                <span className="text-sm font-mono text-orange-500">{formatISODateToLocale(caseData.docsRequestDate, lang)}</span>
+                             </div>
+                         )}
+                         {caseData.approvalDate && (
+                             <div className="flex justify-between bg-green-50 p-1 rounded">
+                                <span className="text-xs text-green-700 font-bold uppercase">{t.approvalDate}</span>
+                                <span className="text-sm font-mono text-green-700 font-bold">{formatISODateToLocale(caseData.approvalDate, lang)}</span>
+                             </div>
+                         )}
+                         {caseData.closedDate && (
+                             <div className="flex justify-between bg-red-50 p-1 rounded">
+                                <span className="text-xs text-red-700 font-bold uppercase">{t.closedDate}</span>
+                                <span className="text-sm font-mono text-red-700 font-bold">{formatISODateToLocale(caseData.closedDate, lang)}</span>
+                             </div>
+                         )}
+                     </div>
+                     <div className="border-t border-gray-100 pt-3 text-center">
+                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                            caseData.status === CaseStatus.APPROVED ? 'bg-green-100 text-green-800' :
+                            caseData.status === CaseStatus.CLOSED ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-600'
+                         }`}>
+                             {statusT[caseData.status] || caseData.status}
+                         </span>
+                     </div>
                 </div>
             </div>
         </div>
@@ -126,6 +198,7 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(detectLanguage); 
   const [showAdmin, setShowAdmin] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
+  const [selectedDetailCase, setSelectedDetailCase] = useState<CitizenshipCase | null>(null);
   
   // Dashboard Filters State (Hoisted from StatsCharts)
   const [filterCountry, setFilterCountry] = useState<string>('All');
@@ -674,6 +747,7 @@ const App: React.FC = () => {
     >
       <div className="min-h-screen bg-gray-50/70 backdrop-blur-sm">
       {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
+      {selectedDetailCase && <CaseDetailsModal caseData={selectedDetailCase} onClose={() => setSelectedDetailCase(null)} lang={lang} />}
 
       <nav className="bg-de-black/95 backdrop-blur text-white shadow-lg sticky top-0 z-50 border-b-4 border-de-red">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -828,7 +902,7 @@ const App: React.FC = () => {
                     <span className="text-de-red font-medium">{t.pausedCases}: {allCases.length - filterActiveCases(allCases).length}</span>
                 </div>
                 
-                {/* Virtual Scrolling removed due to dependency issues, fallback to standard scroll */}
+                {/* Compact List without Virtual Scrolling */}
                 <div className="border border-gray-100 rounded">
                     {filteredCases.length > 0 ? (
                         <div className="h-[400px] w-full overflow-y-auto">
@@ -837,7 +911,7 @@ const App: React.FC = () => {
                                     key={c.id || index} 
                                     index={index} 
                                     style={{}} 
-                                    data={{ cases: filteredCases, lang }} 
+                                    data={{ cases: filteredCases, lang, onSelect: setSelectedDetailCase }} 
                                 />
                             ))}
                         </div>
