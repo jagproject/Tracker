@@ -99,37 +99,29 @@ export const getDaysDiff = (start: string | undefined, end?: string): number | n
 
 // Detect Ghost Cases based on user requirements
 export const isGhostCase = (c: CitizenshipCase): boolean => {
-    // Ghost Logic:
-    // 1. Submitted (No AZ) > 1 year
-    // 2. Protocol Received (No Decision) > 4 years
-    
+    // Ghost Cases are only active/pending cases
+    // Ignore cases that are already closed/approved
+    if (c.status === CaseStatus.APPROVED || c.status === CaseStatus.CLOSED) return false;
+
     const now = new Date();
     const nowTime = now.getTime();
     const ONE_YEAR_MS = 1000 * 3600 * 24 * 365;
     const FOUR_YEARS_MS = ONE_YEAR_MS * 4;
 
-    // Criteria 1: Submitted but no Protocol for > 1 year
-    if (c.status === CaseStatus.SUBMITTED && !c.protocolDate && c.submissionDate) {
-        const subDate = new Date(c.submissionDate).getTime();
-        if (!isNaN(subDate) && (nowTime - subDate > ONE_YEAR_MS)) {
-            return true;
-        }
+    // Check dates validity
+    const subTime = c.submissionDate ? new Date(c.submissionDate).getTime() : NaN;
+    const protoTime = c.protocolDate ? new Date(c.protocolDate).getTime() : NaN;
+
+    // Rule 1: No Protocol Date AND Submission > 1 Year (Casos sin AZ hace más de un año)
+    // We assume if protocolDate is missing, they haven't received AZ.
+    if (!c.protocolDate && !isNaN(subTime)) {
+        if (nowTime - subTime > ONE_YEAR_MS) return true;
     }
 
-    // Criteria 2: Protocol received but no decision (Approved/Closed) for > 4 years
-    if (c.status === CaseStatus.PROTOCOL_RECEIVED && c.protocolDate) {
-        const protoDate = new Date(c.protocolDate).getTime();
-        if (!isNaN(protoDate) && (nowTime - protoDate > FOUR_YEARS_MS)) {
-            return true;
-        }
-    }
-    
-    // Edge case: Protocol received, no protocol date entered, but submission was > 5 years ago (fallback)
-    if (c.status === CaseStatus.PROTOCOL_RECEIVED && !c.protocolDate && c.submissionDate) {
-         const subDate = new Date(c.submissionDate).getTime();
-         if (!isNaN(subDate) && (nowTime - subDate > (ONE_YEAR_MS * 5))) {
-            return true;
-         }
+    // Rule 2: Protocol Date exists AND > 4 Years since AZ Date (Casos sin decision final hace más de 4 años desde la fecha de AZ)
+    // We already checked status is not APPROVED/CLOSED at the top.
+    if (c.protocolDate && !isNaN(protoTime)) {
+         if (nowTime - protoTime > FOUR_YEARS_MS) return true;
     }
 
     return false;
@@ -146,13 +138,13 @@ export const filterActiveCases = (cases: CitizenshipCase[]): CitizenshipCase[] =
       return true;
     }
 
-    // EXCLUDE GHOST CASES
+    // EXCLUDE GHOST CASES based on strict rules
     if (isGhostCase(c)) {
         return false;
     }
 
     // Standard "Stale" Check (Paused cases)
-    // If not updated in 12 months, exclude from active stats (but they are not technically "Ghost" by the new definition unless they match the criteria above)
+    // If not updated in 12 months, exclude from active stats (even if not technically a ghost by AZ definition)
     if (!c.lastUpdated) return true; 
     const lastUpdate = new Date(c.lastUpdated);
     const lastTime = lastUpdate.getTime();

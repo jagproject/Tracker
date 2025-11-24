@@ -105,14 +105,15 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
             - Avg Protocol to Approval: ${stats.avgDaysToApproval}
             
             EXTERNAL CONTEXT (IMPORTANT):
-            - Incorporate data from "FragDenStaat" official requests (e.g. file 1022140/monatsstatistik5.pdf) regarding StAG 5 prioritization vs backlog.
+            - Incorporate data from "FragDenStaat" official requests. specifically: https://fragdenstaat.de/anfrage/anfrage-zur-bearbeitungsdauer-von-antraegen-auf-staatsangehoerigkeit-gemaess-ss-5-stag-1/1022140/anhang/monatsstatistik5.pdf
+            - Check general inquiries: https://fragdenstaat.de/anfragen/
             - Consider trends from Reddit (r/GermanCitizenship) and Facebook groups regarding current BVA processing speeds for this specific case type.
-            - Ghost cases (no update > 1 year) are excluded from internal stats, so the internal stats are optimistic.
+            - Ghost cases (submitted > 1 year ago without protocol OR protocol > 4 years ago without decision) are excluded from internal stats, so the internal stats are optimistic.
             
             Your Task:
             Return a JSON object with a prediction.
             The "reasoning" field MUST be a detailed, comprehensive analysis of AT LEAST 500 WORDS in ${targetLang}.
-            It must discuss the specific delays, the impact of the new nationality law (StAG reform), comparisons between StAG 5 and Feststellung, and why the predicted date was chosen.
+            It must discuss the specific delays, the impact of the new nationality law (StAG reform), comparisons between StAG 5 and Feststellung, and why the predicted date was chosen based on the external sources.
             
             JSON Schema:
             {
