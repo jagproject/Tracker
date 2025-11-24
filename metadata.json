@@ -1,0 +1,5 @@
+{
+  "name": "German Citizenship Tracker",
+  "description": "Plataforma anónima de monitoreo estadístico para trámites de ciudadanía alemana (Art 116, StAG 15, StAG 5, Feststellung).",
+  "requestFramePermissions": []
+}
