@@ -44,131 +44,62 @@ const CustomDateInput: React.FC<CustomDateInputProps> = ({ label, name, value, o
     </div>
 );
 
-// --- Timeline Stepper (Revised) ---
+// --- Timeline Stepper (Green Line Logic) ---
 const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string, proto?: string, dec?: string }, lang: Language }> = ({ status, dates, lang }) => {
   const t = TRANSLATIONS[lang];
   
   // Logic: Calculate progress based on DATES specifically
-  let activeStep = 0; // 0 = Submitted, 1 = Protocol, 2 = Decision
+  // 0% = Just Submitted
+  // 50% = Protocol Date Entered
+  // 100% = Decision Date Entered
   
-  // If we have a protocol date, we are at least at step 1
-  if (dates.proto) {
-      activeStep = 1;
-  }
-  // If we have a decision date (approval or closed), we are at step 2
+  let progress = 0;
   if (dates.dec) {
-      activeStep = 2;
-  }
-
-  const today = new Date().toISOString().split('T')[0];
-  
-  // Node 0 (Sub) -> Node 1 (Proto)
-  let duration1 = "";
-  let isWaiting1 = false;
-
-  if (dates.sub) {
-      if (dates.proto) {
-          // Completed
-          const diff = getDaysDiff(dates.sub, dates.proto);
-          if (diff !== null && diff >= 0) duration1 = formatDuration(diff, lang);
-      } else if (!dates.proto) {
-          // Waiting (submitted but no protocol yet)
-          const diff = getDaysDiff(dates.sub, today);
-          if (diff !== null && diff >= 0) {
-              duration1 = formatDuration(diff, lang);
-              isWaiting1 = true;
-          }
-      }
-  }
-
-  // Node 1 (Proto) -> Node 2 (Decision)
-  let duration2 = "";
-  let isWaiting2 = false;
-
-  if (dates.proto) {
-      if (dates.dec) {
-           // Completed
-           const diff = getDaysDiff(dates.proto, dates.dec);
-           if (diff !== null && diff >= 0) duration2 = formatDuration(diff, lang);
-      } else if (!dates.dec) {
-          // Waiting (protocol received but no decision)
-           const diff = getDaysDiff(dates.proto, today);
-           if (diff !== null && diff >= 0) {
-               duration2 = formatDuration(diff, lang);
-               isWaiting2 = true;
-           }
-      }
+      progress = 100;
+  } else if (dates.proto) {
+      progress = 50;
   }
 
   const steps = [
-    { label: "Submitted", date: dates.sub, icon: "1" },
-    { label: "Protocol (AZ)", date: dates.proto, icon: "2" },
-    { label: "Decision", date: dates.dec, icon: "3" }
+    { label: "Submitted", date: dates.sub, active: true }, // Always active if we are viewing it
+    { label: "Protocol (AZ)", date: dates.proto, active: !!dates.proto },
+    { label: "Decision", date: dates.dec, active: !!dates.dec }
   ];
 
   return (
-    <div className="relative w-full py-10 mb-8 mt-2 px-4">
-        {/* Connector Lines Layer */}
-        <div className="absolute top-12 left-0 w-full h-1 bg-gray-100 -z-10 rounded"></div>
-        {/* GREEN PROGRESS LINE */}
+    <div className="relative w-full py-8 mb-6 mt-2 px-6">
+        {/* Background Line (Gray) */}
+        <div className="absolute top-10 left-6 right-6 h-1 bg-gray-200 rounded -z-10"></div>
+        
+        {/* Active Progress Line (Green) */}
         <div 
-            className="absolute top-12 left-0 h-1 bg-green-500 -z-10 rounded transition-all duration-1000" 
-            style={{ width: `${(activeStep / 2) * 100}%` }}
+            className="absolute top-10 left-6 h-1 bg-green-500 rounded -z-10 transition-all duration-700 ease-out" 
+            style={{ width: `calc((100% - 3rem) * ${progress / 100})` }}
         ></div>
         
-        {/* Durations Layer (Absolute Positioning relative to container width) */}
-        
-        {/* Duration 1: Centered at 25% (between 0 and 50%) */}
-        {duration1 && (
-             <div className="absolute top-12 left-[25%] transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
-                 <div className={`px-2 py-0.5 rounded border shadow-sm ${isWaiting1 ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-white border-gray-200 text-gray-600'}`}>
-                    <span className="text-[10px] font-bold whitespace-nowrap">{duration1}</span>
-                 </div>
-                 {isWaiting1 && (
-                    <span className="absolute top-full mt-1 text-[9px] text-blue-400 font-medium whitespace-nowrap bg-blue-50 px-1 rounded uppercase tracking-wide">
-                        {t.untilToday}
-                    </span>
-                 )}
-             </div>
-        )}
-
-        {/* Duration 2: Centered at 75% (between 50% and 100%) */}
-        {duration2 && (
-             <div className="absolute top-12 left-[75%] transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
-                 <div className={`px-2 py-0.5 rounded border shadow-sm ${isWaiting2 ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-white border-gray-200 text-gray-600'}`}>
-                    <span className="text-[10px] font-bold whitespace-nowrap">{duration2}</span>
-                 </div>
-                  {isWaiting2 && (
-                    <span className="absolute top-full mt-1 text-[9px] text-blue-400 font-medium whitespace-nowrap bg-blue-50 px-1 rounded uppercase tracking-wide">
-                         {t.untilToday}
-                    </span>
-                 )}
-             </div>
-        )}
-
         <div className="flex justify-between items-start w-full">
             {steps.map((step, idx) => {
-                const isActive = idx <= activeStep;
-                const isCompleted = idx < activeStep;
+                const isActive = step.active;
                 
                 // Align text
                 const alignClass = idx === 0 ? 'items-start text-left' : idx === 2 ? 'items-end text-right' : 'items-center text-center';
-                
+                const translate = idx === 0 ? 'translate-x-0' : idx === 2 ? 'translate-x-0' : 'translate-x-0'; // Flex handles pos, just alignment
+
                 return (
-                    <div key={idx} className={`flex flex-col ${alignClass} w-1/3 relative`}>
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm border-4 mb-2 transition-colors z-10 bg-white ${
+                    <div key={idx} className={`flex flex-col ${alignClass} w-1/3`}>
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center border-4 mb-2 transition-all duration-500 z-10 bg-white ${
                             isActive 
-                                ? 'text-de-black border-green-500' 
-                                : 'text-gray-400 border-gray-200'
+                                ? 'border-green-500 scale-110' 
+                                : 'border-gray-300'
                         } ${idx === 0 ? 'self-start' : idx === 2 ? 'self-end' : 'self-center'}`}>
-                            {isCompleted ? '✓' : step.icon}
+                            {isActive && <div className="w-2 h-2 rounded-full bg-green-500" />}
                         </div>
                         <div className={`flex flex-col ${alignClass}`}>
-                            <span className={`text-xs font-bold uppercase ${isActive ? 'text-de-black' : 'text-gray-400'}`}>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-green-600' : 'text-gray-400'}`}>
                                 {step.label}
                             </span>
                             <span className="text-[10px] text-gray-500 font-mono mt-0.5">
-                                {step.date ? formatISODateToLocale(step.date, lang) : '--'}
+                                {step.date ? formatISODateToLocale(step.date, lang) : ''}
                             </span>
                         </div>
                     </div>
@@ -195,7 +126,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
     documents: [] 
   });
 
-  const [currentDocList, setCurrentDocList] = useState<string[]>(COMMON_DOCS);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -226,13 +156,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
        setFormData(prev => ({...prev, fantasyName}));
     }
   }, [initialData, fantasyName]);
-
-  useEffect(() => {
-    if (formData.caseType) {
-        const list = CASE_SPECIFIC_DOCS[formData.caseType] || COMMON_DOCS;
-        setCurrentDocList(list);
-    }
-  }, [formData.caseType]);
 
   const cardSvgString = useMemo(() => {
     const statusColor = formData.status === CaseStatus.APPROVED ? "#10B981" : "#FFCC00";
@@ -675,8 +598,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
                  </div>
             )}
         </div>
-
-        {/* Removed Documents Checklist as requested */}
 
         <div>
            <label className={labelClass}>{t.comments}</label>

@@ -89,26 +89,28 @@ interface CaseRowData {
     onSelect: (c: CitizenshipCase) => void;
 }
 
-// Case Row Component - Compact Version (2 lines max)
-const CaseRow = ({ index, style, data }: { index: number, style: React.CSSProperties, data: CaseRowData }) => {
+// Case Row Component - Compact Version (Max 2 lines)
+const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseRowData }> = ({ index, style, data }) => {
     const { cases, lang, onSelect } = data;
     const c = cases[index];
     if (!c) return null;
     return (
-        <div style={style} className="px-2 py-1">
+        <div style={style} className="px-0 py-0.5">
              <div 
                 onDoubleClick={() => onSelect(c)}
-                className="flex items-center gap-2 text-[10px] p-1 hover:bg-gray-50 rounded transition-colors border border-gray-100 hover:border-de-gold h-full cursor-pointer select-none"
+                className="flex items-center gap-3 text-[11px] px-2 py-1 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none leading-none h-auto"
              >
-                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                 c.status === CaseStatus.APPROVED ? 'bg-green-500' : 
-                c.status === CaseStatus.PROTOCOL_RECEIVED ? 'bg-blue-500' : 'bg-gray-300'
+                c.status === CaseStatus.PROTOCOL_RECEIVED ? 'bg-blue-500' : 
+                c.status === CaseStatus.SUBMITTED ? 'bg-gray-300' :
+                c.status === CaseStatus.CLOSED ? 'bg-red-500' : 'bg-orange-400'
                 }`} />
-                <div className="flex-1 min-w-0 flex flex-col justify-center leading-tight">
-                    <p className="font-bold text-de-black truncate">{c.fantasyName}</p>
-                    <p className="text-gray-500 truncate">{c.caseType}</p>
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <p className="font-bold text-de-black truncate mb-0.5">{c.fantasyName}</p>
+                    <p className="text-gray-500 truncate text-[10px]">{c.caseType}</p>
                 </div>
-                <div className="text-[10px] font-mono bg-gray-50 px-1 py-0.5 rounded whitespace-nowrap text-gray-400">
+                <div className="text-[10px] font-mono text-gray-400">
                    {formatISODateToLocale(c.submissionDate, lang)}
                 </div>
             </div>

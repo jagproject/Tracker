@@ -52,8 +52,23 @@ ${genName}`;
   };
 
   const getDateFormatPlaceholder = () => {
-    if (lang === 'de') return 'TT.MM.JJJJ';
-    return 'DD.MM.YYYY';
+    switch(lang) {
+        case 'de': return 'TT.MM.JJJJ';
+        case 'es': return 'DD/MM/AAAA';
+        case 'it': return 'GG/MM/AAAA';
+        case 'pt': return 'DD/MM/AAAA';
+        default: return 'DD/MM/YYYY';
+    }
+  };
+
+  const getDateFormatExample = () => {
+    switch(lang) {
+        case 'de': return '01.05.1990';
+        case 'es': return '01/05/1990';
+        case 'it': return '01/05/1990';
+        case 'pt': return '01/05/1990';
+        default: return '01/05/1990';
+    }
   };
 
   return (
@@ -157,7 +172,7 @@ ${genName}`;
                 <div className="space-y-1">
                      <label className="text-xs font-bold text-gray-500">DOB ({getDateFormatPlaceholder()})</label>
                     <input 
-                        type="text" placeholder={`e.g. ${lang === 'de' ? '01.05.1990' : '01.05.1990'}`}
+                        type="text" placeholder={`e.g. ${getDateFormatExample()}`}
                         value={genDob} onChange={e => setGenDob(e.target.value)}
                         className="w-full p-2 border rounded text-sm bg-white focus:ring-1 focus:ring-de-gold outline-none"
                     />
