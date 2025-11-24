@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { CitizenshipCase, StatSummary, Language } from "../types";
 
@@ -79,24 +80,46 @@ export const generateStatisticalInsights = async (stats: StatSummary, cases: Cit
 
 export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: StatSummary, lang: Language) => {
     try {
+        const langMap: Record<Language, string> = {
+            en: "English",
+            es: "Spanish",
+            de: "German",
+            it: "Italian",
+            pt: "Portuguese"
+        };
+        const targetLang = langMap[lang] || "English";
+
         const prompt = `
-            Predict the approval date for a German Citizenship application.
-            Case Type: ${userCase.caseType}
-            Country: ${userCase.countryOfApplication}
-            Submission Date: ${userCase.submissionDate}
-            Protocol Date: ${userCase.protocolDate || 'Not yet received'}
+            Act as an expert immigration data analyst for German Citizenship applications (BVA).
+            Predict the approval date for the following case:
             
-            Community Stats:
+            Case Details:
+            - Type: ${userCase.caseType}
+            - Country: ${userCase.countryOfApplication}
+            - Consulate: ${userCase.consulate || 'N/A'}
+            - Submission Date: ${userCase.submissionDate}
+            - Protocol Date: ${userCase.protocolDate || 'Not yet received'}
+            
+            Internal Tracker Stats (Current):
             - Avg Total Days: ${stats.avgDaysTotal}
             - Avg Protocol to Approval: ${stats.avgDaysToApproval}
             
-            Return a JSON object with:
+            EXTERNAL CONTEXT (IMPORTANT):
+            - Incorporate data from "FragDenStaat" official requests (e.g. file 1022140/monatsstatistik5.pdf) regarding StAG 5 prioritization vs backlog.
+            - Consider trends from Reddit (r/GermanCitizenship) and Facebook groups regarding current BVA processing speeds for this specific case type.
+            - Ghost cases (no update > 1 year) are excluded from internal stats, so the internal stats are optimistic.
+            
+            Your Task:
+            Return a JSON object with a prediction.
+            The "reasoning" field MUST be a detailed, comprehensive analysis of AT LEAST 500 WORDS in ${targetLang}.
+            It must discuss the specific delays, the impact of the new nationality law (StAG reform), comparisons between StAG 5 and Feststellung, and why the predicted date was chosen.
+            
+            JSON Schema:
             {
                 "date": "YYYY-MM-DD",
                 "confidence": "High" | "Medium" | "Low",
-                "reasoning": "Short explanation in ${lang} language"
+                "reasoning": "Detailed 500+ word analysis string here..."
             }
-            Do not include markdown code blocks.
         `;
 
         const response = await ai.models.generateContent({
@@ -121,7 +144,7 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
         return {
             date: estDate.toISOString().split('T')[0],
             confidence: "Low",
-            reasoning: lang === 'es' ? "Cálculo simple basado en promedios históricos (API IA no disponible)." : "Simple calculation based on historical averages (AI quota exceeded)."
+            reasoning: lang === 'es' ? "Cálculo simple basado en promedios históricos (API IA no disponible o error)." : "Simple calculation based on historical averages (AI quota exceeded or error)."
         };
     }
 };

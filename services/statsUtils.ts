@@ -97,25 +97,69 @@ export const getDaysDiff = (start: string | undefined, end?: string): number | n
   }
 };
 
-// Filter out stale cases
+// Detect Ghost Cases based on user requirements
+export const isGhostCase = (c: CitizenshipCase): boolean => {
+    // Ghost Logic:
+    // 1. Submitted (No AZ) > 1 year
+    // 2. Protocol Received (No Decision) > 4 years
+    
+    const now = new Date();
+    const nowTime = now.getTime();
+    const ONE_YEAR_MS = 1000 * 3600 * 24 * 365;
+    const FOUR_YEARS_MS = ONE_YEAR_MS * 4;
+
+    // Criteria 1: Submitted but no Protocol for > 1 year
+    if (c.status === CaseStatus.SUBMITTED && !c.protocolDate && c.submissionDate) {
+        const subDate = new Date(c.submissionDate).getTime();
+        if (!isNaN(subDate) && (nowTime - subDate > ONE_YEAR_MS)) {
+            return true;
+        }
+    }
+
+    // Criteria 2: Protocol received but no decision (Approved/Closed) for > 4 years
+    if (c.status === CaseStatus.PROTOCOL_RECEIVED && c.protocolDate) {
+        const protoDate = new Date(c.protocolDate).getTime();
+        if (!isNaN(protoDate) && (nowTime - protoDate > FOUR_YEARS_MS)) {
+            return true;
+        }
+    }
+    
+    // Edge case: Protocol received, no protocol date entered, but submission was > 5 years ago (fallback)
+    if (c.status === CaseStatus.PROTOCOL_RECEIVED && !c.protocolDate && c.submissionDate) {
+         const subDate = new Date(c.submissionDate).getTime();
+         if (!isNaN(subDate) && (nowTime - subDate > (ONE_YEAR_MS * 5))) {
+            return true;
+         }
+    }
+
+    return false;
+};
+
+// Filter out stale and ghost cases
 export const filterActiveCases = (cases: CitizenshipCase[]): CitizenshipCase[] => {
   const now = new Date();
   const nowTime = now.getTime();
   
   return cases.filter(c => {
-    // Keep Approved and Closed cases for history/stats, even if they are old.
-    // This ensures stats like "Total Time" include all completed cases.
+    // Always include Completed cases for historical stats, unless they are ancient ghosts (though typically we keep history)
     if (c.status === CaseStatus.APPROVED || c.status === CaseStatus.CLOSED) {
       return true;
     }
 
-    if (!c.lastUpdated) return true; // Keep if no date to be safe
+    // EXCLUDE GHOST CASES
+    if (isGhostCase(c)) {
+        return false;
+    }
+
+    // Standard "Stale" Check (Paused cases)
+    // If not updated in 12 months, exclude from active stats (but they are not technically "Ghost" by the new definition unless they match the criteria above)
+    if (!c.lastUpdated) return true; 
     const lastUpdate = new Date(c.lastUpdated);
     const lastTime = lastUpdate.getTime();
     
-    if (isNaN(lastTime)) return true; // Keep if invalid date
+    if (isNaN(lastTime)) return true; 
 
-    // Only filter out PENDING cases that are stale (> 1 year no update)
+    // Filter out cases not updated in > 1 year (Standard Stale Rule)
     const diffDays = (nowTime - lastTime) / (1000 * 3600 * 24);
     return diffDays <= 365;
   });

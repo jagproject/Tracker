@@ -26,12 +26,13 @@ import {
   Filter,
   Search,
   UserPlus,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Ghost
 } from 'lucide-react';
 import { CitizenshipCase, UserSession, CaseType, CaseStatus, Language } from './types';
 import { generateFantasyUsername, generateStatisticalInsights } from './services/geminiService';
 import { getCases, getCaseByEmail, upsertCase, getCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig } from './services/storageService';
-import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickStats, formatISODateToLocale } from './services/statsUtils';
+import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickStats, formatISODateToLocale, isGhostCase } from './services/statsUtils';
 import { logoutUser, subscribeToAuthChanges, isSupabaseEnabled } from './services/authService';
 import { StatsDashboard } from './components/StatsCharts';
 import { WorldMapStats } from './components/WorldMapStats';
@@ -56,7 +57,7 @@ const BG_IMAGES = [
 ];
 
 // Current Version Timestamp
-const APP_VERSION = "V.24.11.2025-11:05";
+const APP_VERSION = "V.24.11.2025-13:00";
 
 // Item 8: Automatic Translation Detection
 const detectLanguage = (): Language => {
@@ -94,6 +95,10 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
     const { cases, lang, onSelect } = data;
     const c = cases[index];
     if (!c) return null;
+    
+    // Check if ghost
+    const isGhost = isGhostCase(c);
+
     return (
         <div style={style} className="px-0">
              <div 
@@ -107,7 +112,10 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
                 c.status === CaseStatus.CLOSED ? 'bg-red-500' : 'bg-orange-400'
                 }`} />
                 <div className="flex-1 min-w-0 flex items-center justify-between">
-                    <span className="font-bold text-de-black text-sm truncate mr-2">{c.fantasyName}</span>
+                    <span className="font-bold text-de-black text-sm truncate mr-2 flex items-center gap-2">
+                        {c.fantasyName}
+                        {isGhost && <Ghost size={12} className="text-gray-300" title="Ghost Case (Inactive)" />}
+                    </span>
                     <div className="flex items-center gap-4 text-gray-500 text-xs whitespace-nowrap">
                         <span className="truncate max-w-[120px] hidden sm:inline-block bg-gray-100 px-2 py-1 rounded border border-gray-200">{c.caseType}</span>
                         <span className="font-mono">{formatISODateToLocale(c.submissionDate, lang)}</span>
@@ -122,6 +130,7 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
 const CaseDetailsModal = ({ caseData, onClose, lang }: { caseData: CitizenshipCase, onClose: () => void, lang: Language }) => {
     const t = TRANSLATIONS[lang];
     const statusT = STATUS_TRANSLATIONS[lang];
+    const isGhost = isGhostCase(caseData);
 
     return (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
@@ -131,6 +140,12 @@ const CaseDetailsModal = ({ caseData, onClose, lang }: { caseData: CitizenshipCa
                     <button onClick={onClose}><X size={20} className="hover:text-de-gold" /></button>
                 </div>
                 <div className="p-6 space-y-4">
+                     {isGhost && (
+                        <div className="bg-gray-100 p-3 rounded border border-gray-200 text-xs text-gray-500 flex items-center gap-2">
+                            <Ghost size={16} />
+                            <span>This case is categorized as a "Ghost Case" due to long inactivity (No Protocol {'>'} 1yr or No Decision {'>'} 4yrs).</span>
+                        </div>
+                     )}
                      <div className="grid grid-cols-2 gap-4 text-sm">
                          <div>
                              <span className="text-xs text-gray-500 font-bold uppercase block">{t.country}</span>
@@ -285,6 +300,11 @@ const App: React.FC = () => {
     }
     return filtered;
   }, [allCases, filterCountry, filterMonth, filterYear, filterType]);
+
+  // Compute Ghost Count
+  const ghostCount = useMemo(() => {
+     return allCases.filter(c => isGhostCase(c)).length;
+  }, [allCases]);
 
   // Compute Unclaimed Cases for Search
   const unclaimedCases = useMemo(() => {
@@ -901,7 +921,14 @@ const App: React.FC = () => {
                 <h3 className="text-lg font-bold text-de-black mb-4 border-b pb-2">{t.activeCases}</h3>
                 <div className="flex justify-between text-sm mb-4">
                     <span className="text-gray-500">{t.showing} {filteredCases.length}</span>
-                    <span className="text-de-red font-medium">{t.pausedCases}: {allCases.length - filterActiveCases(allCases).length}</span>
+                    <div className="flex gap-4">
+                        <span className="text-de-red font-medium">{t.pausedCases}: {allCases.length - filteredCases.length - ghostCount}</span>
+                        {ghostCount > 0 && (
+                            <span className="text-gray-400 font-medium flex items-center gap-1">
+                                <Ghost size={14} /> Ghost Cases: {ghostCount}
+                            </span>
+                        )}
+                    </div>
                 </div>
                 
                 {/* List without Virtual Scrolling */}
