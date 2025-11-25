@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square } from 'lucide-react';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
 import { TRANSLATIONS, COUNTRIES, CASE_SPECIFIC_DOCS, COMMON_DOCS } from '../constants';
-import { importCases, getCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode } from '../services/storageService';
+import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode } from '../services/storageService';
 import { generateFantasyUsername } from '../services/geminiService';
 
 interface AdminToolsProps {
@@ -34,11 +34,15 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const SECRET_KEY = "Alemania2023.tracker!project"; 
 
   useEffect(() => {
-    if (authState === 'AUTHENTICATED') {
-      setAuditLogs(getAuditLogs());
-      setAllCases(getCases());
-      setMaintenanceEnabled(getAppConfig().maintenanceMode);
-    }
+    const initData = async () => {
+        if (authState === 'AUTHENTICATED') {
+            setAuditLogs(getAuditLogs());
+            const cases = await fetchCases();
+            setAllCases(cases);
+            setMaintenanceEnabled(getAppConfig().maintenanceMode);
+        }
+    };
+    initData();
   }, [authState, activeTab]);
 
   const handleSendCode = (e: React.FormEvent) => {
@@ -70,8 +74,8 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   };
 
   // 1. CSV Export
-  const handleExport = () => {
-    const cases = getCases();
+  const handleExport = async () => {
+    const cases = await fetchCases();
     if (cases.length === 0) return;
 
     const headers = [
@@ -202,11 +206,11 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
             newCases.push(newCase);
         }
 
-        importCases(newCases);
+        await importCases(newCases);
         setImportStatus({ success: true, msg: `${newCases.length} ${t.successImport}` });
         addAuditLog("Import", `Imported ${newCases.length} cases via CSV`, email);
         onDataChange();
-        setAllCases(getCases()); // Refresh local list
+        setAllCases(await fetchCases()); // Refresh local list
 
       } catch (err) {
         console.error(err);
@@ -219,9 +223,9 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   };
 
   // 4. Clear Data
-  const handleClearData = () => {
+  const handleClearData = async () => {
     if (window.confirm("WARNING: This will delete ALL cases from the database. This cannot be undone. Are you sure?")) {
-      clearAllData();
+      await clearAllData();
       addAuditLog("Reset", "Administrator cleared all database records", email);
       onDataChange();
       setAllCases([]);
@@ -230,11 +234,11 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   };
 
   // 5. Delete Single Case
-  const handleDeleteCase = (id: string, fantasyName: string) => {
+  const handleDeleteCase = async (id: string, fantasyName: string) => {
     if (window.confirm(`Are you sure you want to delete case for "${fantasyName}"?`)) {
-      deleteCase(id);
+      await deleteCase(id);
       addAuditLog("Delete Case", `Deleted case: ${fantasyName}`, email);
-      setAllCases(getCases());
+      setAllCases(await fetchCases());
       onDataChange();
     }
   };
@@ -244,11 +248,11 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     setEditForm({...c}); // Clone to avoid direct mutation
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editForm) return;
-    upsertCase(editForm);
+    await upsertCase(editForm);
     addAuditLog("Edit Case", `Admin edited case: ${editForm.fantasyName}`, email);
-    setAllCases(getCases());
+    setAllCases(await fetchCases());
     onDataChange();
     setEditForm(null);
   };

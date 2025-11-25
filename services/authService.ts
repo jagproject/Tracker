@@ -1,23 +1,37 @@
 
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 
-// Environment variables for Supabase
-// We are using the provided credentials directly as requested.
-const ENV_URL = (import.meta as any).env?.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://eimbiasiarimsxfzqzsk.supabase.co";
-const ENV_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpbWJpYXNpYXJpbXN4ZnpxenNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4NTI5NDMsImV4cCI6MjA3OTQyODk0M30._2Me8VNWyPv6OeC_p3LHt-tcq5NcF27Fqc_78_oWuF8";
+// ------------------------------------------------------------------
+// CONFIGURACIÓN DE SUPABASE (BASE DE DATOS)
+// ------------------------------------------------------------------
+// INSTRUCCIONES:
+// 1. Ve a tu Dashboard de Supabase -> Settings -> API.
+// 2. Copia la "Project URL" y pégala en MANUAL_URL.
+// 3. Copia la "anon public key" y pégala en MANUAL_KEY.
+// ------------------------------------------------------------------
+
+const MANUAL_URL = "https://jnauwnljmlurqtziqqch.supabase.co"; 
+const MANUAL_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpuYXV3bmxqbWx1cnF0emlxcWNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwMjA3OTQsImV4cCI6MjA3OTU5Njc5NH0.x2AUqWSlAnsyMuiqQ4eHPr4czpwh0W978ZQOWuMIhnk";
+
+// Intentamos leer de variables de entorno primero (Best Practice), si no, usamos las manuales.
+const ENV_URL = (import.meta as any).env?.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || MANUAL_URL;
+const ENV_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || MANUAL_KEY;
 
 const isConfigured = !!(ENV_URL && ENV_KEY && ENV_URL.startsWith('http'));
 
-let supabase: SupabaseClient | null = null;
+// Exporting supabase instance for use in storageService
+export let supabase: SupabaseClient | null = null;
 
 if (isConfigured) {
     try {
         supabase = createClient(ENV_URL, ENV_KEY);
-        console.log("Supabase Client Initialized");
+        console.log("✅ Supabase Client Initialized");
     } catch (e) {
-        console.error("Failed to init Supabase", e);
+        console.error("❌ Failed to init Supabase", e);
         supabase = null;
     }
+} else {
+    console.warn("⚠️ Supabase Credentials missing. App running in Offline/Mock mode.");
 }
 
 export const isSupabaseEnabled = () => !!supabase;
@@ -33,7 +47,6 @@ export const loginWithEmail = async (email: string) => {
         return { error, isMock: false };
     } else {
         // Fallback Mock Behavior
-        console.warn("Supabase not configured. Using Mock Auth.");
         await new Promise(resolve => setTimeout(resolve, 1000));
         return { error: null, isMock: true };
     }
@@ -50,7 +63,6 @@ export const loginWithGoogle = async () => {
         return { data, error, isMock: false };
     } else {
         // Fallback Mock Behavior
-        console.warn("Supabase not configured. Using Mock Google Auth.");
         return { data: null, error: null, isMock: true };
     }
 };

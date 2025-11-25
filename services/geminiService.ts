@@ -104,16 +104,22 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
             - Avg Total Days: ${stats.avgDaysTotal}
             - Avg Protocol to Approval: ${stats.avgDaysToApproval}
             
-            EXTERNAL CONTEXT (IMPORTANT):
-            - Incorporate data from "FragDenStaat" official requests. specifically: https://fragdenstaat.de/anfrage/anfrage-zur-bearbeitungsdauer-von-antraegen-auf-staatsangehoerigkeit-gemaess-ss-5-stag-1/1022140/anhang/monatsstatistik5.pdf
-            - Check general inquiries: https://fragdenstaat.de/anfragen/
-            - Consider trends from Reddit (r/GermanCitizenship) and Facebook groups regarding current BVA processing speeds for this specific case type.
-            - Ghost cases (submitted > 1 year ago without protocol OR protocol > 4 years ago without decision) are excluded from internal stats, so the internal stats are optimistic.
+            EXTERNAL CONTEXT (CRITICAL):
+            1. You MUST incorporate data from the official "FragDenStaat" request: 
+               URL: https://fragdenstaat.de/anfrage/anfrage-zur-bearbeitungsdauer-von-antraegen-auf-staatsangehoerigkeit-gemaess-ss-5-stag-1/1022140/anhang/monatsstatistik5.pdf
+            2. Consider recent anecdotal evidence from r/GermanCitizenship (Reddit) and Facebook Groups.
+            3. "Ghost Cases" (submitted > 1yr ago without protocol OR protocol > 4yrs ago without decision) are excluded from the internal stats provided above. Therefore, the internal stats might be optimistic.
             
             Your Task:
             Return a JSON object with a prediction.
-            The "reasoning" field MUST be a detailed, comprehensive analysis of AT LEAST 500 WORDS in ${targetLang}.
-            It must discuss the specific delays, the impact of the new nationality law (StAG reform), comparisons between StAG 5 and Feststellung, and why the predicted date was chosen based on the external sources.
+            
+            IMPORTANT: The "reasoning" field MUST be a detailed, comprehensive analysis of AT LEAST 500 WORDS in ${targetLang}. 
+            
+            In the reasoning:
+            - Analyze the specific delays for ${userCase.caseType}.
+            - Compare StAG 5 vs Feststellung processing times based on the PDF.
+            - Explain why the predicted date was chosen.
+            - Discuss the impact of the new StAG laws.
             
             JSON Schema:
             {

@@ -1,9 +1,12 @@
 
 import { CitizenshipCase, CaseType, CaseStatus, AuditLogEntry } from "../types";
+import { supabase, isSupabaseEnabled } from "./authService";
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 const STORAGE_KEY = 'de_citizenship_cases';
 const LOGS_KEY = 'de_citizenship_audit_logs';
 const CONFIG_KEY = 'de_citizenship_config';
+const DB_TABLE = 'cases';
 
 export interface AppConfig {
     maintenanceMode: boolean;
@@ -69,126 +72,188 @@ const generateMockData = (): CitizenshipCase[] => {
   return mockCases;
 };
 
-export const getCases = (): CitizenshipCase[] => {
+// --- READ OPERATIONS ---
+
+export const fetchCases = async (): Promise<CitizenshipCase[]> => {
+  // 1. Try Supabase
+  if (supabase) {
+    try {
+        const { data, error } = await supabase.from(DB_TABLE).select('*');
+        if (error) {
+            console.error("Supabase Error:", error.message);
+            throw error;
+        }
+        if (data) {
+            return data as CitizenshipCase[];
+        }
+    } catch (e) {
+        console.warn("Supabase fetch failed. Ensure table 'cases' exists.", e);
+        // If Supabase is configured but fails, we might return empty or local depending on strategy.
+        // For now, let's fall back to local to prevent crash.
+    }
+  }
+
+  // 2. Fallback to LocalStorage
   const stored = localStorage.getItem(STORAGE_KEY);
   if (!stored) {
-    const mocks = generateMockData();
-    saveCases(mocks);
-    return mocks;
+    // Only generate mocks if Supabase is NOT enabled. 
+    // If Supabase IS enabled but returned no data (or error), we probably want to see "No cases" rather than fake data.
+    if (!isSupabaseEnabled()) {
+        const mocks = generateMockData();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mocks));
+        return mocks;
+    }
+    return [];
   }
   return JSON.parse(stored);
 };
 
-export const saveCases = (cases: CitizenshipCase[]) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
+export const fetchCaseByEmail = async (email: string): Promise<CitizenshipCase | undefined> => {
+    const searchEmail = email.trim().toLowerCase();
+    
+    // 1. Try Supabase
+    if (supabase) {
+        const { data } = await supabase.from(DB_TABLE).select('*').eq('email', searchEmail).maybeSingle();
+        if (data) return data as CitizenshipCase;
+    }
+
+    // 2. Fallback Local
+    const cases = await fetchCases(); 
+    return cases.find(c => c.email.trim().toLowerCase() === searchEmail);
 };
 
-export const upsertCase = (newCase: CitizenshipCase) => {
-  const cases = getCases();
-  // Strictly normalize the input email to prevent duplicates or lookup failures
+export const fetchCaseByFantasyName = async (name: string): Promise<CitizenshipCase | undefined> => {
+    const searchName = name.trim().toLowerCase();
+
+    // 1. Try Supabase
+    if (supabase) {
+        // Note: ilike is case-insensitive matching
+        const { data } = await supabase.from(DB_TABLE).select('*').ilike('fantasyName', searchName).maybeSingle();
+        if (data) return data as CitizenshipCase;
+    }
+
+    // 2. Fallback Local
+    const cases = await fetchCases();
+    return cases.find(c => c.fantasyName.trim().toLowerCase() === searchName);
+};
+
+// --- WRITE OPERATIONS ---
+
+export const upsertCase = async (newCase: CitizenshipCase) => {
+  // Strictly normalize the input email
   const normalizedNewEmail = newCase.email.trim().toLowerCase();
-  
-  // Ensure the object being saved has the clean email
   const caseToSave = { ...newCase, email: normalizedNewEmail };
 
-  const index = cases.findIndex(c => 
-    c.id === caseToSave.id || 
-    c.email.trim().toLowerCase() === normalizedNewEmail
-  );
+  // 1. Try Supabase
+  if (supabase) {
+      const { error } = await supabase.from(DB_TABLE).upsert(caseToSave);
+      if (error) console.error("Supabase Upsert Error:", error);
+  }
+
+  // 2. Always update LocalStorage (for offline redundancy or current session speed)
+  // Note: We need to fetch local first to merge properly in local context
+  const stored = localStorage.getItem(STORAGE_KEY);
+  let cases: CitizenshipCase[] = stored ? JSON.parse(stored) : [];
   
+  const index = cases.findIndex(c => c.id === caseToSave.id || c.email === normalizedNewEmail);
   if (index >= 0) {
     cases[index] = { ...cases[index], ...caseToSave }; 
   } else {
     cases.push(caseToSave);
   }
-  saveCases(cases);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
 };
 
-export const deleteCase = (id: string) => {
-  const cases = getCases();
-  const filteredCases = cases.filter(c => c.id !== id);
-  saveCases(filteredCases);
+export const deleteCase = async (id: string) => {
+  // 1. Try Supabase
+  if (supabase) {
+      await supabase.from(DB_TABLE).delete().eq('id', id);
+  }
+
+  // 2. Update Local
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+      const cases: CitizenshipCase[] = JSON.parse(stored);
+      const filteredCases = cases.filter(c => c.id !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(filteredCases));
+  }
 };
 
-// New function for Bulk Import
-export const importCases = (newCases: CitizenshipCase[]) => {
-  const currentCases = getCases();
-  
-  newCases.forEach(imported => {
-    // Ensure ID exists
-    if (!imported.id) imported.id = crypto.randomUUID();
-    // Ensure lastUpdated exists
-    if (!imported.lastUpdated) imported.lastUpdated = new Date().toISOString();
-    
-    // Sanitize email (Trim and Lowercase for consistency)
-    if (imported.email) {
-        imported.email = imported.email.trim().toLowerCase();
-    } else {
-        // If import has empty email, ensure it is set to a placeholder
-        imported.email = `unclaimed_${imported.id}@tracker.local`;
-    }
+export const importCases = async (newCases: CitizenshipCase[]) => {
+  const processedCases = newCases.map(c => ({
+      ...c,
+      id: c.id || crypto.randomUUID(),
+      lastUpdated: c.lastUpdated || new Date().toISOString(),
+      email: c.email ? c.email.trim().toLowerCase() : `unclaimed_${c.id || crypto.randomUUID()}@tracker.local`
+  }));
 
-    // If importing a case that might have a duplicate email, update it.
-    const existingIndex = currentCases.findIndex(c => 
-        c.email.trim().toLowerCase() === imported.email // already lowercased above
-    );
-    
-    if (existingIndex >= 0) {
-      currentCases[existingIndex] = { ...currentCases[existingIndex], ...imported };
-    } else {
-      currentCases.push(imported);
-    }
+  // 1. Try Supabase (Bulk Insert/Upsert)
+  if (supabase) {
+      const { error } = await supabase.from(DB_TABLE).upsert(processedCases);
+      if (error) console.error("Bulk Import Error:", error);
+  }
+
+  // 2. Update Local
+  const stored = localStorage.getItem(STORAGE_KEY);
+  let currentCases: CitizenshipCase[] = stored ? JSON.parse(stored) : [];
+
+  processedCases.forEach(imported => {
+     const existingIndex = currentCases.findIndex(c => c.email === imported.email);
+     if (existingIndex >= 0) {
+         currentCases[existingIndex] = { ...currentCases[existingIndex], ...imported };
+     } else {
+         currentCases.push(imported);
+     }
   });
-
-  saveCases(currentCases);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(currentCases));
 };
 
-export const getCaseByEmail = (email: string): CitizenshipCase | undefined => {
-  const cases = getCases();
-  const searchEmail = email.trim().toLowerCase();
-  return cases.find(c => c.email.trim().toLowerCase() === searchEmail);
+export const clearAllData = async () => {
+    // 1. Try Supabase
+    if (supabase) {
+        await supabase.from(DB_TABLE).delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all not matching impossible ID
+    }
+
+    // 2. Local
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([])); 
 };
 
-// Find a case by fantasy name (case-insensitive)
-export const getCaseByFantasyName = (name: string): CitizenshipCase | undefined => {
-  const cases = getCases();
-  return cases.find(c => c.fantasyName.trim().toLowerCase() === name.trim().toLowerCase());
+// --- REALTIME SUBSCRIPTIONS ---
+
+export const subscribeToCases = (onUpdate: () => void): RealtimeChannel | null => {
+  if (supabase) {
+      return supabase
+          .channel('public:cases')
+          .on('postgres_changes', { event: '*', schema: 'public', table: DB_TABLE }, (payload) => {
+              onUpdate();
+          })
+          .subscribe();
+  }
+  return null;
 };
 
-// Check if a case is a placeholder/unclaimed case
+// --- UTILS ---
+
 export const isCaseUnclaimed = (c: CitizenshipCase): boolean => {
     return c.email.startsWith('unclaimed_');
 };
 
-// Claims an "unclaimed" case (placeholder email) with a real user email
-export const claimCase = (originalCase: CitizenshipCase, newEmail: string): CitizenshipCase => {
-    const cases = getCases();
-    const index = cases.findIndex(c => c.id === originalCase.id);
+export const claimCase = async (originalCase: CitizenshipCase, newEmail: string): Promise<CitizenshipCase> => {
     const cleanEmail = newEmail.trim().toLowerCase();
     
-    if (index >= 0) {
-        const updatedCase = {
-            ...cases[index],
-            email: cleanEmail, // CRITICAL: Ensure this is the clean real email
-            lastUpdated: new Date().toISOString()
-        };
-        cases[index] = updatedCase;
-        saveCases(cases);
-        return updatedCase;
-    }
-    return originalCase;
+    const updatedCase = {
+        ...originalCase,
+        email: cleanEmail,
+        lastUpdated: new Date().toISOString()
+    };
+
+    await upsertCase(updatedCase);
+    return updatedCase;
 };
 
-// Clear all data (Danger Zone)
-export const clearAllData = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    // We don't clear logs/audit trail usually, but for a hard reset:
-    // localStorage.removeItem(LOGS_KEY); 
-    // Let's strictly clear cases only to allow re-import
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([])); 
-};
 
-// --- Audit Logs ---
+// --- Audit Logs (Keep Local for now to avoid DB spam, or move to DB if preferred) ---
 
 export const getAuditLogs = (): AuditLogEntry[] => {
   const stored = localStorage.getItem(LOGS_KEY);
@@ -204,12 +269,11 @@ export const addAuditLog = (action: string, details: string, user: string = 'Sys
     details,
     user
   };
-  // Keep last 100 logs to prevent quota issues
   const updatedLogs = [newLog, ...logs].slice(0, 100);
   localStorage.setItem(LOGS_KEY, JSON.stringify(updatedLogs));
 };
 
-// --- App Configuration (Maintenance Mode) ---
+// --- App Configuration ---
 
 export const getAppConfig = (): AppConfig => {
     const stored = localStorage.getItem(CONFIG_KEY);

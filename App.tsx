@@ -27,11 +27,13 @@ import {
   Search,
   UserPlus,
   Link as LinkIcon,
-  Ghost
+  Ghost,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { CitizenshipCase, UserSession, CaseType, CaseStatus, Language } from './types';
 import { generateFantasyUsername, generateStatisticalInsights } from './services/geminiService';
-import { getCases, getCaseByEmail, upsertCase, getCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig } from './services/storageService';
+import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig, subscribeToCases } from './services/storageService';
 import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickStats, formatISODateToLocale, isGhostCase } from './services/statsUtils';
 import { logoutUser, subscribeToAuthChanges, isSupabaseEnabled } from './services/authService';
 import { StatsDashboard } from './components/StatsCharts';
@@ -103,18 +105,19 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
         <div style={style} className="px-0">
              <div 
                 onDoubleClick={() => onSelect(c)}
-                className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none"
+                className={`flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none ${isGhost ? 'bg-gray-50/50' : ''}`}
              >
                 <div className={`w-3 h-3 rounded-full flex-shrink-0 shadow-sm ${
+                isGhost ? 'bg-gray-400' :
                 c.status === CaseStatus.APPROVED ? 'bg-green-500' : 
                 c.status === CaseStatus.PROTOCOL_RECEIVED ? 'bg-blue-500' : 
                 c.status === CaseStatus.SUBMITTED ? 'bg-gray-300' :
                 c.status === CaseStatus.CLOSED ? 'bg-red-500' : 'bg-orange-400'
                 }`} />
                 <div className="flex-1 min-w-0 flex items-center justify-between">
-                    <span className="font-bold text-de-black text-sm truncate mr-2 flex items-center gap-2">
+                    <span className={`font-bold text-sm truncate mr-2 flex items-center gap-2 ${isGhost ? 'text-gray-500' : 'text-de-black'}`}>
                         {c.fantasyName}
-                        {isGhost && <Ghost size={12} className="text-gray-300" title="Ghost Case (Inactive)" />}
+                        {isGhost && <Ghost size={12} className="text-gray-400" title="Ghost Case (Inactive)" />}
                     </span>
                     <div className="flex items-center gap-4 text-gray-500 text-xs whitespace-nowrap">
                         <span className="truncate max-w-[120px] hidden sm:inline-block bg-gray-100 px-2 py-1 rounded border border-gray-200">{c.caseType}</span>
@@ -141,9 +144,9 @@ const CaseDetailsModal = ({ caseData, onClose, lang }: { caseData: CitizenshipCa
                 </div>
                 <div className="p-6 space-y-4">
                      {isGhost && (
-                        <div className="bg-gray-100 p-3 rounded border border-gray-200 text-xs text-gray-500 flex items-center gap-2">
-                            <Ghost size={16} />
-                            <span>This case is categorized as a "Ghost Case" due to long inactivity (No Protocol {'>'} 1yr or No Decision {'>'} 4yrs).</span>
+                        <div className="bg-gray-100 p-3 rounded border border-gray-200 text-xs text-gray-500 flex items-start gap-2">
+                            <Ghost size={16} className="shrink-0 mt-0.5" />
+                            <span>This case is categorized as a "Ghost Case" due to long inactivity (No Protocol {'>'} 1yr or No Decision {'>'} 4yrs). It is excluded from community statistics.</span>
                         </div>
                      )}
                      <div className="grid grid-cols-2 gap-4 text-sm">
@@ -223,6 +226,9 @@ const App: React.FC = () => {
   const [filterYear, setFilterYear] = useState<string>('All');
   const [filterType, setFilterType] = useState<string>('All');
   
+  // Ghost Case View Mode
+  const [viewGhosts, setViewGhosts] = useState(false);
+
   // Onboarding / Claiming State
   const [onboardingMode, setOnboardingMode] = useState<'CREATE' | 'CLAIM'>('CREATE');
   const [proposedUsername, setProposedUsername] = useState('');
@@ -250,6 +256,7 @@ const App: React.FC = () => {
   useEffect(() => {
     refreshData();
     
+    // Subscribe to Auth
     const { unsubscribe } = subscribeToAuthChanges(async (user) => {
         if (user && user.email) {
             await handleSessionStart(user.email);
@@ -260,15 +267,23 @@ const App: React.FC = () => {
         }
     });
 
-    return () => unsubscribe();
+    // Realtime subscription
+    const channel = subscribeToCases(() => {
+        refreshData(true); // Silent refresh
+    });
+
+    return () => {
+        unsubscribe();
+        if (channel) channel.unsubscribe();
+    };
   }, [isMockAuth]);
 
-  const refreshData = async () => {
-    setDataLoading(true);
-    // Simulate slight delay for Skeletons (Item 5)
-    if (!dataLoading) await new Promise(r => setTimeout(r, 600)); 
+  const refreshData = async (silent: boolean = false) => {
+    if (!silent) setDataLoading(true);
+    // Simulate slight delay for Skeletons (Item 5) ONLY if not silent
+    if (!silent && !dataLoading) await new Promise(r => setTimeout(r, 600)); 
 
-    const loadedCases = getCases();
+    const loadedCases = await fetchCases();
     setAllCases(loadedCases);
     const config = getAppConfig();
     setIsMaintenance(config.maintenanceMode);
@@ -278,12 +293,21 @@ const App: React.FC = () => {
        const mine = loadedCases.find(c => c.email.trim().toLowerCase() === session.email.trim().toLowerCase());
        setUserCase(mine);
     }
-    setDataLoading(false);
+    if (!silent) setDataLoading(false);
   };
 
   // Compute filtered cases for the Dashboard (affects charts, active list, and community notes)
   const filteredCases = useMemo(() => {
-    let filtered = filterActiveCases(allCases); 
+    let filtered;
+
+    if (viewGhosts) {
+        // Show ONLY ghost cases if toggled
+        filtered = allCases.filter(c => isGhostCase(c));
+    } else {
+        // Normal mode: Show active cases (excludes ghosts via filterActiveCases)
+        filtered = filterActiveCases(allCases); 
+    }
+    
     if (filterCountry !== 'All') filtered = filtered.filter(c => c.countryOfApplication === filterCountry);
     if (filterType !== 'All') filtered = filtered.filter(c => c.caseType === filterType);
     if (filterMonth !== 'All') {
@@ -299,9 +323,9 @@ const App: React.FC = () => {
       });
     }
     return filtered;
-  }, [allCases, filterCountry, filterMonth, filterYear, filterType]);
+  }, [allCases, filterCountry, filterMonth, filterYear, filterType, viewGhosts]);
 
-  // Compute Ghost Count
+  // Compute Ghost Count (Total available in DB)
   const ghostCount = useMemo(() => {
      return allCases.filter(c => isGhostCase(c)).length;
   }, [allCases]);
@@ -331,7 +355,7 @@ const App: React.FC = () => {
 
     // TRIM and LOWERCASE EMAIL to ensure robust matching
     const cleanEmail = email.trim().toLowerCase();
-    const existingCase = getCaseByEmail(cleanEmail);
+    const existingCase = await fetchCaseByEmail(cleanEmail);
     
     if (existingCase) {
         // Case exists with this email - Log in directly
@@ -371,7 +395,7 @@ const App: React.FC = () => {
             return;
         }
 
-        const existingCaseByName = getCaseByFantasyName(finalName);
+        const existingCaseByName = await fetchCaseByFantasyName(finalName);
         if (existingCaseByName) {
             setUsernameError(t.usernameTaken);
             setLoading(false);
@@ -409,7 +433,7 @@ const App: React.FC = () => {
         }
 
         // Claim logic
-        const claimedCase = claimCase(selectedClaimCase, cleanEmail);
+        const claimedCase = await claimCase(selectedClaimCase, cleanEmail);
         setUserCase(claimedCase);
         setSession({
             email: cleanEmail,
@@ -504,7 +528,7 @@ const App: React.FC = () => {
   };
 
   // Item 2: Optimistic UI Updates
-  const handleUpdateCase = (updatedCase: CitizenshipCase) => {
+  const handleUpdateCase = async (updatedCase: CitizenshipCase) => {
     // 1. Optimistic Update (Immediate)
     setAllCases(prev => {
         const idx = prev.findIndex(c => c.id === updatedCase.id);
@@ -522,8 +546,8 @@ const App: React.FC = () => {
         setSession({ ...session, fantasyName: updatedCase.fantasyName });
     }
 
-    // 2. Commit to Storage
-    upsertCase(updatedCase);
+    // 2. Commit to Storage (Async)
+    await upsertCase(updatedCase);
     
     // 3. Clear warnings
     setNotificationMsg(null); 
@@ -918,15 +942,30 @@ const App: React.FC = () => {
 
         {activeTab === 'dashboard' && (
             <div className="bg-white p-6 rounded shadow-sm border border-gray-200 mt-8">
-                <h3 className="text-lg font-bold text-de-black mb-4 border-b pb-2">{t.activeCases}</h3>
+                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                  <h3 className="text-lg font-bold text-de-black">{viewGhosts ? "Ghost Cases (Inactive)" : t.activeCases}</h3>
+                  {viewGhosts && (
+                    <button 
+                      onClick={() => setViewGhosts(false)}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full flex items-center gap-2 transition-colors"
+                    >
+                      <ArrowRight size={12} /> Back to Active
+                    </button>
+                  )}
+                </div>
+                
                 <div className="flex justify-between text-sm mb-4">
                     <span className="text-gray-500">{t.showing} {filteredCases.length}</span>
                     <div className="flex gap-4">
-                        <span className="text-de-red font-medium">{t.pausedCases}: {allCases.length - filteredCases.length - ghostCount}</span>
+                        <span className="text-de-red font-medium">{t.pausedCases}: {allCases.filter(c => !isGhostCase(c) && c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED).length - filteredCases.length}</span>
                         {ghostCount > 0 && (
-                            <span className="text-gray-400 font-medium flex items-center gap-1">
-                                <Ghost size={14} /> Ghost Cases: {ghostCount}
-                            </span>
+                            <button 
+                                onClick={() => setViewGhosts(!viewGhosts)}
+                                className={`font-medium flex items-center gap-1 transition-colors hover:underline ${viewGhosts ? 'text-de-black font-bold' : 'text-gray-400 hover:text-gray-600'}`}
+                                title={viewGhosts ? "Click to hide Ghost Cases" : "Click to view Ghost Cases"}
+                            >
+                                {viewGhosts ? <EyeOff size={14} /> : <Eye size={14} />} Ghost Cases: {ghostCount}
+                            </button>
                         )}
                     </div>
                 </div>
@@ -945,7 +984,10 @@ const App: React.FC = () => {
                             ))}
                         </div>
                     ) : (
-                        <p className="text-gray-400 italic text-sm p-4 text-center">{t.noCasesFound}</p>
+                        <div className="flex flex-col items-center justify-center p-8 text-gray-400">
+                           <p className="italic text-sm mb-2">{t.noCasesFound}</p>
+                           {viewGhosts && <p className="text-xs">No ghost cases match your current filters.</p>}
+                        </div>
                     )}
                 </div>
             </div>
