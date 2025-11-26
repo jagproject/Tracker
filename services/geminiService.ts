@@ -12,6 +12,11 @@ const FALLBACK_NAMES = [
   "Elbe River", "Danube Swimmer", "Harz Mountain", "Cologne Spire"
 ];
 
+// Helper to strip Markdown formatting from JSON responses
+const cleanJson = (text: string) => {
+  return text.replace(/^```(json)?\n?/i, '').replace(/\n?```$/, '').trim();
+};
+
 // Generate a fantasy username
 export const generateFantasyUsername = async (seed: string): Promise<string> => {
   try {
@@ -135,12 +140,15 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
             config: { responseMimeType: "application/json" }
         });
         
-        const text = response.text?.trim();
+        const text = cleanJson(response.text || "");
         if (!text) throw new Error("Empty response");
         return JSON.parse(text);
 
-    } catch (error) {
+    } catch (error: any) {
         console.warn("AI Prediction failed", error);
+        
+        const errorDetail = error instanceof Error ? error.message : String(error);
+
         // Fallback Logic: Simple math
         const startDate = userCase.protocolDate ? new Date(userCase.protocolDate) : new Date(userCase.submissionDate);
         const daysToAdd = userCase.protocolDate ? (stats.avgDaysToApproval || 365) : (stats.avgDaysTotal || 730);
@@ -148,10 +156,14 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
         const estDate = new Date(startDate);
         estDate.setDate(estDate.getDate() + daysToAdd);
         
+        const fallbackReasoning = lang === 'es' 
+            ? `Cálculo simple basado en promedios históricos. (Error IA: ${errorDetail})` 
+            : `Simple calculation based on historical averages. (AI Error: ${errorDetail})`;
+
         return {
             date: estDate.toISOString().split('T')[0],
             confidence: "Low",
-            reasoning: lang === 'es' ? "Cálculo simple basado en promedios históricos (API IA no disponible o error)." : "Simple calculation based on historical averages (AI quota exceeded or error)."
+            reasoning: fallbackReasoning
         };
     }
 };
