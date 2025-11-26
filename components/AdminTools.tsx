@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square } from 'lucide-react';
+import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2 } from 'lucide-react';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
 import { TRANSLATIONS, COUNTRIES, CASE_SPECIFIC_DOCS, COMMON_DOCS } from '../constants';
 import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode } from '../services/storageService';
@@ -15,6 +15,74 @@ interface AdminToolsProps {
 type AuthState = 'EMAIL' | 'OTP' | 'AUTHENTICATED';
 type AdminTab = 'ACTIONS' | 'MANAGE' | 'LOGS';
 
+// --- HELPERS ---
+
+// Helper to parse Spanish/English short dates (e.g., "23-jul-25" -> "2025-07-23")
+const parseFlexibleDate = (dateStr: string): string | undefined => {
+    if (!dateStr || dateStr.trim() === '' || dateStr.toUpperCase() === 'NULL') return undefined;
+    const clean = dateStr.trim().toLowerCase();
+    
+    // Map month abbreviations (Spanish & English mixed cover)
+    const monthMap: Record<string, string> = {
+        'ene': '01', 'jan': '01', 'feb': '02', 'mar': '03', 'abr': '04', 'apr': '04',
+        'may': '05', 'mai': '05', 'jun': '06', 'jul': '07', 'ago': '08', 'aug': '08',
+        'sep': '09', 'oct': '10', 'okt': '10', 'nov': '11', 'dic': '12', 'dec': '12', 'dez': '12'
+    };
+
+    // Regex for DD-MMM-YY or DD-MMM-YYYY
+    const parts = clean.split(/[-/ ]/);
+    
+    if (parts.length === 3) {
+        let d = parts[0];
+        let m = parts[1];
+        let y = parts[2];
+
+        // Fix numeric month if passed as number
+        if (!isNaN(parseInt(m))) {
+            m = parseInt(m).toString().padStart(2, '0');
+        } else {
+            // Try to map text month (first 3 chars)
+            const mKey = m.substring(0, 3);
+            m = monthMap[mKey] || '01';
+        }
+
+        // Fix Year (25 -> 2025)
+        if (y.length === 2) {
+            const yNum = parseInt(y);
+            y = (yNum < 50 ? '20' : '19') + y;
+        }
+
+        d = d.padStart(2, '0');
+
+        // Construct ISO
+        const iso = `${y}-${m}-${d}`;
+        const dateObj = new Date(iso);
+        if (!isNaN(dateObj.getTime())) return iso;
+    }
+
+    // Try standard parsing
+    const standardDate = new Date(dateStr);
+    if (!isNaN(standardDate.getTime())) {
+        return standardDate.toISOString().split('T')[0];
+    }
+
+    return undefined;
+};
+
+// Helper to map CSV status strings to internal Enum
+const normalizeStatus = (rawStatus: string): CaseStatus => {
+    if (!rawStatus) return CaseStatus.SUBMITTED;
+    const s = rawStatus.toLowerCase().trim();
+
+    if (s.includes('aprob') || s.includes('approv') || s.includes('urkunde')) return CaseStatus.APPROVED;
+    if (s.includes('cerrad') || s.includes('closed') || s.includes('rechaz') || s.includes('reject')) return CaseStatus.CLOSED;
+    if (s.includes('akten') || s.includes('proto') || s.includes('az') || s.includes('recibido') || s.includes('received')) return CaseStatus.PROTOCOL_RECEIVED;
+    if (s.includes('doc') || s.includes('add') || s.includes('adicional') || s.includes('unterlagen')) return CaseStatus.ADDITIONAL_DOCS;
+    
+    // Default fallback
+    return CaseStatus.SUBMITTED;
+};
+
 export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataChange }) => {
   const t = TRANSLATIONS[lang];
   const [authState, setAuthState] = useState<AuthState>('EMAIL');
@@ -22,6 +90,8 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const [otp, setOtp] = useState('');
   const [activeTab, setActiveTab] = useState<AdminTab>('ACTIONS');
   const [importStatus, setImportStatus] = useState<{success: boolean, msg: string} | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [allCases, setAllCases] = useState<CitizenshipCase[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,7 +100,6 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const OWNER_EMAIL = "jaalvarezgarcia@gmail.com";
-  // Updated password as requested
   const SECRET_KEY = "Alemania2023.tracker!project"; 
 
   useEffect(() => {
@@ -48,7 +117,6 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const handleSendCode = (e: React.FormEvent) => {
     e.preventDefault();
     if (email.toLowerCase() === OWNER_EMAIL) {
-      // Transition to Password step
       setAuthState('OTP');
     } else {
       alert("Access Denied: Not an authorized owner email.");
@@ -70,7 +138,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     setMaintenanceMode(newState);
     setMaintenanceEnabled(newState);
     addAuditLog("Maintenance", `Maintenance Mode set to ${newState}`, email);
-    onDataChange(); // Refresh app to apply state immediately if applicable
+    onDataChange(); 
   };
 
   // 1. CSV Export
@@ -125,8 +193,8 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
         "ProtocolDate", "ApprovalDate", "Notes"
     ];
     const sampleRow = [
-        "user@example.com", "Blue Eagle", "Argentina", "Buenos Aires", "5 StAG (Erklärung)", "2023-01-01", "Enviado",
-        "", "", "Sample note"
+        "user@example.com", "Blue Eagle", "Argentina", "Buenos Aires", "StAG §5", "23-jul-25", "Aktenzeichen (Protocol)",
+        "01-ago-25", "", "Sample note"
     ];
     const csvContent = [headers.join(','), sampleRow.join(',')].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -137,85 +205,127 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     a.click();
   };
 
-  // 3. Bulk Import
+  // 3. Bulk Import (Smart Merge + Batching)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setImportStatus(null);
+    setIsImporting(true);
+    setImportProgress(0);
 
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
         const rawText = event.target?.result as string;
-        // Remove BOM (Byte Order Mark) which Excel adds to UTF-8 CSVs
-        const text = rawText.replace(/^\uFEFF/, '');
+        const text = rawText.replace(/^\uFEFF/, ''); // Remove BOM
         
         const rows = text.split('\n').map(row => row.trim()).filter(row => row);
-        
         if (rows.length < 2) throw new Error("Empty CSV");
 
-        // Auto-detect delimiter: Check if semicolon is more frequent than comma in header (common in EU Excel)
+        // Determine delimiter
         const headerRow = rows[0];
         const delimiter = (headerRow.indexOf(';') > -1 && headerRow.split(';').length > headerRow.split(',').length) ? ';' : ',';
 
-        const headers = rows[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
-        const newCases: CitizenshipCase[] = [];
+        // Headers normalized
+        const headers = rows[0].split(delimiter).map(h => h.trim().replace(/"/g, '').toLowerCase());
+        
+        // Fetch existing cases to check for duplicates/updates
+        const existingCases = await fetchCases();
+        const nameMap = new Map<string, CitizenshipCase>();
+        existingCases.forEach(c => nameMap.set(c.fantasyName.toLowerCase(), c));
+
+        const processedCases: CitizenshipCase[] = [];
+        let updatedCount = 0;
+        let createdCount = 0;
 
         for (let i = 1; i < rows.length; i++) {
             const values = rows[i].split(delimiter).map(v => v.trim().replace(/^"|"$/g, ''));
+            
+            // Skip malformed rows
+            if (values.length < headers.length / 2) continue;
+
             const rowData: any = {};
-            headers.forEach((h, idx) => {
-                rowData[h] = values[idx];
-            });
+            headers.forEach((h, idx) => rowData[h] = values[idx]);
 
-            const caseId = crypto.randomUUID();
-            let caseEmail = rowData['Email'];
-            
-            // Logic to handle missing email for bulk uploads
-            if (!caseEmail || caseEmail.trim() === '') {
-                // Generate a placeholder email. The 'unclaimed_' prefix is critical for the Claim Workflow.
-                caseEmail = `unclaimed_${caseId}@tracker.local`;
+            let fName = rowData['fantasyname'] || rowData['fantasy_name'];
+            // Generate name if missing
+            if (!fName || fName === '' || fName.toUpperCase() === 'NULL') {
+                fName = await generateFantasyUsername(`User${i}`);
             }
-            
-            // Submission Date is required
-            if (!rowData['SubmissionDate']) continue;
 
-            let fName = rowData['FantasyName'];
-            if (!fName || fName === '') {
-                fName = await generateFantasyUsername(caseId.substring(0, 8));
+            // CHECK FOR EXISTING USER (Merge Strategy)
+            const existing = nameMap.get(fName.toLowerCase());
+            
+            // Resolve ID and Email
+            const caseId = existing ? existing.id : crypto.randomUUID();
+            
+            let caseEmail = rowData['email'];
+            // If CSV email is invalid/null, preserve existing email or generate new unclaimed
+            if (!caseEmail || caseEmail.trim() === '' || caseEmail.toUpperCase() === 'NULL') {
+                caseEmail = existing ? existing.email : `unclaimed_${caseId}@tracker.local`;
             }
+
+            // Dates
+            const subDate = parseFlexibleDate(rowData['submissiondate'] || rowData['submission_date']);
+            if (!subDate) continue; // Skip rows without submission date
+
+            const lastUpdatedCSV = parseFlexibleDate(rowData['lastupdated'] || rowData['last_updated']);
 
             const newCase: CitizenshipCase = {
                 id: caseId,
                 email: caseEmail,
                 fantasyName: fName,
-                countryOfApplication: rowData['Country'] || 'Unknown',
-                consulate: rowData['Consulate'] || undefined,
-                caseType: (rowData['CaseType'] as CaseType) || CaseType.STAG_5,
-                submissionDate: rowData['SubmissionDate'],
-                status: (rowData['Status'] as CaseStatus) || CaseStatus.SUBMITTED,
-                lastUpdated: new Date().toISOString(),
-                protocolDate: rowData['ProtocolDate'] || undefined,
-                approvalDate: rowData['ApprovalDate'] || undefined,
-                docsRequestDate: rowData['DocsRequestDate'] || undefined,
-                closedDate: rowData['ClosedDate'] || undefined,
-                protocolNumber: rowData['ProtocolNumber'] || undefined,
-                notes: rowData['Notes'] || undefined,
-                notifySameDateSubmission: false,
-                notifySameMonthUrkunde: false
+                countryOfApplication: rowData['countryofapplication'] || rowData['country'] || (existing?.countryOfApplication || 'Unknown'),
+                consulate: rowData['consulate'] || (existing?.consulate),
+                caseType: (rowData['casetype'] as CaseType) || (existing?.caseType || CaseType.STAG_5),
+                submissionDate: subDate,
+                status: normalizeStatus(rowData['status'] || existing?.status),
+                lastUpdated: lastUpdatedCSV || new Date().toISOString(),
+                protocolDate: parseFlexibleDate(rowData['protocoldate'] || rowData['protocol_date']) || (existing?.protocolDate),
+                approvalDate: parseFlexibleDate(rowData['approvaldate'] || rowData['approval_date']) || (existing?.approvalDate),
+                docsRequestDate: parseFlexibleDate(rowData['docsrequestdate'] || rowData['docs_date']) || (existing?.docsRequestDate),
+                closedDate: parseFlexibleDate(rowData['closeddate'] || rowData['closed_date']) || (existing?.closedDate),
+                protocolNumber: rowData['protocolnumber'] || (existing?.protocolNumber),
+                notes: rowData['notes'] || (existing?.notes),
+                
+                // Preserve notification settings if existing
+                notifySameDateSubmission: existing?.notifySameDateSubmission ?? true,
+                notifySameMonthUrkunde: existing?.notifySameMonthUrkunde ?? true,
+                notifySubmissionCohortUpdates: existing?.notifySubmissionCohortUpdates ?? true,
+                notifyProtocolCohortUpdates: existing?.notifyProtocolCohortUpdates ?? true,
+                documents: existing?.documents || []
             };
-            newCases.push(newCase);
+
+            processedCases.push(newCase);
+            if (existing) updatedCount++; else createdCount++;
         }
 
-        await importCases(newCases);
-        setImportStatus({ success: true, msg: `${newCases.length} ${t.successImport}` });
-        addAuditLog("Import", `Imported ${newCases.length} cases via CSV`, email);
-        onDataChange();
-        setAllCases(await fetchCases()); // Refresh local list
+        if (processedCases.length === 0) throw new Error("No valid rows parsed.");
 
-      } catch (err) {
+        // BATCH UPLOAD LOGIC
+        // Supabase has payload limits, so we split into chunks of 50
+        const BATCH_SIZE = 50;
+        const totalBatches = Math.ceil(processedCases.length / BATCH_SIZE);
+
+        for (let i = 0; i < totalBatches; i++) {
+            const batch = processedCases.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+            await importCases(batch);
+            setImportProgress(Math.round(((i + 1) / totalBatches) * 100));
+            // Small delay to be nice to the API
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        setImportStatus({ success: true, msg: `Success: ${createdCount} Created, ${updatedCount} Updated.` });
+        addAuditLog("Import", `Imported ${processedCases.length} rows (${updatedCount} merges)`, email);
+        onDataChange();
+        setAllCases(await fetchCases());
+
+      } catch (err: any) {
         console.error(err);
-        setImportStatus({ success: false, msg: t.errorImport });
-        addAuditLog("Import Failed", "CSV parsing error", email);
+        setImportStatus({ success: false, msg: `${t.errorImport} (${err.message})` });
+      } finally {
+        setIsImporting(false);
       }
     };
     reader.readAsText(file);
@@ -245,7 +355,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
 
   // 6. Edit Single Case
   const handleEditCase = (c: CitizenshipCase) => {
-    setEditForm({...c}); // Clone to avoid direct mutation
+    setEditForm({...c}); 
   };
 
   const handleSaveEdit = async () => {
@@ -431,9 +541,10 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                     <div className="mb-4 text-xs text-gray-500 bg-white p-2 rounded border border-gray-100">
                         <strong>Bulk Upload Info:</strong>
                         <ul className="list-disc ml-4 mt-1 space-y-1">
-                            <li>File must be <strong>CSV</strong>.</li>
-                            <li>If <strong>Email</strong> is left empty, the case will be marked as "Unclaimed". Users can claim it by entering the exact Fantasy Name during signup.</li>
-                            <li>Required columns: <code className="bg-gray-100 text-de-red">SubmissionDate</code></li>
+                            <li>File must be <strong>CSV</strong> (Comma or Semicolon separated).</li>
+                            <li>Matches existing cases by <strong>FantasyName</strong> to update them.</li>
+                            <li>Supports dates like <strong>23-jul-25</strong> or <strong>2025-07-23</strong>.</li>
+                            <li>Handles "NULL" emails by generating unclaimed placeholders.</li>
                         </ul>
                     </div>
                     
@@ -451,14 +562,16 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                                 accept=".csv" 
                                 ref={fileInputRef}
                                 onChange={handleFileUpload}
+                                disabled={isImporting}
                                 className="hidden" 
                                 id="csv-upload"
                             />
                             <label 
                                 htmlFor="csv-upload"
-                                className="w-full flex items-center justify-center gap-2 bg-de-gold text-de-black py-2 px-4 rounded hover:bg-yellow-400 cursor-pointer transition-colors text-sm font-bold shadow-sm"
+                                className={`w-full flex items-center justify-center gap-2 bg-de-gold text-de-black py-2 px-4 rounded hover:bg-yellow-400 cursor-pointer transition-colors text-sm font-bold shadow-sm ${isImporting ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                <Upload size={16} /> {t.importCSV}
+                                {isImporting ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />} 
+                                {isImporting ? `Importing... ${importProgress}%` : t.importCSV}
                             </label>
                         </div>
                     </div>
