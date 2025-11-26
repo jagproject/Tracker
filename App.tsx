@@ -44,6 +44,7 @@ import { FAQ } from './components/FAQ';
 import { AIModelTab } from './components/AIModelTab';
 import { CommunityFeed } from './components/CommunityFeed'; 
 import { SuccessTicker } from './components/SuccessTicker'; 
+import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { TRANSLATIONS, COUNTRIES, STATUS_TRANSLATIONS } from './constants';
 
 // High-quality, attractive German landscapes (No people, no sad concepts)
@@ -238,6 +239,10 @@ const App: React.FC = () => {
 
   // New state for Maintenance Mode
   const [isMaintenance, setIsMaintenance] = useState(false);
+
+  // Privacy Policy State
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   // Random background image on mount with fallback
   const [bgImage] = useState<string>(() => {
@@ -563,6 +568,7 @@ const App: React.FC = () => {
     setOnboardingMode('CREATE');
     setProposedUsername('');
     setSelectedClaimCase(null);
+    setPrivacyAccepted(false); // Reset privacy
   };
 
   // Helper for month names
@@ -583,6 +589,8 @@ const App: React.FC = () => {
           backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('${bgImage}')` 
         }}
       >
+        {showPrivacyModal && <PrivacyPolicyModal lang={lang} onClose={() => setShowPrivacyModal(false)} />}
+        
         <div className="absolute top-4 right-4 z-20">
             <LanguageSelector lang={lang} setLang={setLang} />
         </div>
@@ -617,7 +625,33 @@ const App: React.FC = () => {
                         required 
                     />
                     </div>
-                    <button type="submit" disabled={loading} className="w-full bg-de-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded transition-colors flex justify-center items-center gap-2 shadow-md">
+
+                    {/* Privacy Policy Checkbox */}
+                    <div className="flex items-start gap-3 p-3 bg-gray-50 rounded border border-gray-100">
+                      <input 
+                        type="checkbox"
+                        checked={privacyAccepted}
+                        onChange={e => setPrivacyAccepted(e.target.checked)}
+                        className="mt-1 h-4 w-4 text-de-gold border-gray-300 rounded focus:ring-de-gold cursor-pointer flex-shrink-0"
+                        id="privacy-check"
+                      />
+                      <label htmlFor="privacy-check" className="text-xs text-gray-600 cursor-pointer select-none">
+                        {t.acceptPrivacy}
+                        <button 
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); setShowPrivacyModal(true); }}
+                          className="block text-de-gold font-bold hover:underline mt-1 flex items-center gap-1"
+                        >
+                          <ShieldCheck size={12} /> {t.privacyLink}
+                        </button>
+                      </label>
+                    </div>
+
+                    <button 
+                        type="submit" 
+                        disabled={loading || !privacyAccepted} 
+                        className="w-full bg-de-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded transition-colors flex justify-center items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                     {t.loginButton} <ArrowRight size={16} />
                     </button>
                 </form>

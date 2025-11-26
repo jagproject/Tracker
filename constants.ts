@@ -271,7 +271,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     glossaryArt116: "Restoration of citizenship for victims of Nazi persecution and their descendants (specifically those deprived of citizenship by the 1935 decree).",
     copyEmail: "Copy Email",
     contactNote: "Note: This form opens your default email client (e.g. Outlook). If nothing happens, please copy the email address below.",
-    lastUpdatedLabel: "Last updated:"
+    lastUpdatedLabel: "Last updated:",
+    privacyTitle: "Privacy Policy",
+    acceptPrivacy: "I have read the Privacy Policy and agree to the processing of my data.",
+    privacyLink: "Privacy Policy",
+    privacyContent: "We store your email exclusively for authentication purposes. We do not share your personal data with third parties. We use Supabase (secure enterprise servers) for data storage. You have the right to delete your data at any time."
   },
   es: {
     title: "Rastreador de Ciudadanía Alemana",
@@ -430,7 +434,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     glossaryArt116: "Restauración de ciudadanía para víctimas de persecución nazi y sus descendentes (específicamente aquellos privados por el decreto de 1935).",
     copyEmail: "Copiar Email",
     contactNote: "Nota: Este formulario abre su cliente de correo predeterminado (ej. Outlook). Si no sucede nada, copie la dirección de correo a continuación.",
-    lastUpdatedLabel: "Fecha de última actualización de este caso:"
+    lastUpdatedLabel: "Fecha de última actualización de este caso:",
+    privacyTitle: "Política de Privacidad",
+    acceptPrivacy: "He leído la Política de Privacidad y acepto el procesamiento de mis datos.",
+    privacyLink: "Política de Privacidad",
+    privacyContent: "Guardamos tu email solo para autenticación. No compartimos datos con terceros. Usamos Supabase (servidores seguros). Tienes derecho a eliminar tus datos en cualquier momento."
   },
   de: {
     title: "Antragsverfolgung Staatsangehörigkeit",
@@ -589,7 +597,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     glossaryArt116: "Wiedereinbürgerung für NS-Verfolgte und deren Nachkommen (speziell jene, die durch Erlass 1935 ausgebürgert wurden).",
     copyEmail: "E-Mail kopieren",
     contactNote: "Hinweis: Dieses Formular öffnet Ihr Standard-E-Mail-Programm (z. B. Outlook). Falls nichts passiert, kopieren Sie bitte die untenstehende E-Mail-Adresse.",
-    lastUpdatedLabel: "Zuletzt aktualisiert:"
+    lastUpdatedLabel: "Zuletzt aktualisiert:",
+    privacyTitle: "Datenschutzerklärung",
+    acceptPrivacy: "Ich habe die Datenschutzerklärung gelesen und stimme der Verarbeitung meiner Daten zu.",
+    privacyLink: "Datenschutzerklärung",
+    privacyContent: "Wir speichern Ihre E-Mail ausschließlich zur Authentifizierung. Wir geben Ihre Daten nicht an Dritte weiter. Wir nutzen Supabase (sichere Server). Sie haben das Recht, Ihre Daten jederzeit zu löschen."
   },
   it: {
     title: "Tracker Cittadinanza Tedesca",
@@ -748,7 +760,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     glossaryArt116: "Ripristino cittadinanza per vittime persecuzione nazista e discendenti (specificamente privati dal decreto del 1935).",
     copyEmail: "Copia Email",
     contactNote: "Nota: Questo modulo apre il tuo client di posta predefinito (es. Outlook). Se non succede nulla, copia l'indirizzo email qui sotto.",
-    lastUpdatedLabel: "Ultimo aggiornamento:"
+    lastUpdatedLabel: "Ultimo aggiornamento:",
+    privacyTitle: "Informativa sulla Privacy",
+    acceptPrivacy: "Ho letto l'Informativa sulla Privacy e acconsento al trattamento dei miei dati.",
+    privacyLink: "Informativa sulla Privacy",
+    privacyContent: "Conserviamo la tua email solo per l'autenticazione. Non condividiamo i dati con terze parti. Utilizziamo Supabase (server sicuri). Hai il diritto di cancellare i tuoi dati in qualsiasi momento."
   },
   pt: {
     title: "Rastreador de Cidadania Alemã",
@@ -907,6 +923,10 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     glossaryArt116: "Restauração de cidadania para vítimas de perseguição nazista e seus descendentes (privados pelo decreto de 1935).",
     copyEmail: "Copiar Email",
     contactNote: "Nota: Este formulário abre seu cliente de e-mail padrão (ex. Outlook). Se nada acontecer, copie o endereço de e-mail abaixo.",
-    lastUpdatedLabel: "Última atualização:"
+    lastUpdatedLabel: "Última atualização:",
+    privacyTitle: "Política de Privacidade",
+    acceptPrivacy: "Li a Política de Privacidade e concordo com o processamento dos meus dados.",
+    privacyLink: "Política de Privacidade",
+    privacyContent: "Armazenamos seu e-mail apenas para autenticação. Não compartilhamos dados com terceiros. Usamos Supabase (servidores seguros). Você tem o direito de excluir seus dados a qualquer momento."
   }
 };
