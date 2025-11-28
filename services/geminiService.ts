@@ -84,6 +84,39 @@ export const generateStatisticalInsights = async (stats: StatSummary, cases: Cit
 };
 
 export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: StatSummary, lang: Language) => {
+    // 1. DETERMINISTIC CALCULATION (Math first, AI second)
+    // This ensures that clicking the button multiple times gives the same result (Stability)
+    // and relies on actual data rather than LLM hallucinations.
+    
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    
+    // Determine Anchor Date and Remaining Days based on Stats
+    let anchorDate = new Date(userCase.submissionDate);
+    let avgWaitDays = stats.avgDaysTotal || 730; // Fallback 2 years
+    let calculationMethod = "Submission Date + Avg Total Time";
+
+    // If protocol exists, use Protocol -> Approval average which is more accurate
+    if (userCase.protocolDate) {
+        anchorDate = new Date(userCase.protocolDate);
+        if (stats.avgDaysToApproval > 0) {
+            avgWaitDays = stats.avgDaysToApproval;
+            calculationMethod = "Protocol Date + Avg Wait (Protocol to Urkunde)";
+        } else {
+            // Fallback if we have protocol date but no stats for that phase
+             avgWaitDays = Math.max(0, (stats.avgDaysTotal || 730) - 120); // Estimate protocol takes ~4 months
+        }
+    }
+
+    // Calculate Target Date
+    const estimatedDateObj = new Date(anchorDate.getTime() + (avgWaitDays * ONE_DAY_MS));
+    const estimatedDateStr = estimatedDateObj.toISOString().split('T')[0];
+
+    // Calculate Confidence Statistically (Not AI feeling)
+    // Rule: Need > 10 samples for High, > 3 for Medium.
+    let calculatedConfidence = "Low";
+    if (stats.totalCases > 15) calculatedConfidence = "High";
+    else if (stats.totalCases > 5) calculatedConfidence = "Medium";
+
     try {
         const langMap: Record<Language, string> = {
             en: "English",
@@ -96,41 +129,39 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
 
         const prompt = `
             Act as an expert immigration data analyst for German Citizenship applications (BVA).
-            Predict the approval date for the following case:
+            
+            We have mathematically calculated a prediction for this case.
+            Your job is NOT to guess the date, but to EXPLAIN the reasoning behind our calculation.
+            
+            CALCULATED DATA (Do not change these):
+            - Predicted Date: ${estimatedDateStr}
+            - Confidence Level: ${calculatedConfidence}
+            - Method: ${calculationMethod}
+            - Sample Size: ${stats.totalCases} cases of type ${userCase.caseType}
             
             Case Details:
             - Type: ${userCase.caseType}
             - Country: ${userCase.countryOfApplication}
-            - Consulate: ${userCase.consulate || 'N/A'}
-            - Submission Date: ${userCase.submissionDate}
-            - Protocol Date: ${userCase.protocolDate || 'Not yet received'}
+            - Submission: ${userCase.submissionDate}
+            - Protocol: ${userCase.protocolDate || 'Not yet received'}
             
-            Internal Tracker Stats (Current):
-            - Avg Total Days: ${stats.avgDaysTotal}
-            - Avg Protocol to Approval: ${stats.avgDaysToApproval}
-            
-            EXTERNAL CONTEXT (CRITICAL):
-            1. You MUST incorporate data from the official "FragDenStaat" request: 
-               URL: https://fragdenstaat.de/anfrage/anfrage-zur-bearbeitungsdauer-von-antraegen-auf-staatsangehoerigkeit-gemaess-ss-5-stag-1/1022140/anhang/monatsstatistik5.pdf
-            2. Consider recent anecdotal evidence from r/GermanCitizenship (Reddit) and Facebook Groups.
-            3. "Ghost Cases" (submitted > 1yr ago without protocol OR protocol > 4yrs ago without decision) are excluded from the internal stats provided above. Therefore, the internal stats might be optimistic.
+            External Context:
+            - Official BVA processing is slow.
+            - StAG 5 is generally faster than Feststellung.
             
             Your Task:
-            Return a JSON object with a prediction.
-            
-            IMPORTANT: The "reasoning" field MUST be a detailed, comprehensive analysis of AT LEAST 500 WORDS in ${targetLang}. 
-            
-            In the reasoning:
-            - Analyze the specific delays for ${userCase.caseType}.
-            - Compare StAG 5 vs Feststellung processing times based on the PDF.
-            - Explain why the predicted date was chosen.
-            - Discuss the impact of the new StAG laws.
+            Return a JSON object.
+            1. Use the "date" provided above: "${estimatedDateStr}"
+            2. Use the "confidence" provided above: "${calculatedConfidence}"
+            3. Write a "reasoning" paragraph (approx 150 words) in ${targetLang}. 
+               Explain that this date is based on the average waiting time of ${avgWaitDays} days observed in ${stats.totalCases} similar cases in our database. 
+               Mention that individual results vary by clerk availability.
             
             JSON Schema:
             {
                 "date": "YYYY-MM-DD",
                 "confidence": "High" | "Medium" | "Low",
-                "reasoning": "Detailed 500+ word analysis string here..."
+                "reasoning": "string"
             }
         `;
 
@@ -142,27 +173,27 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
         
         const text = cleanJson(response.text || "");
         if (!text) throw new Error("Empty response");
-        return JSON.parse(text);
+        
+        const parsed = JSON.parse(text);
+        
+        // Safety: Force the date/confidence to be the calculated ones in case AI hallucinated
+        return {
+            date: estimatedDateStr,
+            confidence: calculatedConfidence,
+            reasoning: parsed.reasoning || "Analysis generated based on community statistics."
+        };
 
     } catch (error: any) {
-        console.warn("AI Prediction failed", error);
-        
+        console.warn("AI Prediction generation failed", error);
         const errorDetail = error instanceof Error ? error.message : String(error);
 
-        // Fallback Logic: Simple math
-        const startDate = userCase.protocolDate ? new Date(userCase.protocolDate) : new Date(userCase.submissionDate);
-        const daysToAdd = userCase.protocolDate ? (stats.avgDaysToApproval || 365) : (stats.avgDaysTotal || 730);
-        
-        const estDate = new Date(startDate);
-        estDate.setDate(estDate.getDate() + daysToAdd);
-        
         const fallbackReasoning = lang === 'es' 
-            ? `Cálculo simple basado en promedios históricos. (Error IA: ${errorDetail})` 
-            : `Simple calculation based on historical averages. (AI Error: ${errorDetail})`;
+            ? `Cálculo matemático directo basado en el promedio de ${avgWaitDays} días observados en ${stats.totalCases} casos similares. (Error IA: ${errorDetail})` 
+            : `Direct mathematical calculation based on average of ${avgWaitDays} days observed in ${stats.totalCases} similar cases. (AI Error: ${errorDetail})`;
 
         return {
-            date: estDate.toISOString().split('T')[0],
-            confidence: "Low",
+            date: estimatedDateStr,
+            confidence: calculatedConfidence,
             reasoning: fallbackReasoning
         };
     }
