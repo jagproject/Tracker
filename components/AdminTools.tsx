@@ -1,10 +1,11 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart } from 'lucide-react';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
 import { TRANSLATIONS, COUNTRIES, CASE_SPECIFIC_DOCS, COMMON_DOCS } from '../constants';
 import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode } from '../services/storageService';
 import { generateFantasyUsername } from '../services/geminiService';
+import { calculateQuickStats, formatDuration } from '../services/statsUtils';
 
 interface AdminToolsProps {
   lang: Language;
@@ -13,7 +14,7 @@ interface AdminToolsProps {
 }
 
 type AuthState = 'EMAIL' | 'OTP' | 'AUTHENTICATED';
-type AdminTab = 'ACTIONS' | 'MANAGE' | 'LOGS';
+type AdminTab = 'SUMMARY' | 'ACTIONS' | 'MANAGE' | 'LOGS';
 
 // --- HELPERS ---
 
@@ -88,7 +89,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const [authState, setAuthState] = useState<AuthState>('EMAIL');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
-  const [activeTab, setActiveTab] = useState<AdminTab>('ACTIONS');
+  const [activeTab, setActiveTab] = useState<AdminTab>('SUMMARY');
   const [importStatus, setImportStatus] = useState<{success: boolean, msg: string} | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
@@ -140,6 +141,52 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     addAuditLog("Maintenance", `Maintenance Mode set to ${newState}`, email);
     onDataChange(); 
   };
+
+  // --- STATS CALCULATION FOR SUMMARY TAB ---
+  const summaryStats = useMemo(() => {
+    if (allCases.length === 0) return null;
+
+    const total = allCases.length;
+    const unclaimed = allCases.filter(c => c.email.startsWith('unclaimed_')).length;
+    
+    // Status breakdown
+    const statusCounts = {
+        [CaseStatus.SUBMITTED]: 0,
+        [CaseStatus.PROTOCOL_RECEIVED]: 0,
+        [CaseStatus.ADDITIONAL_DOCS]: 0,
+        [CaseStatus.APPROVED]: 0,
+        [CaseStatus.CLOSED]: 0,
+    };
+    
+    // Type breakdown with AI prediction (Avg Wait)
+    const typeStats: { type: string, count: number, avgWait: number }[] = [];
+
+    // Calculate status counts
+    allCases.forEach(c => {
+        if (statusCounts[c.status] !== undefined) {
+            statusCounts[c.status]++;
+        }
+    });
+
+    // Calculate type stats
+    Object.values(CaseType).forEach(type => {
+        const casesOfType = allCases.filter(c => c.caseType === type);
+        const count = casesOfType.length;
+        
+        // Use shared logic for calculating average wait (submission -> urkunde)
+        // This is what powers the AI Predictor
+        const stats = calculateQuickStats(casesOfType);
+        
+        typeStats.push({
+            type,
+            count,
+            avgWait: stats.avgDaysTotal
+        });
+    });
+
+    return { total, unclaimed, statusCounts, typeStats };
+  }, [allCases]);
+
 
   // 1. CSV Export
   const handleExport = async () => {
@@ -469,6 +516,12 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
         </div>
 
         <div className="flex border-b border-gray-200 flex-shrink-0">
+           <button 
+            onClick={() => setActiveTab('SUMMARY')} 
+            className={`flex-1 py-3 text-sm font-bold ${activeTab === 'SUMMARY' ? 'text-de-black border-b-2 border-de-black' : 'text-gray-400'}`}
+          >
+            Dashboard
+          </button>
           <button 
             onClick={() => setActiveTab('ACTIONS')} 
             className={`flex-1 py-3 text-sm font-bold ${activeTab === 'ACTIONS' ? 'text-de-black border-b-2 border-de-black' : 'text-gray-400'}`}
@@ -491,8 +544,75 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
 
         <div className="p-6 overflow-y-auto flex-grow">
             
+            {activeTab === 'SUMMARY' && summaryStats && (
+                <div className="space-y-6 animate-in slide-in-from-right-4">
+                    {/* Top Cards */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-800 text-white p-4 rounded-lg shadow-sm">
+                            <p className="text-gray-400 text-xs uppercase font-bold mb-1">Total Cases</p>
+                            <p className="text-3xl font-bold">{summaryStats.total}</p>
+                        </div>
+                        <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg shadow-sm border border-yellow-200">
+                            <p className="text-yellow-600 text-xs uppercase font-bold mb-1">Unclaimed Cases</p>
+                            <p className="text-3xl font-bold flex items-center gap-2">
+                                {summaryStats.unclaimed}
+                                <AlertTriangle size={20} className="text-yellow-500" />
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Breakdown by Type Table */}
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="bg-gray-50 p-3 border-b border-gray-200 flex justify-between items-center">
+                             <h4 className="font-bold text-de-black text-sm flex items-center gap-2">
+                                <Activity size={16} /> Cases by Type
+                             </h4>
+                        </div>
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-bold">
+                                <tr>
+                                    <th className="p-3 text-left">Type</th>
+                                    <th className="p-3 text-right">Count</th>
+                                    <th className="p-3 text-right">AI Predictor (Avg)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {summaryStats.typeStats.map(s => (
+                                    <tr key={s.type} className="hover:bg-gray-50">
+                                        <td className="p-3 font-medium text-de-black">{s.type}</td>
+                                        <td className="p-3 text-right font-bold">{s.count}</td>
+                                        <td className="p-3 text-right font-mono text-xs text-de-gold bg-gray-900/5">
+                                            {formatDuration(s.avgWait, lang)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Breakdown by Status */}
+                     <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="bg-gray-50 p-3 border-b border-gray-200">
+                             <h4 className="font-bold text-de-black text-sm flex items-center gap-2">
+                                <BarChart3 size={16} /> Status Distribution
+                             </h4>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-1 p-2 bg-gray-50">
+                            {Object.entries(summaryStats.statusCounts).map(([status, count]) => (
+                                <div key={status} className="bg-white p-3 rounded border border-gray-100 text-center">
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold mb-1 truncate" title={status}>
+                                        {status}
+                                    </p>
+                                    <p className="text-xl font-bold text-de-black">{count}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {activeTab === 'ACTIONS' && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-in slide-in-from-right-4">
                 
                 {/* Maintenance Toggle */}
                 <div className={`p-4 rounded border transition-colors ${maintenanceEnabled ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
@@ -737,7 +857,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                       </div>
                   </div>
               ) : (
-                  <div className="h-full flex flex-col">
+                  <div className="h-full flex flex-col animate-in slide-in-from-right-4">
                       <div className="mb-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
@@ -798,7 +918,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
             )}
 
             {activeTab === 'LOGS' && (
-              <div className="space-y-2">
+              <div className="space-y-2 animate-in slide-in-from-right-4">
                 {auditLogs.length === 0 && (
                    <p className="text-sm text-gray-400 text-center py-4">No logs recorded yet.</p>
                 )}
