@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { CitizenshipCase, StatSummary, Language } from '../types';
 import { predictCaseTimeline } from '../services/geminiService';
@@ -13,7 +14,7 @@ interface AIModelTabProps {
 
 export const AIModelTab: React.FC<AIModelTabProps> = ({ userCase, stats, lang }) => {
   const t = TRANSLATIONS[lang];
-  const [prediction, setPrediction] = useState<{ date: string, confidence: string, reasoning: string } | null>(null);
+  const [prediction, setPrediction] = useState<{ date: string, confidence: string, confidenceScore: string, reasoning: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handlePredict = async () => {
@@ -70,7 +71,7 @@ export const AIModelTab: React.FC<AIModelTabProps> = ({ userCase, stats, lang })
                         <Sparkles /> {t.aiPredictionTitle}
                     </h2>
                     <p className="text-gray-300 mb-6 text-sm leading-relaxed">
-                        {t.aiPredictionDesc} Using specific waiting times for <strong>{userCase.caseType}</strong>.
+                        {t.aiPredictionDesc} <span dangerouslySetInnerHTML={{__html: t.aiPredictionDescSpecific.replace('{type}', `<strong>${userCase.caseType}</strong>`)}} />
                     </p>
 
                     <div className="space-y-4 relative z-10 bg-white/5 p-4 rounded-lg border border-white/10">
@@ -115,8 +116,8 @@ export const AIModelTab: React.FC<AIModelTabProps> = ({ userCase, stats, lang })
                     <div className="bg-white h-full p-8 rounded-xl shadow-lg border-t-8 border-de-gold animate-in slide-in-from-right-4 flex flex-col justify-center items-center text-center relative overflow-hidden">
                         <div className="absolute top-2 right-2">
                              <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded border ${
-                                prediction.confidence === 'High' ? 'bg-green-50 text-green-700 border-green-200' : 
-                                prediction.confidence === 'Medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-red-50 text-red-700 border-red-200'
+                                prediction.confidenceScore === 'High' ? 'bg-green-50 text-green-700 border-green-200' : 
+                                prediction.confidenceScore === 'Medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-red-50 text-red-700 border-red-200'
                             }`}>
                                 {prediction.confidence} {t.confidence}
                             </span>

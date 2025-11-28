@@ -1,6 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { CitizenshipCase, StatSummary, Language } from "../types";
+import { TRANSLATIONS } from "../constants";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -85,9 +86,6 @@ export const generateStatisticalInsights = async (stats: StatSummary, cases: Cit
 
 export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: StatSummary, lang: Language) => {
     // 1. DETERMINISTIC CALCULATION (Math first, AI second)
-    // This ensures that clicking the button multiple times gives the same result (Stability)
-    // and relies on actual data rather than LLM hallucinations.
-    
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
     
     // Determine Anchor Date and Remaining Days based on Stats
@@ -113,9 +111,13 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
 
     // Calculate Confidence Statistically (Not AI feeling)
     // Rule: Need > 10 samples for High, > 3 for Medium.
-    let calculatedConfidence = "Low";
-    if (stats.totalCases > 15) calculatedConfidence = "High";
-    else if (stats.totalCases > 5) calculatedConfidence = "Medium";
+    let rawConfidence: 'High' | 'Medium' | 'Low' = "Low";
+    if (stats.totalCases > 15) rawConfidence = "High";
+    else if (stats.totalCases > 5) rawConfidence = "Medium";
+
+    // Translate Confidence
+    const t = TRANSLATIONS[lang];
+    const translatedConfidence = rawConfidence === 'High' ? t.confHigh : (rawConfidence === 'Medium' ? t.confMedium : t.confLow);
 
     try {
         const langMap: Record<Language, string> = {
@@ -135,7 +137,7 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
             
             CALCULATED DATA (Do not change these):
             - Predicted Date: ${estimatedDateStr}
-            - Confidence Level: ${calculatedConfidence}
+            - Confidence Level: ${rawConfidence}
             - Method: ${calculationMethod}
             - Sample Size: ${stats.totalCases} cases of type ${userCase.caseType}
             
@@ -152,7 +154,7 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
             Your Task:
             Return a JSON object.
             1. Use the "date" provided above: "${estimatedDateStr}"
-            2. Use the "confidence" provided above: "${calculatedConfidence}"
+            2. Use the "confidence" provided above: "${translatedConfidence}"
             3. Write a "reasoning" paragraph (approx 150 words) in ${targetLang}. 
                Explain that this date is based on the average waiting time of ${avgWaitDays} days observed in ${stats.totalCases} similar cases in our database. 
                Mention that individual results vary by clerk availability.
@@ -160,7 +162,7 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
             JSON Schema:
             {
                 "date": "YYYY-MM-DD",
-                "confidence": "High" | "Medium" | "Low",
+                "confidence": "string",
                 "reasoning": "string"
             }
         `;
@@ -179,7 +181,8 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
         // Safety: Force the date/confidence to be the calculated ones in case AI hallucinated
         return {
             date: estimatedDateStr,
-            confidence: calculatedConfidence,
+            confidence: translatedConfidence,
+            confidenceScore: rawConfidence, // Return raw score for logic
             reasoning: parsed.reasoning || "Analysis generated based on community statistics."
         };
 
@@ -193,7 +196,8 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
 
         return {
             date: estimatedDateStr,
-            confidence: calculatedConfidence,
+            confidence: translatedConfidence,
+            confidenceScore: rawConfidence,
             reasoning: fallbackReasoning
         };
     }

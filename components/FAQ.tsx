@@ -112,28 +112,28 @@ ${genName}`;
             >
               <div className="mt-3 p-4 bg-gray-50 rounded text-sm border-l-4 border-de-gold">
                 <p className="font-bold text-de-black mb-3 text-xs uppercase tracking-wide flex items-center gap-2">
-                    <Info size={14} /> Breakdown Example: ST1-2022 0501 0020-EER
+                    <Info size={14} /> {t.breakdownExample || 'Breakdown Example'}: ST1-2022 0501 0020-EER
                 </p>
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-100 shadow-sm">
                         <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-de-red font-bold min-w-[60px] text-center">ST1</span>
-                        <span className="text-gray-700 font-medium">Department / Team Code</span>
+                        <span className="text-gray-700 font-medium">{t.akzDepartment}</span>
                     </div>
                     <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-100 shadow-sm">
                         <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-de-black font-bold min-w-[60px] text-center">2022</span>
-                        <span className="text-gray-700 font-medium">Year of Application</span>
+                        <span className="text-gray-700 font-medium">{t.akzYear}</span>
                     </div>
                     <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-100 shadow-sm">
                         <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-de-black font-bold min-w-[60px] text-center">0501</span>
-                        <span className="text-gray-700 font-medium">Date Code (MMDD)</span>
+                        <span className="text-gray-700 font-medium">{t.akzDate}</span>
                     </div>
                      <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-100 shadow-sm">
                         <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-de-black font-bold min-w-[60px] text-center">0020</span>
-                        <span className="text-gray-700 font-medium">Sequential Number</span>
+                        <span className="text-gray-700 font-medium">{t.akzSequential}</span>
                     </div>
                      <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-100 shadow-sm">
                         <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-de-gold font-bold min-w-[60px] text-center">EER</span>
-                        <span className="text-gray-700 font-medium">Declaration Type (e.g. Erklärungserwerb)</span>
+                        <span className="text-gray-700 font-medium">{t.akzType}</span>
                     </div>
                 </div>
               </div>
@@ -157,12 +157,12 @@ ${genName}`;
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><HelpCircle size={20} /> {t.howToAskAZ}</h3>
             <p className="text-sm text-gray-700 mb-4">
-                Use this tool to generate the German email text for requesting your Aktenzeichen.
+                {t.faqGenDesc}
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                 <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500">Full Name</label>
+                    <label className="text-xs font-bold text-gray-500">{t.faqFullName}</label>
                     <input 
                         type="text" placeholder="e.g. Juan Perez" 
                         value={genName} onChange={e => setGenName(e.target.value)}
@@ -170,7 +170,7 @@ ${genName}`;
                     />
                 </div>
                 <div className="space-y-1">
-                     <label className="text-xs font-bold text-gray-500">DOB ({getDateFormatPlaceholder()})</label>
+                     <label className="text-xs font-bold text-gray-500">{t.faqDob} ({getDateFormatPlaceholder()})</label>
                     <input 
                         type="text" placeholder={`e.g. ${getDateFormatExample()}`}
                         value={genDob} onChange={e => setGenDob(e.target.value)}
@@ -178,7 +178,7 @@ ${genName}`;
                     />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500">Submission Date</label>
+                    <label className="text-xs font-bold text-gray-500">{t.faqSubDate}</label>
                     <input 
                         type="date" 
                         value={genSubDate} onChange={e => setGenSubDate(e.target.value)}
@@ -186,7 +186,7 @@ ${genName}`;
                     />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500">Embassy/Consulate</label>
+                    <label className="text-xs font-bold text-gray-500">{t.faqEmbassy}</label>
                     <input 
                         type="text" placeholder="e.g. Deutsche Botschaft Buenos Aires" 
                         value={genConsulate} onChange={e => setGenConsulate(e.target.value)}
@@ -194,7 +194,7 @@ ${genName}`;
                     />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500">Residence (City, Country)</label>
+                    <label className="text-xs font-bold text-gray-500">{t.faqResidence}</label>
                     <input 
                         type="text" placeholder="e.g. Buenos Aires, Argentina" 
                         value={genResidence} onChange={e => setGenResidence(e.target.value)}
@@ -202,7 +202,7 @@ ${genName}`;
                     />
                 </div>
                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500">Case Type</label>
+                    <label className="text-xs font-bold text-gray-500">{t.caseType}</label>
                     <select
                         value={genCaseType} onChange={e => setGenCaseType(e.target.value)}
                         className="w-full p-2 border rounded text-sm bg-white focus:ring-1 focus:ring-de-gold outline-none"
@@ -225,7 +225,7 @@ ${genName}`;
                   href="mailto:staatsangehoerigkeit@bva.bund.de" 
                   className="inline-flex items-center gap-2 text-de-red hover:underline text-sm font-bold"
                 >
-                    <Mail size={14} /> Email BVA (staatsangehoerigkeit@bva.bund.de)
+                    <Mail size={14} /> {t.faqEmailBvaBtn} (staatsangehoerigkeit@bva.bund.de)
                 </a>
             </div>
         </div>
@@ -240,7 +240,7 @@ ${genName}`;
                 <ExternalLink size={18} /> {t.officialWebsite}
             </h3>
             <p className="text-gray-300 text-sm mb-4">
-                Access official forms, leaflets, and legal information directly from the Federal Office.
+                {t.officialDesc}
             </p>
             <a 
                 href={BVA_LINK} 
@@ -259,11 +259,11 @@ ${genName}`;
             </h3>
             <div className="mb-4 p-3 bg-blue-50 text-blue-800 text-xs rounded border border-blue-100 leading-tight flex items-start gap-2">
                 <Info size={14} className="flex-shrink-0 mt-0.5" />
-                Contact me for bug reports or feature requests.
+                {t.contactIntro}
             </div>
             
             <p className="text-sm text-gray-700 mb-4">
-                You can reach the creator of this tracker on Reddit:
+                {t.contactRedditText}
             </p>
 
             <a 

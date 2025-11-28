@@ -80,9 +80,9 @@ const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string,
   }
 
   const steps = [
-    { label: "Submitted", date: dates.sub, active: true },
-    { label: "Protocol (AZ)", date: dates.proto, active: !!dates.proto },
-    { label: "Decision", date: dates.dec, active: !!dates.dec }
+    { label: t.stepSubmitted, date: dates.sub, active: true },
+    { label: t.stepProtocol, date: dates.proto, active: !!dates.proto },
+    { label: t.stepDecision, date: dates.dec, active: !!dates.dec }
   ];
 
   return (
@@ -429,7 +429,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
                 className="flex items-center gap-1 mb-1 group outline-none"
             >
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider cursor-pointer group-hover:text-de-gold transition-colors">
-                    Username
+                    {t.username}
                 </span>
                 <ChevronDown size={12} className={`text-gray-400 group-hover:text-de-gold transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
             </button>

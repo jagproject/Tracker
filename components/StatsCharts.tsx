@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { 
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid 
@@ -43,11 +44,11 @@ const SkeletonChart = () => (
 );
 
 // Drill Down Modal (Item 6)
-const DrillDownModal = ({ title, cases, onClose, statusT, lang }: { title: string, cases: CitizenshipCase[], onClose: () => void, statusT: any, lang: Language }) => (
+const DrillDownModal = ({ title, cases, onClose, statusT, lang, t }: { title: string, cases: CitizenshipCase[], onClose: () => void, statusT: any, lang: Language, t: any }) => (
     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4" onClick={onClose}>
         <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
-                <h3 className="font-bold text-de-black">Details: {title} ({cases.length})</h3>
+                <h3 className="font-bold text-de-black">{t.details || 'Details'}: {title} ({cases.length})</h3>
                 <button onClick={onClose}><X size={20} className="text-gray-400 hover:text-red-500" /></button>
             </div>
             <div className="overflow-y-auto p-4 space-y-2">
@@ -161,8 +162,11 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
     // 1. Calculate User Stats (with fallback to today if approval date missing)
     const safeApproval = userCase.approvalDate || new Date().toISOString();
     const myDiff = getDaysDiff(userCase.submissionDate, safeApproval);
-    const myValue = (myDiff !== null && myDiff >= 0) ? Math.round(myDiff) : 0;
-    const myLabel = userCase.status === CaseStatus.APPROVED ? "My Time (Total)" : "My Wait (So Far)";
+    const myDays = (myDiff !== null && myDiff >= 0) ? Math.round(myDiff) : 0;
+    // CONVERT TO MONTHS (30.44 days per month)
+    const myMonths = parseFloat((myDays / 30.44).toFixed(1));
+
+    const myLabel = userCase.status === CaseStatus.APPROVED ? t.compareMyTime : t.compareMyWait;
 
     // 2. Calculate Cohort Stats
     // Ensure we only include valid dates in calculation to prevent NaN
@@ -175,13 +179,14 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
         .map(c => getDaysDiff(c.submissionDate, c.approvalDate!))
         .filter((d): d is number => d !== null && d > 0);
         
-    const avgValue = totalDays.length > 0 ? Math.round(totalDays.reduce((a,b)=>a+b,0)/totalDays.length) : (stats.avgDaysTotal || 0);
+    const avgDays = totalDays.length > 0 ? Math.round(totalDays.reduce((a,b)=>a+b,0)/totalDays.length) : (stats.avgDaysTotal || 0);
+    const avgMonths = parseFloat((avgDays / 30.44).toFixed(1));
 
     return [
-        { name: myLabel, value: myValue, fill: "#FFCC00" },
-        { name: `Cohort Avg`, value: avgValue, fill: "#333" }
+        { name: myLabel, value: myMonths, fill: "#FFCC00" },
+        { name: t.compareCohortAvg, value: avgMonths, fill: "#333" }
     ];
-  }, [userCase, cases, stats.avgDaysTotal, stats.totalCases]);
+  }, [userCase, cases, stats.avgDaysTotal, stats.totalCases, t]);
 
   const getStatusColor = (name: string, index: number) => {
     // Defensive check
@@ -295,7 +300,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
             </h3>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-center">
                 <div className="bg-gray-50 p-4 rounded">
-                    <p className="text-xs text-gray-500 uppercase font-bold mb-1">Average</p>
+                    <p className="text-xs text-gray-500 uppercase font-bold mb-1">{t.waitingAverage}</p>
                     <p className="text-xl font-bold text-de-black">{formatDuration(stats.waitingStats.mean, lang)}</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded">
@@ -324,7 +329,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart layout="vertical" data={comparisonData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                        <XAxis type="number" unit=" days" />
+                        <XAxis type="number" unit={" " + t.months} />
                         <YAxis dataKey="name" type="category" width={150} tick={{fontSize: 12, fontWeight: 'bold'}} />
                         <Tooltip cursor={{fill: '#f9fafb'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                         <Bar dataKey="value" barSize={40}>
@@ -335,7 +340,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
                     </BarChart>
                 </ResponsiveContainer>
              </div>
-             <p className="text-xs text-gray-400 text-center mt-2">Comparing your timeline against the average approved case in the current view.</p>
+             <p className="text-xs text-gray-400 text-center mt-2">{t.compareDesc}</p>
          </div>
       )}
 
@@ -404,6 +409,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
             onClose={() => setDrillDownData(null)} 
             statusT={statusT}
             lang={lang}
+            t={t}
           />
       )}
     </div>

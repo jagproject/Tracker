@@ -29,7 +29,10 @@ import {
   Link as LinkIcon,
   Ghost,
   Eye,
-  EyeOff
+  EyeOff,
+  Palette,
+  Image as ImageIcon,
+  RefreshCw
 } from 'lucide-react';
 import { CitizenshipCase, UserSession, CaseType, CaseStatus, Language } from './types';
 import { generateFantasyUsername, generateStatisticalInsights } from './services/geminiService';
@@ -58,9 +61,6 @@ const BG_IMAGES = [
   "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=2670&auto=format&fit=crop", // Green Forest
   "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=2613&auto=format&fit=crop", // Bavarian Castle
 ];
-
-// Current Version Timestamp
-const APP_VERSION = "V.24.11.2025-13:00";
 
 // Item 8: Automatic Translation Detection
 const detectLanguage = (): Language => {
@@ -244,8 +244,9 @@ const App: React.FC = () => {
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
-  // Random background image on mount with fallback
-  const [bgImage] = useState<string>(() => {
+  // Background Control State
+  const [bgMode, setBgMode] = useState<'image' | 'simple'>('image');
+  const [bgImage, setBgImage] = useState<string>(() => {
     try {
       if (BG_IMAGES && BG_IMAGES.length > 0) {
         return BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)];
@@ -253,10 +254,30 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Error selecting background image", e);
     }
-    return BG_IMAGES[0]; // Safe fallback
+    return BG_IMAGES[0];
   });
 
   const t = TRANSLATIONS[lang];
+
+  // Background Effects
+  useEffect(() => {
+    const savedMode = localStorage.getItem('de_tracker_bg_mode') as 'image' | 'simple';
+    if (savedMode) setBgMode(savedMode);
+  }, []);
+
+  const handleToggleBgMode = () => {
+      const newMode = bgMode === 'image' ? 'simple' : 'image';
+      setBgMode(newMode);
+      localStorage.setItem('de_tracker_bg_mode', newMode);
+  };
+
+  const handleShuffleBg = () => {
+      let newImg = bgImage;
+      while (newImg === bgImage && BG_IMAGES.length > 1) {
+          newImg = BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)];
+      }
+      setBgImage(newImg);
+  };
 
   useEffect(() => {
     refreshData();
@@ -464,7 +485,7 @@ const App: React.FC = () => {
           c.status !== CaseStatus.SUBMITTED &&
           c.protocolDate
         );
-        if (twin) msgs.push(`A case submitted on ${userCase.submissionDate} just received their Aktenzeichen (Protocol)!`);
+        if (twin) msgs.push(t.notificationTwin.replace('{date}', formatISODateToLocale(userCase.submissionDate, lang)));
       }
 
       if (userCase.notifySameMonthUrkunde && userCase.protocolDate && !userCase.approvalDate) {
@@ -477,7 +498,7 @@ const App: React.FC = () => {
                 new Date(c.protocolDate).getFullYear() === myProto.getFullYear() &&
                 c.approvalDate
             );
-            if (cohort) msgs.push(`A case from your Protocol cohort (${myProto.getMonth()+1}/${myProto.getFullYear()}) just received their Urkunde!`);
+            if (cohort) msgs.push(t.notificationCohort.replace('{date}', `${myProto.getMonth()+1}/${myProto.getFullYear()}`));
         }
       }
 
@@ -584,10 +605,12 @@ const App: React.FC = () => {
   if (!session) {
     return (
       <div 
-        className="min-h-screen flex flex-col justify-center items-center p-4 font-sans relative bg-gray-900 bg-cover bg-center transition-all duration-1000"
-        style={{
+        className={`min-h-screen flex flex-col justify-center items-center p-4 font-sans relative transition-all duration-1000 ${
+            bgMode === 'image' ? 'bg-cover bg-center' : 'bg-gradient-to-br from-gray-900 to-black'
+        }`}
+        style={bgMode === 'image' ? {
           backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('${bgImage}')` 
-        }}
+        } : {}}
       >
         {showPrivacyModal && <PrivacyPolicyModal lang={lang} onClose={() => setShowPrivacyModal(false)} />}
         
@@ -806,11 +829,19 @@ const App: React.FC = () => {
         </div>
         <div className="mt-8 py-4 flex flex-col items-center justify-center gap-2 text-gray-400">
              <div className="flex items-center gap-3 bg-black/30 px-4 py-2 rounded-full backdrop-blur-sm">
+                 <button onClick={handleToggleBgMode} className="flex items-center gap-1 text-xs hover:text-white transition-colors text-white/70">
+                    {bgMode === 'image' ? <Palette size={12} /> : <ImageIcon size={12} />}
+                    {bgMode === 'image' ? t.simpleMode : t.scenicMode}
+                 </button>
+                 {bgMode === 'image' && (
+                    <button onClick={handleShuffleBg} className="flex items-center gap-1 text-xs hover:text-white transition-colors text-white/70">
+                        <RefreshCw size={12} /> {t.shuffle}
+                    </button>
+                 )}
+                 <span className="text-white/30">|</span>
                  <button onClick={() => setShowAdmin(true)} className="flex items-center gap-1 text-xs hover:text-white transition-colors text-white/70">
                     <Settings size={12} /> {t.ownerAccess}
                  </button>
-                 <span className="text-white/30">|</span>
-                 <span className="text-[10px] font-mono text-white/50">{APP_VERSION}</span>
              </div>
         </div>
         {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
@@ -820,12 +851,14 @@ const App: React.FC = () => {
 
   return (
     <div 
-        className="min-h-screen font-sans text-de-black bg-fixed bg-cover bg-center transition-all duration-1000"
-        style={{
+        className={`min-h-screen font-sans text-de-black transition-all duration-1000 ${
+            bgMode === 'image' ? 'bg-fixed bg-cover bg-center' : 'bg-gray-100'
+        }`}
+        style={bgMode === 'image' ? {
           backgroundImage: `url('${bgImage}')`
-        }}
+        } : {}}
     >
-      <div className="min-h-screen bg-gray-50/70 backdrop-blur-sm">
+      <div className={`min-h-screen ${bgMode === 'image' ? 'bg-gray-50/70 backdrop-blur-sm' : ''}`}>
       {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
       {selectedDetailCase && <CaseDetailsModal caseData={selectedDetailCase} onClose={() => setSelectedDetailCase(null)} lang={lang} />}
 
@@ -843,7 +876,10 @@ const App: React.FC = () => {
             <div className="flex items-center gap-4 md:gap-6">
               <div className="hidden md:block"><LanguageSelector lang={lang} setLang={setLang} /></div>
               <div className="hidden md:flex flex-col items-end border-l border-gray-700 pl-4">
-                <span className="text-sm font-bold text-de-gold">{session.fantasyName}</span>
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-gray-400 uppercase font-bold">{t.username}</span>
+                    <span className="text-sm font-bold text-de-gold">{session.fantasyName}</span>
+                </div>
               </div>
               <button onClick={handleLogout} className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-300 hover:text-white"><LogOut size={20} /></button>
             </div>
@@ -977,13 +1013,13 @@ const App: React.FC = () => {
         {activeTab === 'dashboard' && (
             <div className="bg-white p-6 rounded shadow-sm border border-gray-200 mt-8">
                 <div className="flex justify-between items-center mb-4 border-b pb-2">
-                  <h3 className="text-lg font-bold text-de-black">{viewGhosts ? "Ghost Cases (Inactive)" : t.activeCases}</h3>
+                  <h3 className="text-lg font-bold text-de-black">{viewGhosts ? t.ghostCases : t.activeCases}</h3>
                   {viewGhosts && (
                     <button 
                       onClick={() => setViewGhosts(false)}
                       className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full flex items-center gap-2 transition-colors"
                     >
-                      <ArrowRight size={12} /> Back to Active
+                      <ArrowRight size={12} /> {t.backToActive}
                     </button>
                   )}
                 </div>
@@ -998,7 +1034,7 @@ const App: React.FC = () => {
                                 className={`font-medium flex items-center gap-1 transition-colors hover:underline ${viewGhosts ? 'text-de-black font-bold' : 'text-gray-400 hover:text-gray-600'}`}
                                 title={viewGhosts ? "Click to hide Ghost Cases" : "Click to view Ghost Cases"}
                             >
-                                {viewGhosts ? <EyeOff size={14} /> : <Eye size={14} />} Ghost Cases: {ghostCount}
+                                {viewGhosts ? <EyeOff size={14} /> : <Eye size={14} />} {t.ghostCases}: {ghostCount}
                             </button>
                         )}
                     </div>
@@ -1029,16 +1065,24 @@ const App: React.FC = () => {
 
         <div className="bg-gray-100/50 backdrop-blur border border-gray-200 rounded p-4 mt-8 flex gap-3 opacity-80 hover:opacity-100 transition-opacity w-full max-w-full">
             <AlertCircle className="text-gray-400 flex-shrink-0" />
-            <div><h4 className="font-bold text-sm text-de-black mb-1">Legal Disclaimer</h4><p className="text-xs text-gray-600 leading-relaxed">{t.disclaimer}</p></div>
+            <div><h4 className="font-bold text-sm text-de-black mb-1">{t.legalDisclaimer}</h4><p className="text-xs text-gray-600 leading-relaxed">{t.disclaimer}</p></div>
         </div>
         
         <div className="mt-8 py-4 flex flex-col items-center justify-center gap-2 text-gray-400 border-t border-gray-200">
              <div className="flex items-center gap-3">
-                 <button onClick={() => setShowAdmin(true)} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors">
+                 <button onClick={handleToggleBgMode} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
+                    {bgMode === 'image' ? <Palette size={12} /> : <ImageIcon size={12} />}
+                    {bgMode === 'image' ? t.simpleMode : t.scenicMode}
+                 </button>
+                 {bgMode === 'image' && (
+                    <button onClick={handleShuffleBg} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
+                        <RefreshCw size={12} /> {t.shuffle}
+                    </button>
+                 )}
+                 <span className="text-gray-300">|</span>
+                 <button onClick={() => setShowAdmin(true)} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
                     <Settings size={12} /> {t.ownerAccess}
                  </button>
-                 <span className="text-gray-300">|</span>
-                 <span className="text-[10px] font-mono opacity-60">{APP_VERSION}</span>
              </div>
         </div>
       </main>
