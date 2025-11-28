@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CitizenshipCase, CaseType, CaseStatus, Language } from '../types';
 import { COUNTRIES, TRANSLATIONS, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { Save, Loader2, AlertTriangle, Edit2, Download, Twitter, ChevronDown, Mail, Power, Facebook, Instagram, Share2 } from 'lucide-react';
+import { Save, Loader2, AlertTriangle, Edit2, Download, Twitter, ChevronDown, Mail, Power, Facebook, Instagram, Share2, Clock, CheckCircle2, Circle, FileText, Send } from 'lucide-react';
 import { getDaysDiff, formatISODateToLocale, formatDateTimeToLocale, formatDuration } from '../services/statsUtils';
 
 interface CaseFormProps {
@@ -44,106 +44,128 @@ const CustomDateInput: React.FC<CustomDateInputProps> = ({ label, name, value, o
     </div>
 );
 
-// --- Timeline Stepper (Green Line Logic with Time Calculation) ---
-const CaseTimelineStepper: React.FC<{ status: CaseStatus, dates: { sub?: string, proto?: string, dec?: string }, lang: Language }> = ({ status, dates, lang }) => {
+// --- Feature 5: Visual Gap Timeline (Horizontal) ---
+const VisualGapTimeline: React.FC<{ status: CaseStatus, dates: { sub?: string, proto?: string, dec?: string }, lang: Language }> = ({ status, dates, lang }) => {
   const t = TRANSLATIONS[lang];
-  
-  // Logic: Calculate progress based on DATES specifically
-  let progress = 0;
-  if (dates.dec) {
-      progress = 100;
-  } else if (dates.proto) {
-      progress = 50;
-  }
-
-  // Time Calculation Logic
   const today = new Date().toISOString().split('T')[0];
   
-  // 1. Submitted -> Protocol (or Today)
-  let subToProtoLabel = "";
-  if (dates.sub) {
-      const endDate = dates.proto || today;
-      const diff = getDaysDiff(dates.sub, endDate);
-      if (diff !== null && diff >= 0) {
-          subToProtoLabel = formatDuration(diff, lang);
-      }
-  }
+  // Calculate raw days
+  const subToProtoDays = getDaysDiff(dates.sub, dates.proto || today) || 0;
+  const protoToDecDays = dates.proto ? (getDaysDiff(dates.proto, dates.dec || today) || 0) : 0;
 
-  // 2. Protocol -> Decision (or Today)
-  let protoToDecLabel = "";
-  if (dates.proto) {
-      const endDate = dates.dec || today;
-      const diff = getDaysDiff(dates.proto, endDate);
-      if (diff !== null && diff >= 0) {
-          protoToDecLabel = formatDuration(diff, lang);
-      }
-  }
+  // We use flex-grow to visualize relative time. 
+  // Minimum weight of 1 to ensure line is visible.
+  // We cap the weight to avoid one line taking 99% of space if the other is 1 day.
+  const w1 = Math.min(10, Math.max(1, subToProtoDays / 30)); // 1 unit per month approx
+  const w2 = Math.min(10, Math.max(1, protoToDecDays / 30));
 
-  const steps = [
-    { label: t.stepSubmitted, date: dates.sub, active: true },
-    { label: t.stepProtocol, date: dates.proto, active: !!dates.proto },
-    { label: t.stepDecision, date: dates.dec, active: !!dates.dec }
-  ];
+  const calcDurationLabel = (start?: string, end?: string) => {
+      if (!start) return null;
+      const target = end || today;
+      const days = getDaysDiff(start, target);
+      if (days === null || days < 0) return null;
+      return formatDuration(days, lang);
+  };
+
+  const subToProtoLabel = calcDurationLabel(dates.sub, dates.proto);
+  const protoToDecLabel = calcDurationLabel(dates.proto, dates.dec);
+
+  // Status Colors
+  const getStepColor = (isActive: boolean, isCompleted: boolean) => {
+      if (isCompleted) return "bg-green-500 border-green-500 text-white";
+      if (isActive) return "bg-white border-blue-500 text-blue-500 animate-pulse";
+      return "bg-white border-gray-300 text-gray-300";
+  };
 
   return (
-    <div className="relative w-full py-10 mb-6 mt-2 px-6">
-        {/* Background Line (Gray) */}
-        <div className="absolute top-12 left-10 right-10 h-1.5 bg-gray-200 rounded-full -z-20"></div>
-        
-        {/* Active Progress Line (Green) */}
-        <div 
-            className="absolute top-12 left-10 h-1.5 bg-green-500 rounded-full -z-10 transition-all duration-700 ease-out shadow-[0_0_8px_rgba(34,197,94,0.6)]" 
-            style={{ width: `calc((100% - 5rem) * ${progress / 100})` }}
-        ></div>
-
-        {/* Time Labels (Floating above lines) */}
-        <div className="absolute top-5 left-10 right-10 flex justify-between pointer-events-none">
-            {/* First Segment Label (Sub -> Proto) */}
-            <div className="flex-1 text-center pr-4">
-                {subToProtoLabel && (
-                     <span className="text-[11px] font-bold text-blue-500 bg-white/80 px-2 py-0.5 rounded backdrop-blur-sm shadow-sm border border-blue-100">
-                        {subToProtoLabel}
-                     </span>
-                )}
+    <div className="w-full py-8 mb-6 px-2 overflow-x-auto">
+        <div className="flex items-center w-full min-w-[300px]">
+            
+            {/* STEP 1: SUBMISSION */}
+            <div className="flex flex-col items-center relative z-10">
+                <div className={`w-10 h-10 rounded-full border-4 flex items-center justify-center transition-colors shadow-sm ${getStepColor(true, !!dates.sub)}`}>
+                    <Send size={16} className={dates.sub ? "ml-0.5" : ""} />
+                </div>
+                <div className="absolute top-12 left-1/2 -translate-x-1/2 w-32 text-center">
+                    <span className="text-[10px] font-bold uppercase text-gray-500 block">{t.stepSubmitted}</span>
+                    <span className="text-xs font-bold text-de-black">{dates.sub ? formatISODateToLocale(dates.sub, lang) : '--'}</span>
+                </div>
             </div>
-            {/* Second Segment Label (Proto -> Dec) */}
-            <div className="flex-1 text-center pl-4">
-                {protoToDecLabel && (
-                    <span className="text-[11px] font-bold text-blue-500 bg-white/80 px-2 py-0.5 rounded backdrop-blur-sm shadow-sm border border-blue-100">
-                        {protoToDecLabel}
-                    </span>
-                )}
-            </div>
-        </div>
-        
-        <div className="flex justify-between items-start w-full">
-            {steps.map((step, idx) => {
-                const isActive = step.active;
-                
-                // Align text
-                const alignClass = idx === 0 ? 'items-start text-left' : idx === 2 ? 'items-end text-right' : 'items-center text-center';
 
-                return (
-                    <div key={idx} className={`flex flex-col ${alignClass} w-1/3 relative`}>
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center border-4 mb-2 transition-all duration-500 z-10 bg-white shadow-sm ${
-                            isActive 
-                                ? 'border-green-500 scale-110' 
-                                : 'border-gray-300'
-                        } ${idx === 0 ? 'self-start' : idx === 2 ? 'self-end' : 'self-center'}`}>
-                            {isActive && <div className="w-2.5 h-2.5 rounded-full bg-green-500" />}
-                        </div>
-                        <div className={`flex flex-col ${alignClass}`}>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-green-600' : 'text-gray-400'}`}>
-                                {step.label}
-                            </span>
-                            <span className="text-[10px] text-gray-500 font-mono mt-0.5">
-                                {step.date ? formatISODateToLocale(step.date, lang) : ''}
-                            </span>
-                        </div>
+            {/* LINE 1 (Sub -> Proto) */}
+            <div 
+                className="flex-grow h-1 mx-2 relative flex items-center justify-center transition-all duration-1000"
+                style={{ flexGrow: w1 }}
+            >
+                 {/* The Line Background */}
+                 <div className={`absolute inset-0 h-1 mt-auto mb-auto ${dates.proto ? 'bg-green-500' : 'bg-gray-200 dashed-line'}`}></div>
+                 
+                 {/* Duration Badge */}
+                 {dates.sub && (
+                    <div className="z-10 bg-white px-2 py-0.5 rounded-full border border-gray-200 shadow-sm text-[10px] font-mono text-gray-500 whitespace-nowrap mb-4">
+                        {subToProtoLabel || "Waiting..."}
                     </div>
-                )
-            })}
+                 )}
+            </div>
+
+            {/* STEP 2: PROTOCOL */}
+            <div className="flex flex-col items-center relative z-10">
+                 <div className={`w-10 h-10 rounded-full border-4 flex items-center justify-center transition-colors shadow-sm ${getStepColor(!dates.proto && !!dates.sub, !!dates.proto)}`}>
+                    <FileText size={16} />
+                </div>
+                <div className="absolute top-12 left-1/2 -translate-x-1/2 w-32 text-center">
+                    <span className="text-[10px] font-bold uppercase text-gray-500 block">{t.stepProtocol}</span>
+                     {dates.proto ? (
+                        <span className="text-xs font-bold text-de-black">{formatISODateToLocale(dates.proto, lang)}</span>
+                     ) : (
+                        <span className="text-[10px] text-gray-400 italic">Pending...</span>
+                     )}
+                </div>
+            </div>
+
+            {/* LINE 2 (Proto -> Decision) */}
+            <div 
+                className="flex-grow h-1 mx-2 relative flex items-center justify-center transition-all duration-1000"
+                style={{ flexGrow: w2 }}
+            >
+                 <div className={`absolute inset-0 h-1 mt-auto mb-auto ${dates.dec ? 'bg-green-500' : 'bg-gray-200 dashed-line'}`}></div>
+                 
+                 {dates.proto && (
+                    <div className="z-10 bg-white px-2 py-0.5 rounded-full border border-gray-200 shadow-sm text-[10px] font-mono text-gray-500 whitespace-nowrap mb-4">
+                        {protoToDecLabel || "Processing..."}
+                    </div>
+                 )}
+            </div>
+
+            {/* STEP 3: DECISION */}
+            <div className="flex flex-col items-center relative z-10">
+                 <div className={`w-10 h-10 rounded-full border-4 flex items-center justify-center transition-colors shadow-sm ${getStepColor(!dates.dec && !!dates.proto, !!dates.dec)}`}>
+                    {status === CaseStatus.CLOSED ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+                </div>
+                <div className="absolute top-12 left-1/2 -translate-x-1/2 w-32 text-center">
+                    <span className="text-[10px] font-bold uppercase text-gray-500 block">{t.stepDecision}</span>
+                     {dates.dec ? (
+                        <span className={`text-xs font-bold ${status === CaseStatus.APPROVED ? 'text-green-600' : 'text-red-500'}`}>
+                            {formatISODateToLocale(dates.dec, lang)}
+                        </span>
+                     ) : (
+                        <span className="text-[10px] text-gray-400 italic">Waiting...</span>
+                     )}
+                </div>
+            </div>
         </div>
+        <div className="h-10"></div> {/* Spacer for absolute labels */}
+        
+        <style>{`
+            .dashed-line {
+                background-image: linear-gradient(to right, #ccc 50%, rgba(255,255,255,0) 0%);
+                background-position: bottom;
+                background-size: 10px 4px;
+                background-repeat: repeat-x;
+                background-color: transparent !important;
+                height: 4px;
+            }
+        `}</style>
     </div>
   );
 };
@@ -482,7 +504,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
         </div>
       </div>
 
-      <CaseTimelineStepper 
+      <VisualGapTimeline 
         status={formData.status || CaseStatus.SUBMITTED} 
         dates={{
             sub: formData.submissionDate,

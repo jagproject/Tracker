@@ -1,12 +1,12 @@
 
 import React, { useMemo, useState } from 'react';
 import { 
-  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid 
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine, LabelList
 } from 'recharts';
 import { CitizenshipCase, Language, CaseStatus } from '../types';
 import { TRANSLATIONS, STATUS_TRANSLATIONS } from '../constants';
 import { calculateAdvancedStats, formatDuration, getDaysDiff, formatISODateToLocale } from '../services/statsUtils';
-import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X } from 'lucide-react';
+import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X, TrendingUp } from 'lucide-react';
 
 interface StatsDashboardProps {
   cases: CitizenshipCase[]; // Receiving filtered cases from App.tsx
@@ -69,6 +69,118 @@ const DrillDownModal = ({ title, cases, onClose, statusT, lang, t }: { title: st
         </div>
     </div>
 );
+
+// Feature 7: Wait Time Distribution Chart
+const WaitTimeDistribution = ({ cases, userCase, t, lang }: { cases: CitizenshipCase[], userCase?: CitizenshipCase, t: any, lang: Language }) => {
+    const data = useMemo(() => {
+        // Collect Wait Times for APPROVED cases (Total Time)
+        const durations = cases
+            .filter(c => c.status === CaseStatus.APPROVED && c.submissionDate && c.approvalDate)
+            .map(c => getDaysDiff(c.submissionDate, c.approvalDate!))
+            .filter((d): d is number => d !== null && d > 0)
+            .map(days => Math.round(days / 30.44)); // Convert to months
+
+        if (durations.length === 0) return [];
+
+        // Determine bucket range (e.g. 0-6, 7-12, etc.)
+        const maxDuration = Math.max(...durations);
+        const buckets: Record<string, number> = {};
+        const range = 3; // 3 month buckets
+
+        // Initialize Buckets
+        for(let i=0; i <= maxDuration + range; i+=range) {
+            buckets[`${i}-${i+range}`] = 0;
+        }
+
+        durations.forEach(m => {
+            const bucketIndex = Math.floor(m / range) * range;
+            const key = `${bucketIndex}-${bucketIndex+range}`;
+            buckets[key] = (buckets[key] || 0) + 1;
+        });
+
+        // Determine User's Position
+        let userBucket = null;
+        if (userCase && userCase.submissionDate) {
+            let myMonths = 0;
+            if (userCase.status === CaseStatus.APPROVED && userCase.approvalDate) {
+                myMonths = Math.round(getDaysDiff(userCase.submissionDate, userCase.approvalDate)! / 30.44);
+            } else {
+                // If waiting, just show current wait
+                myMonths = Math.round(getDaysDiff(userCase.submissionDate, new Date().toISOString())! / 30.44);
+            }
+            const bucketIndex = Math.floor(myMonths / range) * range;
+            userBucket = `${bucketIndex}-${bucketIndex+range}`;
+        }
+
+        return Object.entries(buckets).map(([name, count]) => ({
+            name,
+            count,
+            isUser: name === userBucket
+        }));
+    }, [cases, userCase]);
+
+    if (data.length === 0) return null;
+
+    // Custom Tooltip for Clarity
+    const CustomTooltip = ({ active, payload, label }: any) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-white p-3 border border-gray-200 shadow-lg rounded-lg text-xs">
+                    <p className="font-bold text-gray-800">{payload[0].value} approved cases</p>
+                    <p className="text-gray-500">Waited {label} months</p>
+                    {payload[0].payload.isUser && (
+                        <p className="text-de-gold font-bold mt-1">⭐ You are in this range!</p>
+                    )}
+                </div>
+            );
+        }
+        return null;
+    };
+
+    const title = lang === 'es' ? "Tiempos de Aprobación (Histograma)" : "Approval Times (Histogram)";
+    const subtitle = lang === 'es' ? "Distribución de casos aprobados por meses de espera." : "Distribution of approved cases by waiting months.";
+    const xAxisLabel = lang === 'es' ? "Meses de Espera" : "Months Waited";
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+            <h3 className="text-lg font-bold text-de-black flex items-center gap-2">
+                <TrendingUp size={20} className="text-blue-500" /> {title}
+            </h3>
+            <p className="text-xs text-gray-400 mb-4 ml-7">{subtitle}</p>
+
+            <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis 
+                            dataKey="name" 
+                            tick={{fontSize: 10}} 
+                            label={{ value: xAxisLabel, position: 'insideBottom', offset: -10, fontSize: 10, fill: '#666' }} 
+                        />
+                        <YAxis />
+                        <Tooltip content={<CustomTooltip />} cursor={{fill: '#f9fafb'}} />
+                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                             {data.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.isUser ? '#FFCC00' : '#d1d5db'} />
+                             ))}
+                             <LabelList dataKey="count" position="top" style={{fontSize: 10}} />
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+            <div className="flex justify-center items-center gap-4 mt-2 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 bg-gray-300 rounded-sm"></span> {lang === 'es' ? 'Comunidad' : 'Community'}
+                </div>
+                {userCase && (
+                    <div className="flex items-center gap-1">
+                        <span className="w-3 h-3 bg-de-gold rounded-sm"></span> {lang === 'es' ? 'Tú (o tu rango)' : 'You (or your range)'}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase, lang, loading = false }) => {
   const t = TRANSLATIONS[lang];
@@ -292,6 +404,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
           </div>
       </div>
 
+      {/* Feature 7: Wait Time Distribution */}
+      <WaitTimeDistribution cases={cases} userCase={userCase} t={t} lang={lang} />
+
       {/* Waiting Stats */}
       {stats.waitingStats && stats.waitingStats.count > 0 && (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
@@ -319,7 +434,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
         </div>
       )}
 
-      {/* Feature 5: Compare Me Chart */}
+      {/* Feature 5 (Previous): Compare Me Chart */}
       {userCase && comparisonData.length > 0 && (
          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
              <h3 className="text-lg font-bold text-de-black mb-4 flex items-center gap-2">

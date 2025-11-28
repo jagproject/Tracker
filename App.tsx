@@ -33,12 +33,15 @@ import {
   Palette,
   Image as ImageIcon,
   RefreshCw,
-  Home
+  Home,
+  ArrowLeftRight,
+  Clock,
+  Calendar
 } from 'lucide-react';
 import { CitizenshipCase, UserSession, CaseType, CaseStatus, Language } from './types';
 import { generateFantasyUsername, generateStatisticalInsights } from './services/geminiService';
 import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig, subscribeToCases } from './services/storageService';
-import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickStats, formatISODateToLocale, isGhostCase } from './services/statsUtils';
+import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickStats, formatISODateToLocale, isGhostCase, formatDuration } from './services/statsUtils';
 import { logoutUser, subscribeToAuthChanges, isSupabaseEnabled } from './services/authService';
 import { StatsDashboard } from './components/StatsCharts';
 import { WorldMapStats } from './components/WorldMapStats';
@@ -107,6 +110,7 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
         <div style={style} className="px-0">
              <div 
                 onDoubleClick={() => onSelect(c)}
+                onClick={() => onSelect(c)}
                 className={`flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none ${isGhost ? 'bg-gray-50/50' : ''}`}
              >
                 <div className={`w-3 h-3 rounded-full flex-shrink-0 shadow-sm ${
@@ -131,75 +135,148 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
     );
 };
 
-// Detail Modal
-const CaseDetailsModal = ({ caseData, onClose, lang }: { caseData: CitizenshipCase, onClose: () => void, lang: Language }) => {
+// Detail Modal with Comparison Feature (Suggestion 6)
+const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: CitizenshipCase, userCase?: CitizenshipCase, onClose: () => void, lang: Language }) => {
     const t = TRANSLATIONS[lang];
     const statusT = STATUS_TRANSLATIONS[lang];
     const isGhost = isGhostCase(caseData);
+    const [compareMode, setCompareMode] = useState(false);
+
+    // Helpers for Comparison
+    const getDur = (c: CitizenshipCase, endType: 'proto' | 'app') => {
+        const start = c.submissionDate;
+        const end = endType === 'proto' ? c.protocolDate : c.approvalDate;
+        if (!start || !end) return null;
+        return getDaysDiff(start, end);
+    };
+
+    const ComparisonRow = ({ label, myVal, theirVal, isDate = false, isDuration = false }: { label: string, myVal: any, theirVal: any, isDate?: boolean, isDuration?: boolean }) => {
+        let displayMy = myVal;
+        let displayTheir = theirVal;
+
+        if (isDate) {
+            displayMy = myVal ? formatISODateToLocale(myVal, lang) : '--';
+            displayTheir = theirVal ? formatISODateToLocale(theirVal, lang) : '--';
+        } else if (isDuration) {
+            displayMy = myVal ? formatDuration(myVal, lang) : '--';
+            displayTheir = theirVal ? formatDuration(theirVal, lang) : '--';
+        }
+
+        // Color coding for duration/speed
+        let myClass = "text-gray-700";
+        let theirClass = "text-gray-700";
+        
+        if (isDuration && myVal && theirVal) {
+             if (myVal < theirVal) { myClass = "text-green-600 font-bold"; theirClass = "text-red-400"; }
+             else if (myVal > theirVal) { myClass = "text-red-400"; theirClass = "text-green-600 font-bold"; }
+        }
+
+        return (
+            <div className="grid grid-cols-3 gap-2 text-xs border-b border-gray-100 py-2">
+                 <div className={`text-center font-mono ${myClass}`}>{displayMy}</div>
+                 <div className="text-center font-bold text-gray-400 uppercase tracking-tighter text-[10px] self-center">{label}</div>
+                 <div className={`text-center font-mono ${theirClass}`}>{displayTheir}</div>
+            </div>
+        );
+    };
 
     return (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
             <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="bg-de-black p-4 flex justify-between items-center text-white">
-                    <h3 className="font-bold flex items-center gap-2"><User size={18} /> {caseData.fantasyName}</h3>
+                    <h3 className="font-bold flex items-center gap-2">
+                        {compareMode ? <ArrowLeftRight size={18} className="text-de-gold" /> : <User size={18} />}
+                        {compareMode ? "Compare Cases" : caseData.fantasyName}
+                    </h3>
                     <button onClick={onClose}><X size={20} className="hover:text-de-gold" /></button>
                 </div>
+                
                 <div className="p-6 space-y-4">
-                     {isGhost && (
-                        <div className="bg-gray-100 p-3 rounded border border-gray-200 text-xs text-gray-500 flex items-start gap-2">
-                            <Ghost size={16} className="shrink-0 mt-0.5" />
-                            <span>This case is categorized as a "Ghost Case" due to long inactivity (No Protocol {'>'} 1yr or No Decision {'>'} 4yrs). It is excluded from community statistics.</span>
+                     {compareMode && userCase ? (
+                        <div className="animate-in slide-in-from-right-4">
+                            <div className="grid grid-cols-3 gap-2 mb-4 text-center pb-2 border-b-2 border-gray-100">
+                                <div className="font-bold text-de-gold truncate">{userCase.fantasyName}</div>
+                                <div className="text-gray-300 text-xs self-center">VS</div>
+                                <div className="font-bold text-gray-700 truncate">{caseData.fantasyName}</div>
+                            </div>
+                            
+                            <div className="space-y-1">
+                                <ComparisonRow label={t.submissionDate} myVal={userCase.submissionDate} theirVal={caseData.submissionDate} isDate />
+                                <ComparisonRow label={t.protocolDate} myVal={userCase.protocolDate} theirVal={caseData.protocolDate} isDate />
+                                <ComparisonRow label="Wait (Sub → Proto)" myVal={getDur(userCase, 'proto')} theirVal={getDur(caseData, 'proto')} isDuration />
+                                <ComparisonRow label={t.approvalDate} myVal={userCase.approvalDate} theirVal={caseData.approvalDate} isDate />
+                                <ComparisonRow label="Total Wait" myVal={getDur(userCase, 'app')} theirVal={getDur(caseData, 'app')} isDuration />
+                            </div>
+
+                            <button 
+                                onClick={() => setCompareMode(false)}
+                                className="mt-6 w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold rounded uppercase transition-colors"
+                            >
+                                Back to Details
+                            </button>
                         </div>
+                     ) : (
+                        <>
+                             {isGhost && (
+                                <div className="bg-gray-100 p-3 rounded border border-gray-200 text-xs text-gray-500 flex items-start gap-2">
+                                    <Ghost size={16} className="shrink-0 mt-0.5" />
+                                    <span>This case is categorized as a "Ghost Case" due to long inactivity.</span>
+                                </div>
+                             )}
+                             <div className="grid grid-cols-2 gap-4 text-sm">
+                                 <div>
+                                     <span className="text-xs text-gray-500 font-bold uppercase block">{t.country}</span>
+                                     <span className="font-medium">{caseData.countryOfApplication}</span>
+                                 </div>
+                                 <div>
+                                     <span className="text-xs text-gray-500 font-bold uppercase block">{t.caseType}</span>
+                                     <span className="font-medium">{caseData.caseType}</span>
+                                 </div>
+                             </div>
+                             <div className="border-t border-gray-100 pt-3 space-y-2">
+                                 <div className="flex justify-between">
+                                    <span className="text-xs text-gray-500 font-bold uppercase">{t.submissionDate}</span>
+                                    <span className="text-sm font-mono">{formatISODateToLocale(caseData.submissionDate, lang)}</span>
+                                 </div>
+                                 {caseData.protocolDate && (
+                                     <div className="flex justify-between">
+                                        <span className="text-xs text-gray-500 font-bold uppercase">{t.protocolDate}</span>
+                                        <span className="text-sm font-mono text-blue-600">{formatISODateToLocale(caseData.protocolDate, lang)}</span>
+                                     </div>
+                                 )}
+                                 {caseData.approvalDate && (
+                                     <div className="flex justify-between bg-green-50 p-1 rounded">
+                                        <span className="text-xs text-green-700 font-bold uppercase">{t.approvalDate}</span>
+                                        <span className="text-sm font-mono text-green-700 font-bold">{formatISODateToLocale(caseData.approvalDate, lang)}</span>
+                                     </div>
+                                 )}
+                                 {caseData.closedDate && (
+                                     <div className="flex justify-between bg-red-50 p-1 rounded">
+                                        <span className="text-xs text-red-700 font-bold uppercase">{t.closedDate}</span>
+                                        <span className="text-sm font-mono text-red-700 font-bold">{formatISODateToLocale(caseData.closedDate, lang)}</span>
+                                     </div>
+                                 )}
+                             </div>
+                             <div className="border-t border-gray-100 pt-3 text-center">
+                                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                                    caseData.status === CaseStatus.APPROVED ? 'bg-green-100 text-green-800' :
+                                    caseData.status === CaseStatus.CLOSED ? 'bg-red-100 text-red-800' :
+                                    'bg-gray-100 text-gray-600'
+                                 }`}>
+                                     {statusT[caseData.status] || caseData.status}
+                                 </span>
+                             </div>
+
+                             {userCase && userCase.id !== caseData.id && (
+                                <button 
+                                    onClick={() => setCompareMode(true)}
+                                    className="w-full mt-4 bg-de-gold/10 hover:bg-de-gold/20 text-de-black/80 font-bold py-2 rounded text-sm flex items-center justify-center gap-2 border border-de-gold/30 transition-colors"
+                                >
+                                    <ArrowLeftRight size={16} /> {lang === 'es' ? 'Comparar conmigo' : 'Compare with My Case'}
+                                </button>
+                             )}
+                        </>
                      )}
-                     <div className="grid grid-cols-2 gap-4 text-sm">
-                         <div>
-                             <span className="text-xs text-gray-500 font-bold uppercase block">{t.country}</span>
-                             <span className="font-medium">{caseData.countryOfApplication}</span>
-                         </div>
-                         <div>
-                             <span className="text-xs text-gray-500 font-bold uppercase block">{t.caseType}</span>
-                             <span className="font-medium">{caseData.caseType}</span>
-                         </div>
-                     </div>
-                     <div className="border-t border-gray-100 pt-3 space-y-2">
-                         <div className="flex justify-between">
-                            <span className="text-xs text-gray-500 font-bold uppercase">{t.submissionDate}</span>
-                            <span className="text-sm font-mono">{formatISODateToLocale(caseData.submissionDate, lang)}</span>
-                         </div>
-                         {caseData.protocolDate && (
-                             <div className="flex justify-between">
-                                <span className="text-xs text-gray-500 font-bold uppercase">{t.protocolDate}</span>
-                                <span className="text-sm font-mono text-blue-600">{formatISODateToLocale(caseData.protocolDate, lang)}</span>
-                             </div>
-                         )}
-                         {caseData.docsRequestDate && (
-                             <div className="flex justify-between">
-                                <span className="text-xs text-gray-500 font-bold uppercase">{t.docsDate}</span>
-                                <span className="text-sm font-mono text-orange-500">{formatISODateToLocale(caseData.docsRequestDate, lang)}</span>
-                             </div>
-                         )}
-                         {caseData.approvalDate && (
-                             <div className="flex justify-between bg-green-50 p-1 rounded">
-                                <span className="text-xs text-green-700 font-bold uppercase">{t.approvalDate}</span>
-                                <span className="text-sm font-mono text-green-700 font-bold">{formatISODateToLocale(caseData.approvalDate, lang)}</span>
-                             </div>
-                         )}
-                         {caseData.closedDate && (
-                             <div className="flex justify-between bg-red-50 p-1 rounded">
-                                <span className="text-xs text-red-700 font-bold uppercase">{t.closedDate}</span>
-                                <span className="text-sm font-mono text-red-700 font-bold">{formatISODateToLocale(caseData.closedDate, lang)}</span>
-                             </div>
-                         )}
-                     </div>
-                     <div className="border-t border-gray-100 pt-3 text-center">
-                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                            caseData.status === CaseStatus.APPROVED ? 'bg-green-100 text-green-800' :
-                            caseData.status === CaseStatus.CLOSED ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-600'
-                         }`}>
-                             {statusT[caseData.status] || caseData.status}
-                         </span>
-                     </div>
                 </div>
             </div>
         </div>
@@ -887,7 +964,7 @@ const App: React.FC = () => {
   return (
     <>
       {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
-      {selectedDetailCase && <CaseDetailsModal caseData={selectedDetailCase} onClose={() => setSelectedDetailCase(null)} lang={lang} />}
+      {selectedDetailCase && <CaseDetailsModal caseData={selectedDetailCase} userCase={userCase} onClose={() => setSelectedDetailCase(null)} lang={lang} />}
 
       <div 
           className={`min-h-screen font-sans text-de-black transition-all duration-1000 ${
