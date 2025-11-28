@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart } from 'lucide-react';
+import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart, Filter } from 'lucide-react';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
 import { TRANSLATIONS, COUNTRIES, CASE_SPECIFIC_DOCS, COMMON_DOCS } from '../constants';
 import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode } from '../services/storageService';
@@ -98,6 +98,8 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const [searchTerm, setSearchTerm] = useState('');
   const [editForm, setEditForm] = useState<CitizenshipCase | null>(null);
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
+  const [statusDistFilter, setStatusDistFilter] = useState<string>('All');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const OWNER_EMAIL = "jaalvarezgarcia@gmail.com";
@@ -149,7 +151,28 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     const total = allCases.length;
     const unclaimed = allCases.filter(c => c.email.startsWith('unclaimed_')).length;
     
-    // Status breakdown
+    // 1. DYNAMIC TYPE STATS (Fix for discrepancy)
+    // Instead of iterating enum, we iterate ALL cases to catch weird strings from CSV
+    const typeMap = new Map<string, CitizenshipCase[]>();
+    
+    allCases.forEach(c => {
+        const typeKey = c.caseType || "Unknown";
+        if (!typeMap.has(typeKey)) {
+            typeMap.set(typeKey, []);
+        }
+        typeMap.get(typeKey)?.push(c);
+    });
+
+    const typeStats = Array.from(typeMap.entries()).map(([type, cases]) => {
+         const stats = calculateQuickStats(cases);
+         return {
+            type,
+            count: cases.length,
+            avgWait: stats.avgDaysTotal
+         };
+    }).sort((a,b) => b.count - a.count);
+
+    // 2. FILTERED STATUS DISTRIBUTION
     const statusCounts = {
         [CaseStatus.SUBMITTED]: 0,
         [CaseStatus.PROTOCOL_RECEIVED]: 0,
@@ -158,34 +181,18 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
         [CaseStatus.CLOSED]: 0,
     };
     
-    // Type breakdown with AI prediction (Avg Wait)
-    const typeStats: { type: string, count: number, avgWait: number }[] = [];
+    const casesForStatus = statusDistFilter === 'All' 
+        ? allCases 
+        : allCases.filter(c => c.caseType === statusDistFilter);
 
-    // Calculate status counts
-    allCases.forEach(c => {
+    casesForStatus.forEach(c => {
         if (statusCounts[c.status] !== undefined) {
             statusCounts[c.status]++;
         }
     });
 
-    // Calculate type stats
-    Object.values(CaseType).forEach(type => {
-        const casesOfType = allCases.filter(c => c.caseType === type);
-        const count = casesOfType.length;
-        
-        // Use shared logic for calculating average wait (submission -> urkunde)
-        // This is what powers the AI Predictor
-        const stats = calculateQuickStats(casesOfType);
-        
-        typeStats.push({
-            type,
-            count,
-            avgWait: stats.avgDaysTotal
-        });
-    });
-
     return { total, unclaimed, statusCounts, typeStats };
-  }, [allCases]);
+  }, [allCases, statusDistFilter]);
 
 
   // 1. CSV Export
@@ -548,7 +555,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                 <div className="space-y-6 animate-in slide-in-from-right-4">
                     {/* Top Cards */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-gray-800 text-white p-4 rounded-lg shadow-sm">
+                        <div className="bg-gray-900 text-white p-4 rounded-lg shadow-sm">
                             <p className="text-gray-400 text-xs uppercase font-bold mb-1">Total Cases</p>
                             <p className="text-3xl font-bold">{summaryStats.total}</p>
                         </div>
@@ -564,46 +571,63 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                     {/* Breakdown by Type Table */}
                     <div className="border border-gray-200 rounded-lg overflow-hidden">
                         <div className="bg-gray-50 p-3 border-b border-gray-200 flex justify-between items-center">
-                             <h4 className="font-bold text-de-black text-sm flex items-center gap-2">
+                             <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
                                 <Activity size={16} /> Cases by Type
                              </h4>
                         </div>
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-bold">
-                                <tr>
-                                    <th className="p-3 text-left">Type</th>
-                                    <th className="p-3 text-right">Count</th>
-                                    <th className="p-3 text-right">AI Predictor (Avg)</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {summaryStats.typeStats.map(s => (
-                                    <tr key={s.type} className="hover:bg-gray-50">
-                                        <td className="p-3 font-medium text-de-black">{s.type}</td>
-                                        <td className="p-3 text-right font-bold">{s.count}</td>
-                                        <td className="p-3 text-right font-mono text-xs text-de-gold bg-gray-900/5">
-                                            {formatDuration(s.avgWait, lang)}
-                                        </td>
+                        <div className="max-h-48 overflow-y-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-bold sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th className="p-3 text-left">Type</th>
+                                        <th className="p-3 text-right">Count</th>
+                                        <th className="p-3 text-right">AI Predictor (Avg)</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {summaryStats.typeStats.map(s => (
+                                        <tr key={s.type} className="hover:bg-gray-50">
+                                            {/* Forced black text color as requested */}
+                                            <td className="p-3 font-bold text-gray-900">{s.type}</td>
+                                            <td className="p-3 text-right font-bold text-gray-900">{s.count}</td>
+                                            <td className="p-3 text-right font-mono text-xs text-yellow-600 bg-gray-50">
+                                                {formatDuration(s.avgWait, lang)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {/* Breakdown by Status */}
                      <div className="border border-gray-200 rounded-lg overflow-hidden">
-                        <div className="bg-gray-50 p-3 border-b border-gray-200">
-                             <h4 className="font-bold text-de-black text-sm flex items-center gap-2">
+                        <div className="bg-gray-50 p-3 border-b border-gray-200 flex justify-between items-center">
+                             <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
                                 <BarChart3 size={16} /> Status Distribution
                              </h4>
+                             {/* FILTER for Status Distribution */}
+                             <div className="flex items-center gap-2">
+                                <Filter size={14} className="text-gray-400" />
+                                <select 
+                                    value={statusDistFilter}
+                                    onChange={(e) => setStatusDistFilter(e.target.value)}
+                                    className="text-xs border-gray-300 rounded p-1 bg-white focus:ring-1 focus:ring-de-gold outline-none"
+                                >
+                                    <option value="All">All Types</option>
+                                    {summaryStats.typeStats.map(s => (
+                                        <option key={s.type} value={s.type}>{s.type}</option>
+                                    ))}
+                                </select>
+                             </div>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-1 p-2 bg-gray-50">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-1 p-2 bg-gray-50">
                             {Object.entries(summaryStats.statusCounts).map(([status, count]) => (
-                                <div key={status} className="bg-white p-3 rounded border border-gray-100 text-center">
-                                    <p className="text-[10px] text-gray-500 uppercase font-bold mb-1 truncate" title={status}>
+                                <div key={status} className="bg-white p-3 rounded border border-gray-100 text-center flex flex-col justify-center">
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold mb-1 truncate px-1" title={status}>
                                         {status}
                                     </p>
-                                    <p className="text-xl font-bold text-de-black">{count}</p>
+                                    <p className="text-xl font-bold text-gray-900">{count}</p>
                                 </div>
                             ))}
                         </div>
