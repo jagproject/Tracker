@@ -32,7 +32,8 @@ import {
   EyeOff,
   Palette,
   Image as ImageIcon,
-  RefreshCw
+  RefreshCw,
+  Home
 } from 'lucide-react';
 import { CitizenshipCase, UserSession, CaseType, CaseStatus, Language } from './types';
 import { generateFantasyUsername, generateStatisticalInsights } from './services/geminiService';
@@ -204,6 +205,40 @@ const CaseDetailsModal = ({ caseData, onClose, lang }: { caseData: CitizenshipCa
         </div>
     );
 };
+
+// Bottom Navigation for Mobile
+const MobileNavBar = ({ activeTab, setActiveTab, t }: { activeTab: string, setActiveTab: (t: 'myCase' | 'dashboard' | 'faq' | 'ai') => void, t: any }) => (
+  <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 flex justify-around items-center h-16 pb-safe md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+    <button 
+      onClick={() => setActiveTab('myCase')}
+      className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'myCase' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
+    >
+      <User size={22} className={activeTab === 'myCase' ? 'fill-current' : ''} strokeWidth={2} />
+      <span className="text-[10px] font-bold mt-1">{t.myCase}</span>
+    </button>
+    <button 
+      onClick={() => setActiveTab('dashboard')}
+      className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'dashboard' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
+    >
+      <LayoutDashboard size={22} className={activeTab === 'dashboard' ? 'fill-current' : ''} strokeWidth={2} />
+      <span className="text-[10px] font-bold mt-1">{t.dashboard}</span>
+    </button>
+     <button 
+      onClick={() => setActiveTab('ai')}
+      className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'ai' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
+    >
+      <Sparkles size={22} className={activeTab === 'ai' ? 'fill-current' : ''} strokeWidth={2} />
+      <span className="text-[10px] font-bold mt-1">AI</span>
+    </button>
+    <button 
+      onClick={() => setActiveTab('faq')}
+      className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'faq' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
+    >
+      <HelpCircle size={22} className={activeTab === 'faq' ? 'fill-current' : ''} strokeWidth={2} />
+      <span className="text-[10px] font-bold mt-1">FAQ</span>
+    </button>
+  </div>
+);
 
 const App: React.FC = () => {
   const [session, setSession] = useState<UserSession | null>(null);
@@ -850,244 +885,250 @@ const App: React.FC = () => {
   }
 
   return (
-    <div 
-        className={`min-h-screen font-sans text-de-black transition-all duration-1000 ${
-            bgMode === 'image' ? 'bg-fixed bg-cover bg-center' : 'bg-gray-100'
-        }`}
-        style={bgMode === 'image' ? {
-          backgroundImage: `url('${bgImage}')`
-        } : {}}
-    >
-      <div className={`min-h-screen ${bgMode === 'image' ? 'bg-gray-50/70 backdrop-blur-sm' : ''}`}>
+    <>
       {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
       {selectedDetailCase && <CaseDetailsModal caseData={selectedDetailCase} onClose={() => setSelectedDetailCase(null)} lang={lang} />}
 
-      <nav className="bg-de-black/95 backdrop-blur text-white shadow-lg sticky top-0 z-50 border-b-4 border-de-red">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col w-8 h-6 shadow-sm rounded-sm overflow-hidden">
-                <div className="h-1/3 bg-black w-full"></div>
-                <div className="h-1/3 bg-[#DD0000] w-full"></div>
-                <div className="h-1/3 bg-[#FFCC00] w-full"></div>
-              </div>
-              <span className="font-bold text-lg tracking-tight hidden md:block">{t.title}</span>
-            </div>
-            <div className="flex items-center gap-4 md:gap-6">
-              <div className="hidden md:block"><LanguageSelector lang={lang} setLang={setLang} /></div>
-              <div className="hidden md:flex flex-col items-end border-l border-gray-700 pl-4">
-                <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-gray-400 uppercase font-bold">{t.username}</span>
-                    <span className="text-sm font-bold text-de-gold">{session.fantasyName}</span>
-                </div>
-              </div>
-              <button onClick={handleLogout} className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-300 hover:text-white"><LogOut size={20} /></button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {activeTab === 'dashboard' && <SuccessTicker cases={allCases} lang={lang} />}
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="block md:hidden mb-6"><LanguageSelector lang={lang} setLang={setLang} /></div>
+      <div 
+          className={`min-h-screen font-sans text-de-black transition-all duration-1000 ${
+              bgMode === 'image' ? 'bg-fixed bg-cover bg-center' : 'bg-gray-100'
+          }`}
+          style={bgMode === 'image' ? {
+            backgroundImage: `url('${bgImage}')`
+          } : {}}
+      >
+        <div className={`min-h-screen ${bgMode === 'image' ? 'bg-gray-50/70 backdrop-blur-sm' : ''}`}>
         
-        {isMaintenance && (
-             <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded shadow mb-6 flex items-start gap-3 animate-in slide-in-from-top-2">
-                <Power className="flex-shrink-0 mt-1" size={20} />
-                <div className="pr-6">
-                    <p className="font-bold">{t.maintenance}</p>
-                    <p className="text-sm">{t.maintenanceMessage}</p>
+        <nav className="bg-de-black/95 backdrop-blur text-white shadow-lg sticky top-0 z-50 border-b-4 border-de-red">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-16 items-center">
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col w-8 h-6 shadow-sm rounded-sm overflow-hidden">
+                  <div className="h-1/3 bg-black w-full"></div>
+                  <div className="h-1/3 bg-[#DD0000] w-full"></div>
+                  <div className="h-1/3 bg-[#FFCC00] w-full"></div>
                 </div>
-            </div>
-        )}
-
-        {notificationMsg && !isMaintenance && (
-          <div className="bg-de-gold text-de-black p-4 rounded shadow mb-6 flex items-start gap-3 animate-in slide-in-from-top-2 relative">
-            <BellRing className="flex-shrink-0 mt-1" />
-            <div className="pr-6">
-                <p className="font-bold">{t.attention}</p>
-                <p>{notificationMsg}</p>
-            </div>
-            <button 
-                onClick={() => setNotificationMsg(null)} 
-                className="absolute top-2 right-2 text-de-black hover:text-gray-700 bg-white/20 rounded-full p-1"
-            >
-                <X size={16} />
-            </button>
-          </div>
-        )}
-
-        <div className="mb-8">
-          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded border-l-4 border-de-gold p-6 text-white shadow-lg relative overflow-hidden">
-            <div className="flex items-start gap-4 relative z-10">
-              <div className="bg-white/10 p-3 rounded"><Sparkles className="text-de-gold" /></div>
-              <div>
-                <h3 className="font-bold text-lg mb-1 text-de-gold">{t.aiAnalysis} {userCase?.caseType ? `(${userCase.caseType})` : ''}</h3>
-                <p className="text-gray-300 text-sm leading-relaxed max-w-4xl">{aiInsight || "Loading insights..."}</p>
+                <span className="font-bold text-lg tracking-tight hidden md:block">{t.title}</span>
+              </div>
+              <div className="flex items-center gap-4 md:gap-6">
+                <div className="hidden md:block"><LanguageSelector lang={lang} setLang={setLang} /></div>
+                <div className="hidden md:flex flex-col items-end border-l border-gray-700 pl-4">
+                  <div className="flex flex-col items-end">
+                      <span className="text-[10px] text-gray-400 uppercase font-bold">{t.username}</span>
+                      <span className="text-sm font-bold text-de-gold">{session.fantasyName}</span>
+                  </div>
+                </div>
+                <button onClick={handleLogout} className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-300 hover:text-white"><LogOut size={20} /></button>
               </div>
             </div>
           </div>
-        </div>
+        </nav>
 
-        <div className="flex gap-1 mb-6 border-b border-gray-300 overflow-x-auto">
-          <TabButton id='myCase' label={t.myCase} icon={<User size={16} />} active={activeTab} onClick={setActiveTab} />
-          <TabButton id='dashboard' label={t.dashboard} icon={<LayoutDashboard size={16} />} active={activeTab} onClick={setActiveTab} />
-          <TabButton id='ai' label={t.aiModel} icon={<Monitor size={16} />} active={activeTab} onClick={setActiveTab} />
-          <TabButton id='faq' label={t.faq} icon={<HelpCircle size={16} />} active={activeTab} onClick={setActiveTab} />
-        </div>
+        {activeTab === 'dashboard' && <SuccessTicker cases={allCases} lang={lang} />}
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
-          {activeTab === 'myCase' && (
-             <div className="col-span-1 xl:col-span-3 animate-in slide-in-from-left-4">
-                <CaseForm 
-                  initialData={userCase} 
-                  userEmail={session.email} 
-                  fantasyName={session.fantasyName}
-                  existingNames={allFantasyNames}
-                  lang={lang}
-                  avgWaitTime={userTypeStats.avgDaysTotal}
-                  onSave={handleUpdateCase} 
-                  isMaintenanceMode={isMaintenance}
-                />
-             </div>
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
+          <div className="block md:hidden mb-6"><LanguageSelector lang={lang} setLang={setLang} /></div>
+          
+          {isMaintenance && (
+              <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded shadow mb-6 flex items-start gap-3 animate-in slide-in-from-top-2">
+                  <Power className="flex-shrink-0 mt-1" size={20} />
+                  <div className="pr-6">
+                      <p className="font-bold">{t.maintenance}</p>
+                      <p className="text-sm">{t.maintenanceMessage}</p>
+                  </div>
+              </div>
           )}
+
+          {notificationMsg && !isMaintenance && (
+            <div className="bg-de-gold text-de-black p-4 rounded shadow mb-6 flex items-start gap-3 animate-in slide-in-from-top-2 relative">
+              <BellRing className="flex-shrink-0 mt-1" />
+              <div className="pr-6">
+                  <p className="font-bold">{t.attention}</p>
+                  <p>{notificationMsg}</p>
+              </div>
+              <button 
+                  onClick={() => setNotificationMsg(null)} 
+                  className="absolute top-2 right-2 text-de-black hover:text-gray-700 bg-white/20 rounded-full p-1"
+              >
+                  <X size={16} />
+              </button>
+            </div>
+          )}
+
+          <div className="mb-8">
+            <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded border-l-4 border-de-gold p-6 text-white shadow-lg relative overflow-hidden">
+              <div className="flex items-start gap-4 relative z-10">
+                <div className="bg-white/10 p-3 rounded"><Sparkles className="text-de-gold" /></div>
+                <div>
+                  <h3 className="font-bold text-lg mb-1 text-de-gold">{t.aiAnalysis} {userCase?.caseType ? `(${userCase.caseType})` : ''}</h3>
+                  <p className="text-gray-300 text-sm leading-relaxed max-w-4xl">{aiInsight || "Loading insights..."}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden md:flex gap-1 mb-6 border-b border-gray-300 overflow-x-auto">
+            <TabButton id='myCase' label={t.myCase} icon={<User size={16} />} active={activeTab} onClick={setActiveTab} />
+            <TabButton id='dashboard' label={t.dashboard} icon={<LayoutDashboard size={16} />} active={activeTab} onClick={setActiveTab} />
+            <TabButton id='ai' label={t.aiModel} icon={<Monitor size={16} />} active={activeTab} onClick={setActiveTab} />
+            <TabButton id='faq' label={t.faq} icon={<HelpCircle size={16} />} active={activeTab} onClick={setActiveTab} />
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
+            {activeTab === 'myCase' && (
+              <div className="col-span-1 xl:col-span-3 animate-in slide-in-from-left-4">
+                  <CaseForm 
+                    initialData={userCase} 
+                    userEmail={session.email} 
+                    fantasyName={session.fantasyName}
+                    existingNames={allFantasyNames}
+                    lang={lang}
+                    avgWaitTime={userTypeStats.avgDaysTotal}
+                    onSave={handleUpdateCase} 
+                    isMaintenanceMode={isMaintenance}
+                  />
+              </div>
+            )}
+
+            {activeTab === 'dashboard' && (
+              <div className="col-span-1 xl:col-span-3 space-y-8 animate-in fade-in">
+                  
+                  {/* GLOBAL DASHBOARD FILTERS */}
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4 items-center sticky top-20 z-40 bg-opacity-95 backdrop-blur">
+                      <div className="flex items-center gap-2 text-de-black font-bold">
+                          <Filter size={18} />
+                          <span>{t.filters}</span>
+                      </div>
+                      <select 
+                          value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}
+                          className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                      >
+                          <option value="All">{t.allCountries}</option>
+                          {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <select 
+                          value={filterType} onChange={(e) => setFilterType(e.target.value)}
+                          className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                      >
+                          <option value="All">{t.allTypes}</option>
+                          {Object.values(CaseType).sort().map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <div className="grid grid-cols-2 gap-2">
+                          <select 
+                              value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
+                              className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                          >
+                              <option value="All">{t.allYears}</option>
+                              {[2021, 2022, 2023, 2024, 2025].map(y => <option key={y} value={y}>{y}</option>)}
+                          </select>
+                          <select 
+                              value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
+                              className="border-gray-300 rounded text-sm p-2 bg-white capitalize cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                          >
+                              <option value="All">{t.allMonths}</option>
+                              {Array.from({length: 12}, (_, i) => <option key={i+1} value={i+1}>{getMonthName(i)}</option>)}
+                          </select>
+                      </div>
+                  </div>
+
+                  {/* Dashboard Components receiving FILTERED cases & Loading state for Skeletons */}
+                  <WorldMapStats cases={filteredCases} lang={lang} loading={dataLoading} />
+                  <StatsDashboard cases={filteredCases} userCase={userCase} lang={lang} loading={dataLoading} />
+                  <CommunityFeed cases={filteredCases} lang={lang} />
+              </div>
+            )}
+
+            {(activeTab === 'faq' || activeTab === 'ai') && (
+              <div className="xl:col-span-3 col-span-1">
+                {activeTab === 'faq' && <FAQ lang={lang} userEmail={session.email} />}
+                {/* IMPORTANT: Passing userTypeStats here satisfies the requirement for AI analysis to be by Case Type */}
+                {activeTab === 'ai' && <AIModelTab userCase={userCase} stats={userTypeStats} lang={lang} />}
+              </div>
+            )}
+          </div>
 
           {activeTab === 'dashboard' && (
-            <div className="col-span-1 xl:col-span-3 space-y-8 animate-in fade-in">
-                
-                {/* GLOBAL DASHBOARD FILTERS */}
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4 items-center sticky top-20 z-40 bg-opacity-95 backdrop-blur">
-                    <div className="flex items-center gap-2 text-de-black font-bold">
-                        <Filter size={18} />
-                        <span>{t.filters}</span>
-                    </div>
-                    <select 
-                        value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}
-                        className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                    >
-                        <option value="All">{t.allCountries}</option>
-                        {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <select 
-                        value={filterType} onChange={(e) => setFilterType(e.target.value)}
-                        className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                    >
-                        <option value="All">{t.allTypes}</option>
-                        {Object.values(CaseType).sort().map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <div className="grid grid-cols-2 gap-2">
-                        <select 
-                            value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
-                            className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                        >
-                            <option value="All">{t.allYears}</option>
-                            {[2021, 2022, 2023, 2024, 2025].map(y => <option key={y} value={y}>{y}</option>)}
-                        </select>
-                        <select 
-                            value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
-                            className="border-gray-300 rounded text-sm p-2 bg-white capitalize cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                        >
-                            <option value="All">{t.allMonths}</option>
-                            {Array.from({length: 12}, (_, i) => <option key={i+1} value={i+1}>{getMonthName(i)}</option>)}
-                        </select>
-                    </div>
-                </div>
-
-                {/* Dashboard Components receiving FILTERED cases & Loading state for Skeletons */}
-                <WorldMapStats cases={filteredCases} lang={lang} loading={dataLoading} />
-                <StatsDashboard cases={filteredCases} userCase={userCase} lang={lang} loading={dataLoading} />
-                <CommunityFeed cases={filteredCases} lang={lang} />
-            </div>
-          )}
-
-          {(activeTab === 'faq' || activeTab === 'ai') && (
-            <div className="xl:col-span-3 col-span-1">
-              {activeTab === 'faq' && <FAQ lang={lang} userEmail={session.email} />}
-              {/* IMPORTANT: Passing userTypeStats here satisfies the requirement for AI analysis to be by Case Type */}
-              {activeTab === 'ai' && <AIModelTab userCase={userCase} stats={userTypeStats} lang={lang} />}
-            </div>
-          )}
-        </div>
-
-        {activeTab === 'dashboard' && (
-            <div className="bg-white p-6 rounded shadow-sm border border-gray-200 mt-8">
-                <div className="flex justify-between items-center mb-4 border-b pb-2">
-                  <h3 className="text-lg font-bold text-de-black">{viewGhosts ? t.ghostCases : t.activeCases}</h3>
-                  {viewGhosts && (
-                    <button 
-                      onClick={() => setViewGhosts(false)}
-                      className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full flex items-center gap-2 transition-colors"
-                    >
-                      <ArrowRight size={12} /> {t.backToActive}
-                    </button>
-                  )}
-                </div>
-                
-                <div className="flex justify-between text-sm mb-4">
-                    <span className="text-gray-500">{t.showing} {filteredCases.length}</span>
-                    <div className="flex gap-4">
-                        <span className="text-de-red font-medium">{t.pausedCases}: {allCases.filter(c => !isGhostCase(c) && c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED).length - filteredCases.length}</span>
-                        {ghostCount > 0 && (
-                            <button 
-                                onClick={() => setViewGhosts(!viewGhosts)}
-                                className={`font-medium flex items-center gap-1 transition-colors hover:underline ${viewGhosts ? 'text-de-black font-bold' : 'text-gray-400 hover:text-gray-600'}`}
-                                title={viewGhosts ? "Click to hide Ghost Cases" : "Click to view Ghost Cases"}
-                            >
-                                {viewGhosts ? <EyeOff size={14} /> : <Eye size={14} />} {t.ghostCases}: {ghostCount}
-                            </button>
-                        )}
-                    </div>
-                </div>
-                
-                {/* List without Virtual Scrolling */}
-                <div className="border border-gray-100 rounded">
-                    {filteredCases.length > 0 ? (
-                        <div className="h-[400px] w-full overflow-y-auto">
-                            {filteredCases.map((c, index) => (
-                                <CaseRow 
-                                    key={c.id || index} 
-                                    index={index} 
-                                    style={{}} 
-                                    data={{ cases: filteredCases, lang, onSelect: setSelectedDetailCase }} 
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center p-8 text-gray-400">
-                           <p className="italic text-sm mb-2">{t.noCasesFound}</p>
-                           {viewGhosts && <p className="text-xs">No ghost cases match your current filters.</p>}
-                        </div>
+              <div className="bg-white p-6 rounded shadow-sm border border-gray-200 mt-8">
+                  <div className="flex justify-between items-center mb-4 border-b pb-2">
+                    <h3 className="text-lg font-bold text-de-black">{viewGhosts ? t.ghostCases : t.activeCases}</h3>
+                    {viewGhosts && (
+                      <button 
+                        onClick={() => setViewGhosts(false)}
+                        className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full flex items-center gap-2 transition-colors"
+                      >
+                        <ArrowRight size={12} /> {t.backToActive}
+                      </button>
                     )}
-                </div>
-            </div>
-        )}
+                  </div>
+                  
+                  <div className="flex justify-between text-sm mb-4">
+                      <span className="text-gray-500">{t.showing} {filteredCases.length}</span>
+                      <div className="flex gap-4">
+                          <span className="text-de-red font-medium">{t.pausedCases}: {allCases.filter(c => !isGhostCase(c) && c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED).length - filteredCases.length}</span>
+                          {ghostCount > 0 && (
+                              <button 
+                                  onClick={() => setViewGhosts(!viewGhosts)}
+                                  className={`font-medium flex items-center gap-1 transition-colors hover:underline ${viewGhosts ? 'text-de-black font-bold' : 'text-gray-400 hover:text-gray-600'}`}
+                                  title={viewGhosts ? "Click to hide Ghost Cases" : "Click to view Ghost Cases"}
+                              >
+                                  {viewGhosts ? <EyeOff size={14} /> : <Eye size={14} />} {t.ghostCases}: {ghostCount}
+                              </button>
+                          )}
+                      </div>
+                  </div>
+                  
+                  {/* List without Virtual Scrolling */}
+                  <div className="border border-gray-100 rounded">
+                      {filteredCases.length > 0 ? (
+                          <div className="h-[400px] w-full overflow-y-auto">
+                              {filteredCases.map((c, index) => (
+                                  <CaseRow 
+                                      key={c.id || index} 
+                                      index={index} 
+                                      style={{}} 
+                                      data={{ cases: filteredCases, lang, onSelect: setSelectedDetailCase }} 
+                                  />
+                              ))}
+                          </div>
+                      ) : (
+                          <div className="flex flex-col items-center justify-center p-8 text-gray-400">
+                            <p className="italic text-sm mb-2">{t.noCasesFound}</p>
+                            {viewGhosts && <p className="text-xs">No ghost cases match your current filters.</p>}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          )}
 
-        <div className="bg-gray-100/50 backdrop-blur border border-gray-200 rounded p-4 mt-8 flex gap-3 opacity-80 hover:opacity-100 transition-opacity w-full max-w-full">
-            <AlertCircle className="text-gray-400 flex-shrink-0" />
-            <div><h4 className="font-bold text-sm text-de-black mb-1">{t.legalDisclaimer}</h4><p className="text-xs text-gray-600 leading-relaxed">{t.disclaimer}</p></div>
-        </div>
+          <div className="bg-gray-100/50 backdrop-blur border border-gray-200 rounded p-4 mt-8 flex gap-3 opacity-80 hover:opacity-100 transition-opacity w-full max-w-full">
+              <AlertCircle className="text-gray-400 flex-shrink-0" />
+              <div><h4 className="font-bold text-sm text-de-black mb-1">{t.legalDisclaimer}</h4><p className="text-xs text-gray-600 leading-relaxed">{t.disclaimer}</p></div>
+          </div>
+          
+          <div className="mt-8 py-4 flex flex-col items-center justify-center gap-2 text-gray-400 border-t border-gray-200">
+              <div className="flex items-center gap-3">
+                  <button onClick={handleToggleBgMode} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
+                      {bgMode === 'image' ? <Palette size={12} /> : <ImageIcon size={12} />}
+                      {bgMode === 'image' ? t.simpleMode : t.scenicMode}
+                  </button>
+                  {bgMode === 'image' && (
+                      <button onClick={handleShuffleBg} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
+                          <RefreshCw size={12} /> {t.shuffle}
+                      </button>
+                  )}
+                  <span className="text-gray-300">|</span>
+                  <button onClick={() => setShowAdmin(true)} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
+                      <Settings size={12} /> {t.ownerAccess}
+                  </button>
+              </div>
+          </div>
+        </main>
         
-        <div className="mt-8 py-4 flex flex-col items-center justify-center gap-2 text-gray-400 border-t border-gray-200">
-             <div className="flex items-center gap-3">
-                 <button onClick={handleToggleBgMode} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
-                    {bgMode === 'image' ? <Palette size={12} /> : <ImageIcon size={12} />}
-                    {bgMode === 'image' ? t.simpleMode : t.scenicMode}
-                 </button>
-                 {bgMode === 'image' && (
-                    <button onClick={handleShuffleBg} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
-                        <RefreshCw size={12} /> {t.shuffle}
-                    </button>
-                 )}
-                 <span className="text-gray-300">|</span>
-                 <button onClick={() => setShowAdmin(true)} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
-                    <Settings size={12} /> {t.ownerAccess}
-                 </button>
-             </div>
         </div>
-      </main>
       </div>
-    </div>
+
+      <MobileNavBar activeTab={activeTab} setActiveTab={setActiveTab} t={t} />
+    </>
   );
 };
 
