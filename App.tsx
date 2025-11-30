@@ -345,6 +345,7 @@ const App: React.FC = () => {
   const [filterMonth, setFilterMonth] = useState<string>('All');
   const [filterYear, setFilterYear] = useState<string>('All');
   const [filterType, setFilterType] = useState<string>('All');
+  const [filterStatus, setFilterStatus] = useState<string>('All'); // New Status Filter
   const [dashboardSearchTerm, setDashboardSearchTerm] = useState<string>(''); // NEW: Dashboard Search
   
   // Ghost Case View Mode
@@ -381,6 +382,16 @@ const App: React.FC = () => {
   });
 
   const t = TRANSLATIONS[lang];
+
+  // Helper for month names
+  const getMonthName = (monthIndex: number) => {
+    try {
+        const date = new Date(2023, monthIndex, 1);
+        return date.toLocaleString(lang, { month: 'long' });
+    } catch (e) {
+        return new Date(2023, monthIndex, 1).toLocaleString('en', { month: 'long' });
+    }
+  };
 
   // Background Effects
   useEffect(() => {
@@ -461,6 +472,7 @@ const App: React.FC = () => {
     
     if (filterCountry !== 'All') filtered = filtered.filter(c => c.countryOfApplication === filterCountry);
     if (filterType !== 'All') filtered = filtered.filter(c => c.caseType === filterType);
+    if (filterStatus !== 'All') filtered = filtered.filter(c => c.status === filterStatus);
     if (filterMonth !== 'All') {
       filtered = filtered.filter(c => {
         const d = new Date(c.submissionDate);
@@ -484,7 +496,7 @@ const App: React.FC = () => {
     }
 
     return filtered;
-  }, [allCases, filterCountry, filterMonth, filterYear, filterType, viewGhosts, dashboardSearchTerm]);
+  }, [allCases, filterCountry, filterMonth, filterYear, filterType, filterStatus, viewGhosts, dashboardSearchTerm]);
 
   // Compute Ghost Count (Total available in DB)
   const ghostCount = useMemo(() => {
@@ -741,16 +753,6 @@ const App: React.FC = () => {
     setProposedUsername('');
     setSelectedClaimCase(null);
     setPrivacyAccepted(false); // Reset privacy
-  };
-
-  // Helper for month names
-  const getMonthName = (monthIndex: number) => {
-    try {
-        const date = new Date(2023, monthIndex, 1);
-        return date.toLocaleString(lang, { month: 'long' });
-    } catch (e) {
-        return new Date(2023, monthIndex, 1).toLocaleString('en', { month: 'long' });
-    }
   };
 
   if (!session && !isGuest) {
@@ -1159,14 +1161,14 @@ const App: React.FC = () => {
               <div className="col-span-1 xl:col-span-3 space-y-8 animate-in fade-in">
                   
                   {/* GLOBAL DASHBOARD FILTERS */}
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 grid grid-cols-1 md:grid-cols-5 gap-4 items-center sticky top-20 z-40 bg-opacity-95 backdrop-blur">
-                      <div className="flex items-center gap-2 text-de-black font-bold">
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-3 items-center sticky top-20 z-40 bg-opacity-95 backdrop-blur">
+                      <div className="flex items-center gap-2 text-de-black font-bold col-span-2 md:col-span-1">
                           <Filter size={18} />
                           <span>{t.filters}</span>
                       </div>
                       
-                      {/* NEW: Dashboard Search */}
-                      <div className="relative md:col-span-2">
+                      {/* Dashboard Search */}
+                      <div className="relative col-span-2 lg:col-span-2">
                         <Search className="absolute left-2 top-2.5 text-gray-400" size={14} />
                         <input 
                             type="text"
@@ -1176,6 +1178,28 @@ const App: React.FC = () => {
                             className="w-full pl-8 pr-2 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-de-gold outline-none"
                         />
                       </div>
+
+                      {/* NEW: Month Filter */}
+                      <select 
+                          value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
+                          className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                      >
+                          <option value="All">{t.allMonths}</option>
+                          {Array.from({length: 12}, (_, i) => (
+                              <option key={i} value={(i+1).toString()}>{getMonthName(i)}</option>
+                          ))}
+                      </select>
+
+                      {/* NEW: Year Filter */}
+                      <select 
+                          value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
+                          className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                      >
+                          <option value="All">{t.allYears}</option>
+                          {Array.from({length: new Date().getFullYear() - 2020 + 2}, (_, i) => (2020 + i).toString()).map(y => (
+                               <option key={y} value={y}>{y}</option>
+                          ))}
+                      </select>
 
                       <select 
                           value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}
@@ -1190,6 +1214,17 @@ const App: React.FC = () => {
                       >
                           <option value="All">{t.allTypes}</option>
                           {Object.values(CaseType).sort().map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+
+                      {/* NEW: Status Filter */}
+                      <select 
+                          value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+                          className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                      >
+                          <option value="All">{t.allStatuses}</option>
+                          {Object.values(CaseStatus).map(s => (
+                              <option key={s} value={s}>{STATUS_TRANSLATIONS[lang][s] || s}</option>
+                          ))}
                       </select>
                   </div>
 
