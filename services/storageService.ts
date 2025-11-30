@@ -1,4 +1,5 @@
 
+
 import { CitizenshipCase, CaseType, CaseStatus, AuditLogEntry } from "../types";
 import { supabase, isSupabaseEnabled } from "./authService";
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -306,4 +307,25 @@ export const getFullDatabaseDump = async () => {
             config
         }
     };
+};
+
+export const restoreFullDatabaseDump = async (dump: any) => {
+    if (!dump || !dump.data || !Array.isArray(dump.data.cases)) {
+        throw new Error("Invalid JSON Backup format.");
+    }
+
+    const { cases, logs, config } = dump.data;
+
+    // 1. Restore Cases (Reuse import logic which handles Supabase/Local merge)
+    await importCases(cases);
+
+    // 2. Restore Logs (Local only usually, unless we move logs to DB)
+    if (Array.isArray(logs)) {
+        localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
+    }
+
+    // 3. Restore Config
+    if (config) {
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+    }
 };

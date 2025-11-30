@@ -167,7 +167,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     mapInstructions: "Select a region to view countries.",
     admin: "Creator Access",
     exportCSV: "Export Data (CSV)",
-    importCSV: "Bulk Upload (CSV)",
+    importCSV: "Bulk Upload (CSV / JSON)",
     downloadTemplate: "Download CSV Template",
     adminLogin: "Creator Login",
     enterPin: "Enter Password",
@@ -326,7 +326,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     trendFaster: "Speeding Up ⚡",
     trendSlower: "Slowing Down 🐢",
     trendStable: "Stable",
-    celebration: "Congratulations! 🎉"
+    celebration: "Congratulations! 🎉",
+    lastBackup: "Last Backup:",
+    backupOverdue: "Backup Required!",
+    backupSafe: "Backup Safe",
+    restoreJson: "Restore DB (JSON)"
   },
   es: {
     title: "Rastreador de Ciudadanía Alemana",
@@ -380,7 +384,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     mapInstructions: "Selecciona una región para ver países.",
     admin: "Acceso Creador",
     exportCSV: "Exportar Datos (CSV)",
-    importCSV: "Carga Masiva (CSV)",
+    importCSV: "Carga Masiva (CSV / JSON)",
     downloadTemplate: "Descargar Plantilla CSV",
     adminLogin: "Login Creador",
     enterPin: "Ingresar Contraseña",
@@ -539,7 +543,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     trendFaster: "Acelerando ⚡",
     trendSlower: "Ralentizando 🐢",
     trendStable: "Estable",
-    celebration: "¡Felicitaciones! 🎉"
+    celebration: "¡Felicitaciones! 🎉",
+    lastBackup: "Último Respaldo:",
+    backupOverdue: "¡Respaldo Requerido!",
+    backupSafe: "Respaldo al día",
+    restoreJson: "Restaurar BD (JSON)"
   },
   de: {
     title: "Einbürgerung Tracker",
@@ -593,7 +601,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     mapInstructions: "Region wählen.",
     admin: "Admin Zugang",
     exportCSV: "Export CSV",
-    importCSV: "Import CSV",
+    importCSV: "Import CSV / JSON",
     downloadTemplate: "Vorlage herunterladen",
     adminLogin: "Admin Login",
     enterPin: "Passwort eingeben",
@@ -752,7 +760,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     trendFaster: "Beschleunigend ⚡",
     trendSlower: "Verlangsamend 🐢",
     trendStable: "Stabil",
-    celebration: "Herzlichen Glückwunsch! 🎉"
+    celebration: "Herzlichen Glückwunsch! 🎉",
+    lastBackup: "Letztes Backup:",
+    backupOverdue: "Backup Erforderlich!",
+    backupSafe: "Backup OK",
+    restoreJson: "DB Wiederherstellen (JSON)"
   },
   it: {
     title: "Tracker Cittadinanza Tedesca",
@@ -806,7 +818,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     mapInstructions: "Seleziona regione.",
     admin: "Accesso Admin",
     exportCSV: "Esporta CSV",
-    importCSV: "Importa CSV",
+    importCSV: "Importa CSV / JSON",
     downloadTemplate: "Scarica Modello",
     adminLogin: "Login Admin",
     enterPin: "Password",
@@ -965,7 +977,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     trendFaster: "In Accelerazione ⚡",
     trendSlower: "In Rallentamento 🐢",
     trendStable: "Stabile",
-    celebration: "Congratulazioni! 🎉"
+    celebration: "Congratulazioni! 🎉",
+    lastBackup: "Ultimo Backup:",
+    backupOverdue: "Backup Richiesto!",
+    backupSafe: "Backup OK",
+    restoreJson: "Ripristina DB (JSON)"
   },
   pt: {
     title: "Rastreador Cidadania Alemã",
@@ -1019,7 +1035,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     mapInstructions: "Selecione região.",
     admin: "Acesso Criador",
     exportCSV: "Exportar CSV",
-    importCSV: "Importar CSV",
+    importCSV: "Importar CSV / JSON",
     downloadTemplate: "Baixar Modelo",
     adminLogin: "Login Criador",
     enterPin: "Senha",
@@ -1178,6 +1194,10 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     trendFaster: "Acelerando ⚡",
     trendSlower: "Desacelerando 🐢",
     trendStable: "Estável",
-    celebration: "Parabéns! 🎉"
+    celebration: "Parabéns! 🎉",
+    lastBackup: "Último Backup:",
+    backupOverdue: "Backup Necessário!",
+    backupSafe: "Backup OK",
+    restoreJson: "Restaurar BD (JSON)"
   }
 };

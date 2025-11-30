@@ -1,10 +1,11 @@
 
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson } from 'lucide-react';
+import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
 import { TRANSLATIONS, COUNTRIES, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump } from '../services/storageService';
+import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, restoreFullDatabaseDump } from '../services/storageService';
 import { generateFantasyUsername } from '../services/geminiService';
 import { calculateQuickStats, formatDuration } from '../services/statsUtils';
 
@@ -110,6 +111,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const [editForm, setEditForm] = useState<CitizenshipCase | null>(null);
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [statusDistFilter, setStatusDistFilter] = useState<string>('All');
+  const [lastBackup, setLastBackup] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -123,6 +125,8 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
             const cases = await fetchCases();
             setAllCases(cases);
             setMaintenanceEnabled(getAppConfig().maintenanceMode);
+            // Read last backup timestamp
+            setLastBackup(localStorage.getItem('de_tracker_last_backup_ts'));
         }
     };
     initData();
@@ -154,6 +158,15 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     addAuditLog("Maintenance", `Maintenance Mode set to ${newState}`, email);
     onDataChange(); 
   };
+
+  // Check Backup Status
+  const isBackupOverdue = useMemo(() => {
+     if (!lastBackup) return true; // Never backed up
+     const last = new Date(lastBackup).getTime();
+     const now = new Date().getTime();
+     const diffHours = (now - last) / (1000 * 60 * 60);
+     return diffHours > 24;
+  }, [lastBackup]);
 
   // --- STATS CALCULATION FOR SUMMARY TAB ---
   const summaryStats = useMemo(() => {
@@ -276,6 +289,12 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     a.download = `TRACKER_BACKUP_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     window.URL.revokeObjectURL(url);
+    
+    // Update Tracking
+    const now = new Date().toISOString();
+    localStorage.setItem('de_tracker_last_backup_ts', now);
+    setLastBackup(now);
+
     addAuditLog("Backup", "Full Database JSON Backup downloaded", email);
   };
 
@@ -308,6 +327,32 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     setImportProgress(0);
 
     const reader = new FileReader();
+
+    // Check if JSON (Full Restore)
+    if (file.name.endsWith('.json') || file.type === 'application/json') {
+         reader.onload = async (event) => {
+             try {
+                 const rawText = event.target?.result as string;
+                 const json = JSON.parse(rawText);
+                 await restoreFullDatabaseDump(json);
+                 
+                 setImportStatus({ success: true, msg: "Database successfully restored from JSON backup." });
+                 addAuditLog("Restore", "Full Database restored from JSON", email);
+                 onDataChange();
+                 setAllCases(await fetchCases());
+             } catch (err: any) {
+                 console.error(err);
+                 setImportStatus({ success: false, msg: `Restore Failed: ${err.message}` });
+             } finally {
+                 setIsImporting(false);
+             }
+         };
+         reader.readAsText(file);
+         if (fileInputRef.current) fileInputRef.current.value = '';
+         return;
+    }
+
+    // Default: CSV Processing
     reader.onload = async (event) => {
       try {
         const rawText = event.target?.result as string;
@@ -721,6 +766,31 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
             {activeTab === 'ACTIONS' && (
               <div className="space-y-6 animate-in slide-in-from-right-4 max-w-2xl mx-auto">
                 
+                {/* Backup Status Indicator */}
+                <div className={`p-4 rounded-xl border flex justify-between items-center ${isBackupOverdue ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                    <div className="flex items-center gap-3">
+                         <div className={`p-2 rounded-full ${isBackupOverdue ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                             {isBackupOverdue ? <AlertTriangle size={20} /> : <CheckCircle size={20} />}
+                         </div>
+                         <div>
+                             <h4 className={`font-bold text-sm ${isBackupOverdue ? 'text-red-800' : 'text-green-800'}`}>
+                                 {isBackupOverdue ? t.backupOverdue : t.backupSafe}
+                             </h4>
+                             <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                                 <Clock size={10} /> {t.lastBackup} {lastBackup ? new Date(lastBackup).toLocaleString() : 'Never'}
+                             </p>
+                         </div>
+                    </div>
+                    {isBackupOverdue && (
+                        <button 
+                            onClick={handleBackup}
+                            className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded shadow hover:bg-red-700 transition-colors animate-pulse"
+                        >
+                            Back up Now
+                        </button>
+                    )}
+                </div>
+
                 {/* Maintenance Toggle */}
                 <div className={`p-4 rounded-xl border transition-colors ${maintenanceEnabled ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-200 shadow-sm'}`}>
                     <div className="flex justify-between items-center">
@@ -774,15 +844,14 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                 {/* Import Section */}
                 <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                     <h4 className="font-bold text-sm text-gray-700 mb-3 flex items-center gap-2">
-                        <Upload size={16} /> Bulk Import
+                        <Upload size={16} /> Bulk Import / Restore
                     </h4>
 
                     <div className="mb-4 text-xs text-gray-500 bg-blue-50 p-3 rounded border border-blue-100">
-                        <strong>Bulk Upload Info:</strong>
+                        <strong>Supports CSV & JSON:</strong>
                         <ul className="list-disc ml-4 mt-1 space-y-1">
-                            <li>File must be <strong>CSV</strong> (Comma or Semicolon separated).</li>
-                            <li>Matches existing cases by <strong>FantasyName</strong> to update them.</li>
-                            <li>Supports dates like <strong>23-jul-25</strong> or <strong>2025-07-23</strong>.</li>
+                            <li><strong>CSV:</strong> Bulk update or add new cases.</li>
+                            <li><strong>JSON:</strong> Full database restore from a previous backup.</li>
                         </ul>
                     </div>
                     
@@ -797,7 +866,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                         <div className="relative">
                             <input 
                                 type="file" 
-                                accept=".csv" 
+                                accept=".csv,.json" 
                                 ref={fileInputRef}
                                 onChange={handleFileUpload}
                                 disabled={isImporting}
@@ -809,7 +878,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                                 className={`w-full flex items-center justify-center gap-2 bg-de-gold text-de-black py-3 px-4 rounded-lg hover:bg-yellow-400 cursor-pointer transition-colors text-sm font-bold shadow-sm ${isImporting ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 {isImporting ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />} 
-                                {isImporting ? `Importing... ${importProgress}%` : t.importCSV}
+                                {isImporting ? `Processing... ${importProgress}%` : t.importCSV}
                             </label>
                         </div>
                     </div>
