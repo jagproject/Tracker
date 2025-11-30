@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -1107,18 +1106,6 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <div className="mb-8">
-            <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded border-l-4 border-de-gold p-6 text-white shadow-lg relative overflow-hidden">
-              <div className="flex items-start gap-4 relative z-10">
-                <div className="bg-white/10 p-3 rounded"><Sparkles className="text-de-gold" /></div>
-                <div>
-                  <h3 className="font-bold text-lg mb-1 text-de-gold">{t.aiAnalysis} {userCase?.caseType ? `(${userCase.caseType})` : ''}</h3>
-                  <p className="text-gray-300 text-sm leading-relaxed max-w-4xl">{aiInsight || "Loading insights..."}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div className="hidden md:flex gap-1 mb-6 border-b border-gray-300 overflow-x-auto">
             {!isGuest && <TabButton id='myCase' label={t.myCase} icon={<User size={16} />} active={activeTab} onClick={setActiveTab} />}
             <TabButton id='dashboard' label={t.dashboard} icon={<LayoutDashboard size={16} />} active={activeTab} onClick={setActiveTab} />
@@ -1129,6 +1116,19 @@ const App: React.FC = () => {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
             {activeTab === 'myCase' && (
               <div className="col-span-1 xl:col-span-3 animate-in slide-in-from-left-4">
+                  {/* AI Analysis Banner - Moved here from Dashboard */}
+                  <div className="mb-6">
+                    <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl border-l-4 border-de-gold p-6 text-white shadow-lg relative overflow-hidden">
+                      <div className="flex items-start gap-4 relative z-10">
+                        <div className="bg-white/10 p-3 rounded"><Sparkles className="text-de-gold" /></div>
+                        <div>
+                          <h3 className="font-bold text-lg mb-1 text-de-gold">{t.aiAnalysis} {userCase?.caseType ? `(${userCase.caseType})` : ''}</h3>
+                          <p className="text-gray-300 text-sm leading-relaxed max-w-4xl">{aiInsight || "Loading insights..."}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <CaseForm 
                     initialData={userCase} 
                     userEmail={session?.email || ''} 
