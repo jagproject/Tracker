@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { CitizenshipCase, StatSummary, Language } from "../types";
+import { CitizenshipCase, StatSummary, Language, CaseType } from "../types";
 import { TRANSLATIONS } from "../constants";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -11,6 +11,27 @@ const FALLBACK_NAMES = [
   "Munich Monk", "Berlin Falcon", "Hamburg Swan", "Dresden Fox",
   "Elbe River", "Danube Swimmer", "Harz Mountain", "Cologne Spire"
 ];
+
+// DATA INJECTED FROM OFFICIAL BVA PDF REPORTS (2021-2025)
+const OFFICIAL_DATA_CONTEXT = `
+OFFICIAL BVA STATISTICS (SOURCE: Internal Report Stand 30.06.2025, specifically for StAG 5):
+1. BACKLOG SURGE: The 'Antragsbestand' (Backlog) for StAG 5 is growing rapidly. 
+   - Jan 2025: 27,469 pending cases.
+   - June 2025: 30,720 pending cases.
+   - Net increase of ~3,200 cases in 6 months despite record processing speeds.
+
+2. PROCESSING SPEED (ACCELERATING):
+   - 2022 Total Approvals: 2,420
+   - 2023 Total Approvals: 2,767
+   - 2024 Total Approvals: 2,852
+   - 2025 (Jan-Jun only): ~2,283 Approvals. 
+   - Analysis: The BVA is currently processing StAG 5 cases at nearly DOUBLE the rate of previous years (projected ~4,500 for 2025), but incoming applications still outpace them.
+
+COMMUNITY CONTEXT (r/GermanCitizenship & Forums):
+- "Task Forces": Users report that straightforward StAG 5 cases are sometimes pulled from the pile and processed in "batches", leading to lucky 9-12 month approvals.
+- "Old Cases": Older Feststellung cases (2022-2023) often seem "stuck" while newer StAG 5 cases move faster.
+- Aktenzeichen: Currently taking 2-4 months to receive after submission.
+`;
 
 // Helper to strip Markdown formatting from JSON responses
 const cleanJson = (text: string) => {
@@ -67,14 +88,21 @@ export const generateStatisticalInsights = async (stats: StatSummary, cases: Cit
 
     const prompt = `
       Act as a data analyst for a German Citizenship Application Tracker.
-      Analyze the following statistics ${contextStr}:
-      - Total Cases: ${stats.totalCases}
-      - Avg Time to Protocol (Aktenzeichen): ${stats.avgDaysToProtocol} days
-      - Avg Time to Approval (Urkunde): ${stats.avgDaysToApproval} days
+      
+      INTERNAL TRACKER DATA:
+      - Total Cases Tracked: ${stats.totalCases}
+      - Avg Time to Protocol: ${stats.avgDaysToProtocol} days
+      - Avg Time to Approval: ${stats.avgDaysToApproval} days
       - Avg Total Duration: ${stats.avgDaysTotal} days
       
-      Provide a concise, 2-sentence insight or prediction in ${targetLang}. 
-      Be encouraging but realistic. Do not use markdown.
+      EXTERNAL CONTEXT (BVA OFFICIAL & REDDIT):
+      ${OFFICIAL_DATA_CONTEXT}
+
+      Task:
+      Analyze the "Internal Tracker Data" in the context of the "External Context".
+      Are our community stats matching the official acceleration trend in 2025?
+      Provide a concise, 2-sentence insight in ${targetLang}. 
+      Be encouraging but realistic about the backlog. Do not use markdown.
     `;
 
     const response = await ai.models.generateContent({
@@ -147,7 +175,7 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
             Act as an expert immigration data analyst for German Citizenship applications (BVA).
             
             We have mathematically calculated a prediction for this case.
-            Your job is NOT to guess the date, but to EXPLAIN the reasoning behind our calculation.
+            Your job is NOT to guess the date, but to EXPLAIN the reasoning behind our calculation using specific context.
             
             CALCULATED DATA (Do not change these):
             - Predicted Date: ${estimatedDateStr}
@@ -155,23 +183,23 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
             - Method: ${calculationMethod}
             - Sample Size: ${stats.totalCases} cases of type ${userCase.caseType}
             
-            Case Details:
+            USER CASE DETAILS:
             - Type: ${userCase.caseType}
             - Country: ${userCase.countryOfApplication}
             - Submission: ${userCase.submissionDate}
             - Protocol: ${userCase.protocolDate || 'Not yet received'}
             
-            External Context:
-            - Official BVA processing is slow.
-            - StAG 5 is generally faster than Feststellung.
+            EXTERNAL KNOWLEDGE BASE (USE THIS TO EXPLAIN):
+            ${OFFICIAL_DATA_CONTEXT}
             
-            Your Task:
+            INSTRUCTIONS:
             Return a JSON object.
             1. Use the "date" provided above: "${estimatedDateStr}"
             2. Use the "confidence" provided above: "${translatedConfidence}"
-            3. Write a "reasoning" paragraph (approx 150 words) in ${targetLang}. 
-               Explain that this date is based on the average waiting time of ${avgWaitDays} days observed in ${stats.totalCases} similar cases in our database. 
-               Mention that individual results vary by clerk availability.
+            3. Write a "reasoning" paragraph (approx 100-150 words) in ${targetLang}. 
+               - If the case is StAG 5, explicitly mention the BVA's 2025 acceleration trend (doubling approvals) vs the growing backlog.
+               - If the case is NOT StAG 5, mention that Feststellung/Others are generally slower than StAG 5 based on Reddit reports.
+               - Mention that this prediction combines our community tracker data with official trends.
             
             JSON Schema:
             {
