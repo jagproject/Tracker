@@ -1,10 +1,8 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { CitizenshipCase, CaseType, CaseStatus, Language } from '../types';
 import { COUNTRIES, TRANSLATIONS, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { Save, Loader2, AlertTriangle, Edit2, Download, Twitter, ChevronDown, Mail, Power, Facebook, Instagram, Share2, Clock, CheckCircle2, Circle, FileText, Send, Palette, UserCircle } from 'lucide-react';
-import { getDaysDiff, formatISODateToLocale, formatDateTimeToLocale, formatDuration } from '../services/statsUtils';
+import { Save, Loader2, AlertTriangle, Edit2, ChevronDown, Mail, Power, Clock, CheckCircle2, FileText, Send, UserCircle } from 'lucide-react';
+import { getDaysDiff, formatDateTimeToLocale, formatDuration, formatISODateToLocale } from '../services/statsUtils';
 import { Confetti } from './Confetti';
 
 interface CaseFormProps {
@@ -192,11 +190,8 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
   
-  // New States for Suggestions
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [cardTheme, setCardTheme] = useState<'Dark' | 'Light' | 'Flag'>('Dark');
   const [showConfetti, setShowConfetti] = useState(false);
 
   // Check if email is a placeholder for unclaimed cases
@@ -229,96 +224,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
        setFormData(prev => ({...prev, fantasyName}));
     }
   }, [initialData, fantasyName]);
-
-  const cardSvgString = useMemo(() => {
-    const statusColor = formData.status === CaseStatus.APPROVED ? "#10B981" : "#FFCC00";
-    
-    // Theme Colors
-    let bgFill = "url(#grad1)";
-    let textColor = "#CCCCCC";
-    let titleColor = "#FFFFFF";
-    let subTextColor = "#888888";
-    
-    if (cardTheme === 'Light') {
-        bgFill = "#FFFFFF";
-        textColor = "#333333";
-        titleColor = "#000000";
-        subTextColor = "#666666";
-    } else if (cardTheme === 'Flag') {
-        bgFill = "url(#gradFlag)";
-        textColor = "#FFFFFF";
-        titleColor = "#FFCC00";
-        subTextColor = "#DDDDDD";
-    }
-
-    let timelineY = 255;
-    let timelineContent = `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">📅 ${t.timelineSubmitted}: <tspan fill="${titleColor}" font-weight="bold">${formData.submissionDate || '--'}</tspan></text>`;
-    
-    if (formData.protocolDate) {
-        timelineY += 30;
-        timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">📂 ${t.timelineProto}: <tspan fill="${titleColor}" font-weight="bold">${formData.protocolDate}</tspan></text>`;
-    }
-
-    timelineY += 30;
-    if (formData.status === CaseStatus.APPROVED && formData.approvalDate) {
-         timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">🏆 ${t.timelineUrkunde}: <tspan fill="#10B981" font-weight="bold">${formData.approvalDate}</tspan></text>`;
-    } else if (formData.status === CaseStatus.CLOSED && formData.closedDate) {
-         timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">❌ ${t.timelineClosed}: <tspan fill="#EF4444" font-weight="bold">${formData.closedDate}</tspan></text>`;
-    } else {
-         timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">⏳ ${t.timelineStatus}: <tspan fill="${statusColor}" font-weight="bold">${statusT[formData.status || CaseStatus.SUBMITTED]}</tspan></text>`;
-    }
-
-    const boxHeight = timelineY - 210 + 25; 
-    const boxFill = cardTheme === 'Light' ? "#F3F4F6" : "#1a1a1a";
-    const boxStroke = cardTheme === 'Light' ? "#E5E7EB" : "#333333";
-
-    const rawType = formData.caseType || '';
-    let displayType = rawType;
-    
-    if (rawType.startsWith('StAG')) {
-        const parts = rawType.split(' ');
-        if (parts.length >= 2) {
-             const numberPart = parts[1].replace('§', ''); 
-             displayType = `${parts[0]} ${numberPart}`;
-        }
-    }
-
-    return `
-      <svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">
-        <defs>
-          <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#111111;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#222222;stop-opacity:1" />
-          </linearGradient>
-           <linearGradient id="gradFlag" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#000000;stop-opacity:1" />
-            <stop offset="50%" style="stop-color:#DD0000;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#FFCC00;stop-opacity:1" />
-          </linearGradient>
-        </defs>
-        <rect width="600" height="400" rx="15" fill="${bgFill}" stroke="${cardTheme === 'Light' ? '#DDD' : '#333'}" stroke-width="1"/>
-        <rect x="0" y="0" width="600" height="8" fill="#DD0000" />
-        <rect x="0" y="8" width="600" height="8" fill="#FFCC00" />
-        
-        <text x="30" y="60" font-family="Arial, sans-serif" font-size="24" fill="${titleColor}" font-weight="bold">German Citizenship Tracker</text>
-        
-        <rect x="30" y="100" width="540" height="2" fill="${boxStroke}" />
-        
-        <text x="30" y="140" font-family="Arial, sans-serif" font-size="14" fill="${subTextColor}">${t.cardApplicant}</text>
-        <text x="30" y="170" font-family="Arial, sans-serif" font-size="24" fill="#FFCC00" font-weight="bold">${formData.fantasyName || 'Anonymous'}</text>
-        <text x="30" y="200" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">${formData.countryOfApplication || 'Unknown'} ${formData.consulate ? `(${formData.consulate})` : ''}</text>
-        
-        <text x="400" y="140" font-family="Arial, sans-serif" font-size="14" fill="${subTextColor}">${t.cardType}</text>
-        <text x="400" y="170" font-family="Arial, sans-serif" font-size="20" fill="${titleColor}">${displayType}</text>
-        
-        <rect x="30" y="220" width="540" height="${boxHeight}" rx="10" fill="${boxFill}" stroke="${boxStroke}" />
-        
-        ${timelineContent}
-        
-        <text x="570" y="380" font-family="Arial, sans-serif" font-size="12" fill="${subTextColor}" text-anchor="end">${t.cardGenerated}</text>
-      </svg>
-    `;
-  }, [formData, statusT, t, cardTheme]);
 
   const validate = (): string | null => {
     if (nameError) return t.usernameTaken;
@@ -419,62 +324,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
       if (isDuplicate) setNameError(t.usernameTaken);
       else if (newName.length < 3) setNameError(t.usernameShort);
       else setNameError(null);
-  };
-
-  const handleDownloadCard = () => {
-    setIsDownloading(true);
-    
-    const canvas = document.createElement('canvas');
-    canvas.width = 600;
-    canvas.height = 400;
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    
-    const svgBlob = new Blob([cardSvgString], {type: 'image/svg+xml;charset=utf-8'});
-    const url = URL.createObjectURL(svgBlob);
-    
-    img.onload = () => {
-        ctx?.drawImage(img, 0, 0);
-        URL.revokeObjectURL(url);
-        
-        const pngUrl = canvas.toDataURL('image/png');
-        
-        const link = document.createElement('a');
-        link.href = pngUrl;
-        link.download = `TrackerDE_${formData.fantasyName}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setIsDownloading(false);
-    };
-    
-    img.src = url;
-  };
-
-  const handleShare = (platform: 'twitter' | 'reddit' | 'whatsapp' | 'facebook' | 'instagram') => {
-    const text = `Check out my German Citizenship application progress! I'm applying via ${formData.caseType} from ${formData.countryOfApplication}. #GermanCitizenship #StAG`;
-    const currentUrl = window.location.href;
-    let url = '';
-    
-    switch(platform) {
-        case 'twitter':
-            url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
-            break;
-        case 'reddit':
-            url = `https://www.reddit.com/submit?title=${encodeURIComponent("My Citizenship Timeline")}&text=${encodeURIComponent(text)}`;
-            break;
-        case 'whatsapp':
-            url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-            break;
-        case 'facebook':
-            url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(currentUrl)}&quote=${encodeURIComponent(text)}`;
-            break;
-        case 'instagram':
-             handleDownloadCard();
-             alert("Image downloading! You can post this image to Instagram Stories or Feed.");
-             return;
-    }
-    if (url) window.open(url, '_blank');
   };
 
   const showProtocol = formData.status !== CaseStatus.SUBMITTED || !!formData.protocolDate;
@@ -816,49 +665,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
             {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
             {isSaving ? t.saving : t.save}
           </button>
-          
-          <div className="border-t pt-4">
-            <div className="flex justify-between items-center mb-3">
-                 <p className="text-xs font-bold text-gray-400 uppercase">{t.shareTitle}</p>
-                 <div className="flex items-center gap-2">
-                     <Palette size={14} className="text-gray-400" />
-                     <select 
-                        value={cardTheme}
-                        onChange={e => setCardTheme(e.target.value as any)}
-                        className="text-xs border rounded p-1 bg-white focus:ring-de-gold cursor-pointer"
-                     >
-                         <option value="Dark">{t.themeDark}</option>
-                         <option value="Light">{t.themeLight}</option>
-                         <option value="Flag">{t.themeFlag}</option>
-                     </select>
-                 </div>
-            </div>
-            
-            <div className="mb-4 flex justify-center bg-gray-100 p-4 rounded border border-gray-200">
-                <img 
-                  src={`data:image/svg+xml;utf8,${encodeURIComponent(cardSvgString)}`} 
-                  alt="Case Preview" 
-                  className="w-full max-w-[400px] h-auto rounded shadow-sm"
-                />
-            </div>
-
-            <div className="flex flex-wrap gap-2 justify-center">
-                <button
-                    type="button"
-                    onClick={handleDownloadCard}
-                    disabled={isDownloading}
-                    className="flex-1 min-w-[140px] flex items-center justify-center gap-2 bg-white border-2 border-de-gold text-de-black font-bold py-2 px-4 rounded hover:bg-yellow-50 transition-colors"
-                >
-                    {isDownloading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-                    Download .PNG
-                </button>
-                
-                <button type="button" onClick={() => handleShare('twitter')} className="p-2 bg-gray-100 hover:bg-blue-50 hover:text-blue-400 rounded transition-colors"><Twitter size={20} /></button>
-                <button type="button" onClick={() => handleShare('whatsapp')} className="p-2 bg-gray-100 hover:bg-green-50 hover:text-green-500 rounded transition-colors"><Share2 size={20} /></button>
-                <button type="button" onClick={() => handleShare('facebook')} className="p-2 bg-gray-100 hover:bg-blue-50 hover:text-blue-600 rounded transition-colors"><Facebook size={20} /></button>
-                <button type="button" onClick={() => handleShare('instagram')} className="p-2 bg-gray-100 hover:bg-pink-50 hover:text-pink-600 rounded transition-colors"><Instagram size={20} /></button>
-            </div>
-          </div>
         </div>
       </form>
     </div>

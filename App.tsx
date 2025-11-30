@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -344,6 +345,7 @@ const App: React.FC = () => {
   const [filterMonth, setFilterMonth] = useState<string>('All');
   const [filterYear, setFilterYear] = useState<string>('All');
   const [filterType, setFilterType] = useState<string>('All');
+  const [dashboardSearchTerm, setDashboardSearchTerm] = useState<string>(''); // NEW: Dashboard Search
   
   // Ghost Case View Mode
   const [viewGhosts, setViewGhosts] = useState(false);
@@ -471,8 +473,18 @@ const App: React.FC = () => {
         return d.getFullYear().toString() === filterYear;
       });
     }
+    
+    // NEW: Text Search Filter
+    if (dashboardSearchTerm) {
+        const term = dashboardSearchTerm.toLowerCase();
+        filtered = filtered.filter(c => 
+            c.fantasyName.toLowerCase().includes(term) ||
+            c.countryOfApplication.toLowerCase().includes(term)
+        );
+    }
+
     return filtered;
-  }, [allCases, filterCountry, filterMonth, filterYear, filterType, viewGhosts]);
+  }, [allCases, filterCountry, filterMonth, filterYear, filterType, viewGhosts, dashboardSearchTerm]);
 
   // Compute Ghost Count (Total available in DB)
   const ghostCount = useMemo(() => {
@@ -1147,11 +1159,24 @@ const App: React.FC = () => {
               <div className="col-span-1 xl:col-span-3 space-y-8 animate-in fade-in">
                   
                   {/* GLOBAL DASHBOARD FILTERS */}
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4 items-center sticky top-20 z-40 bg-opacity-95 backdrop-blur">
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 grid grid-cols-1 md:grid-cols-5 gap-4 items-center sticky top-20 z-40 bg-opacity-95 backdrop-blur">
                       <div className="flex items-center gap-2 text-de-black font-bold">
                           <Filter size={18} />
                           <span>{t.filters}</span>
                       </div>
+                      
+                      {/* NEW: Dashboard Search */}
+                      <div className="relative md:col-span-2">
+                        <Search className="absolute left-2 top-2.5 text-gray-400" size={14} />
+                        <input 
+                            type="text"
+                            placeholder={t.searchDashboard}
+                            value={dashboardSearchTerm}
+                            onChange={(e) => setDashboardSearchTerm(e.target.value)}
+                            className="w-full pl-8 pr-2 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-de-gold outline-none"
+                        />
+                      </div>
+
                       <select 
                           value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}
                           className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
@@ -1166,22 +1191,6 @@ const App: React.FC = () => {
                           <option value="All">{t.allTypes}</option>
                           {Object.values(CaseType).sort().map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
-                      <div className="grid grid-cols-2 gap-2">
-                          <select 
-                              value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
-                              className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                          >
-                              <option value="All">{t.allYears}</option>
-                              {[2021, 2022, 2023, 2024, 2025].map(y => <option key={y} value={y}>{y}</option>)}
-                          </select>
-                          <select 
-                              value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
-                              className="border-gray-300 rounded text-sm p-2 bg-white capitalize cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                          >
-                              <option value="All">{t.allMonths}</option>
-                              {Array.from({length: 12}, (_, i) => <option key={i+1} value={i+1}>{getMonthName(i)}</option>)}
-                          </select>
-                      </div>
                   </div>
 
                   {/* Dashboard Components receiving FILTERED cases & Loading state for Skeletons */}

@@ -338,7 +338,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     guestModeActive: "Guest Mode Active",
     guestLoginPrompt: "Log In / Register",
     guestRestricted: "You are viewing as a guest.",
-    guestRestrictedDesc: "To track your own case and contribute to the statistics, please create a profile."
+    guestRestrictedDesc: "To track your own case and contribute to the statistics, please create a profile.",
+
+    // SUGGESTIONS
+    searchDashboard: "Search Dashboard...",
+    copyReddit: "Copy for Reddit",
+    redditCopied: "Copied for Reddit!",
   },
   es: {
     title: "Rastreador de Ciudadanía Alemana",
@@ -563,7 +568,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     guestModeActive: "Modo Invitado Activo",
     guestLoginPrompt: "Iniciar Sesión / Registro",
     guestRestricted: "Estás viendo como invitado.",
-    guestRestrictedDesc: "Para rastrear tu propio caso y contribuir a las estadísticas, por favor crea un perfil."
+    guestRestrictedDesc: "Para rastrear tu propio caso y contribuir a las estadísticas, por favor crea un perfil.",
+
+    // SUGGESTIONS
+    searchDashboard: "Buscar en Dashboard...",
+    copyReddit: "Copiar para Reddit",
+    redditCopied: "¡Copiado para Reddit!",
   },
   de: {
     title: "Einbürgerung Tracker",
@@ -788,7 +798,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     guestModeActive: "Gastmodus aktiv",
     guestLoginPrompt: "Anmelden / Registrieren",
     guestRestricted: "Sie sehen dies als Gast.",
-    guestRestrictedDesc: "Um Ihren eigenen Fall zu verfolgen, erstellen Sie bitte ein Profil."
+    guestRestrictedDesc: "Um Ihren eigenen Fall zu verfolgen, erstellen Sie bitte ein Profil.",
+
+     // SUGGESTIONS
+    searchDashboard: "Dashboard durchsuchen...",
+    copyReddit: "Kopieren für Reddit",
+    redditCopied: "Für Reddit kopiert!",
   },
   it: {
     title: "Tracker Cittadinanza Tedesca",
@@ -1013,7 +1028,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     guestModeActive: "Modalità Ospite Attiva",
     guestLoginPrompt: "Accedi / Registrati",
     guestRestricted: "Stai visualizzando come ospite.",
-    guestRestrictedDesc: "Per tracciare il tuo caso, crea un profilo."
+    guestRestrictedDesc: "Per tracciare il tuo caso, crea un profilo.",
+
+    // SUGGESTIONS
+    searchDashboard: "Cerca nel Dashboard...",
+    copyReddit: "Copia per Reddit",
+    redditCopied: "Copiato per Reddit!",
   },
   pt: {
     title: "Rastreador Cidadania Alemã",
@@ -1222,7 +1242,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     themeLight: "Claro",
     themeFlag: "Bandeira Alemã",
     daysSince: "decorridos",
-    trend: "Tendência Reciente",
+    trend: "Tendencia Reciente",
     trendFaster: "Acelerando ⚡",
     trendSlower: "Desacelerando 🐢",
     trendStable: "Estável",
@@ -1238,6 +1258,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     guestModeActive: "Modo Convidado",
     guestLoginPrompt: "Entrar / Registrar",
     guestRestricted: "Você está visualizando como convidado.",
-    guestRestrictedDesc: "Para rastrear seu próprio caso, crie um perfil."
+    guestRestrictedDesc: "Para rastrear seu próprio caso, crie um perfil.",
+
+    // SUGGESTIONS
+    searchDashboard: "Pesquisar Painel...",
+    copyReddit: "Copiar para Reddit",
+    redditCopied: "Copiado para Reddit!",
   }
 };
