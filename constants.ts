@@ -1,4 +1,5 @@
 
+
 import { Language, CaseType, CaseStatus } from "./types";
 
 export const BVA_LINK = "https://www.bva.bund.de/EN/Services/Citizens/ID-Documents-Law/Citizenship/citizenship_node.html";
@@ -313,7 +314,19 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     legalDisclaimer: "Legal Disclaimer",
     simpleMode: "Simple Mode",
     scenicMode: "Scenic Mode",
-    shuffle: "Shuffle"
+    shuffle: "Shuffle",
+    // New Translations
+    searchNotes: "Search community notes...",
+    cardTheme: "Card Theme",
+    themeDark: "Dark (Classic)",
+    themeLight: "Light (Clean)",
+    themeFlag: "German Flag",
+    daysSince: "elapsed",
+    trend: "Recent Trend (90d)",
+    trendFaster: "Speeding Up ⚡",
+    trendSlower: "Slowing Down 🐢",
+    trendStable: "Stable",
+    celebration: "Congratulations! 🎉"
   },
   es: {
     title: "Rastreador de Ciudadanía Alemana",
@@ -514,7 +527,19 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     legalDisclaimer: "Aviso Legal",
     simpleMode: "Modo Simple",
     scenicMode: "Modo Paisaje",
-    shuffle: "Aleatorio"
+    shuffle: "Aleatorio",
+    // New Translations
+    searchNotes: "Buscar notas...",
+    cardTheme: "Estilo de Tarjeta",
+    themeDark: "Oscuro (Clásico)",
+    themeLight: "Claro (Limpio)",
+    themeFlag: "Bandera Alemana",
+    daysSince: "transcurridos",
+    trend: "Tendencia Reciente (90d)",
+    trendFaster: "Acelerando ⚡",
+    trendSlower: "Ralentizando 🐢",
+    trendStable: "Estable",
+    celebration: "¡Felicitaciones! 🎉"
   },
   de: {
     title: "Einbürgerung Tracker",
@@ -715,7 +740,19 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     legalDisclaimer: "Rechtlicher Hinweis",
     simpleMode: "Einfacher Modus",
     scenicMode: "Landschaftsmodus",
-    shuffle: "Mischen"
+    shuffle: "Mischen",
+    // New Translations
+    searchNotes: "Notizen durchsuchen...",
+    cardTheme: "Kartenstil",
+    themeDark: "Dunkel (Klassisch)",
+    themeLight: "Hell",
+    themeFlag: "Deutsche Flagge",
+    daysSince: "vergangen",
+    trend: "Aktueller Trend",
+    trendFaster: "Beschleunigend ⚡",
+    trendSlower: "Verlangsamend 🐢",
+    trendStable: "Stabil",
+    celebration: "Herzlichen Glückwunsch! 🎉"
   },
   it: {
     title: "Tracker Cittadinanza Tedesca",
@@ -786,7 +823,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     howToAskAZ: "Come chiedere AZ?",
     generateEmail: "Genera Email",
     docsChecklist: "Lista Documenti",
-    progress: "Progresso",
+    progress: "Progreso",
     communityFeed: "Note Community",
     predictTimeline: "Prevedi Timeline",
     addToCalendar: "Aggiungi al Calendario",
@@ -916,7 +953,19 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     legalDisclaimer: "Avviso Legale",
     simpleMode: "Modalità Semplice",
     scenicMode: "Modalità Scenica",
-    shuffle: "Mescola"
+    shuffle: "Mescola",
+    // New Translations
+    searchNotes: "Cerca nelle note...",
+    cardTheme: "Tema Carta",
+    themeDark: "Scuro",
+    themeLight: "Chiaro",
+    themeFlag: "Bandiera Tedesca",
+    daysSince: "trascorsi",
+    trend: "Tendenza",
+    trendFaster: "In Accelerazione ⚡",
+    trendSlower: "In Rallentamento 🐢",
+    trendStable: "Stabile",
+    celebration: "Congratulazioni! 🎉"
   },
   pt: {
     title: "Rastreador Cidadania Alemã",
@@ -1095,7 +1144,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     akzDepartment: "Departamento",
     akzYear: "Ano",
     akzDate: "Data",
-    akzSequential: "Sequencial",
+    akzSequential: "Sequenziale",
     akzType: "Tipo",
     glossaryUrkunde: "Certificado de Cidadania.",
     glossaryFeststellung: "Determinação.",
@@ -1117,6 +1166,18 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     legalDisclaimer: "Aviso Legal",
     simpleMode: "Modo Simples",
     scenicMode: "Modo Cênico",
-    shuffle: "Aleatório"
+    shuffle: "Aleatório",
+    // New Translations
+    searchNotes: "Buscar notas...",
+    cardTheme: "Tema do Cartão",
+    themeDark: "Escuro",
+    themeLight: "Claro",
+    themeFlag: "Bandeira Alemã",
+    daysSince: "decorridos",
+    trend: "Tendência Reciente",
+    trendFaster: "Acelerando ⚡",
+    trendSlower: "Desacelerando 🐢",
+    trendStable: "Estável",
+    celebration: "Parabéns! 🎉"
   }
 };

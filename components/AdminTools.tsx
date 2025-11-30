@@ -1,10 +1,10 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid } from 'lucide-react';
+import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
 import { TRANSLATIONS, COUNTRIES, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode } from '../services/storageService';
+import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump } from '../services/storageService';
 import { generateFantasyUsername } from '../services/geminiService';
 import { calculateQuickStats, formatDuration } from '../services/statsUtils';
 
@@ -263,6 +263,20 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     window.URL.revokeObjectURL(url);
     
     addAuditLog("Export", "Full case database exported to CSV", email);
+  };
+
+  // 1.5 JSON Backup
+  const handleBackup = async () => {
+    const dump = await getFullDatabaseDump();
+    const jsonString = JSON.stringify(dump, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `TRACKER_BACKUP_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    addAuditLog("Backup", "Full Database JSON Backup downloaded", email);
   };
 
   // 2. Download Template
@@ -737,12 +751,24 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                     <h4 className="font-bold text-sm text-gray-700 mb-3 flex items-center gap-2">
                         <Download size={16} /> Export Data
                     </h4>
-                    <button 
-                        onClick={handleExport}
-                        className="w-full flex items-center justify-center gap-2 bg-de-black text-white py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow"
-                    >
-                        {t.exportCSV}
-                    </button>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <button 
+                            onClick={handleExport}
+                            className="w-full flex items-center justify-center gap-2 bg-de-black text-white py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow"
+                        >
+                            <FileSpreadsheet size={16} /> Export CSV
+                        </button>
+                        <button 
+                            onClick={handleBackup}
+                            className="w-full flex items-center justify-center gap-2 bg-white border border-de-black text-de-black py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium shadow"
+                        >
+                            <FileJson size={16} /> Backup JSON
+                        </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                        Use <strong>CSV</strong> for Excel analysis, and <strong>JSON</strong> for full database restoration.
+                    </p>
                 </div>
 
                 {/* Import Section */}

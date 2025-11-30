@@ -1,9 +1,11 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { CitizenshipCase, CaseType, CaseStatus, Language } from '../types';
 import { COUNTRIES, TRANSLATIONS, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { Save, Loader2, AlertTriangle, Edit2, Download, Twitter, ChevronDown, Mail, Power, Facebook, Instagram, Share2, Clock, CheckCircle2, Circle, FileText, Send } from 'lucide-react';
+import { Save, Loader2, AlertTriangle, Edit2, Download, Twitter, ChevronDown, Mail, Power, Facebook, Instagram, Share2, Clock, CheckCircle2, Circle, FileText, Send, Palette } from 'lucide-react';
 import { getDaysDiff, formatISODateToLocale, formatDateTimeToLocale, formatDuration } from '../services/statsUtils';
+import { Confetti } from './Confetti';
 
 interface CaseFormProps {
   initialData?: CitizenshipCase;
@@ -191,11 +193,21 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   const [nameError, setNameError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   
-  // State for User Menu Dropdown
+  // New States for Suggestions
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [cardTheme, setCardTheme] = useState<'Dark' | 'Light' | 'Flag'>('Dark');
+  const [showConfetti, setShowConfetti] = useState(false);
 
   // Check if email is a placeholder for unclaimed cases
   const isPendingEmail = userEmail.startsWith('unclaimed_');
+
+  // Days Elapsed Calculation
+  const daysElapsed = useMemo(() => {
+    if (!formData.submissionDate) return 0;
+    const end = formData.approvalDate || formData.closedDate || new Date().toISOString().split('T')[0];
+    const diff = getDaysDiff(formData.submissionDate, end);
+    return (diff !== null && diff > 0) ? diff : 0;
+  }, [formData.submissionDate, formData.approvalDate, formData.closedDate]);
 
   // Compute last updated text
   const lastUpdateText = useMemo(() => {
@@ -220,24 +232,44 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   const cardSvgString = useMemo(() => {
     const statusColor = formData.status === CaseStatus.APPROVED ? "#10B981" : "#FFCC00";
     
+    // Theme Colors
+    let bgFill = "url(#grad1)";
+    let textColor = "#CCCCCC";
+    let titleColor = "#FFFFFF";
+    let subTextColor = "#888888";
+    
+    if (cardTheme === 'Light') {
+        bgFill = "#FFFFFF";
+        textColor = "#333333";
+        titleColor = "#000000";
+        subTextColor = "#666666";
+    } else if (cardTheme === 'Flag') {
+        bgFill = "url(#gradFlag)";
+        textColor = "#FFFFFF";
+        titleColor = "#FFCC00";
+        subTextColor = "#DDDDDD";
+    }
+
     let timelineY = 255;
-    let timelineContent = `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="#CCC">📅 ${t.timelineSubmitted}: <tspan fill="white" font-weight="bold">${formData.submissionDate || '--'}</tspan></text>`;
+    let timelineContent = `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">📅 ${t.timelineSubmitted}: <tspan fill="${titleColor}" font-weight="bold">${formData.submissionDate || '--'}</tspan></text>`;
     
     if (formData.protocolDate) {
         timelineY += 30;
-        timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="#CCC">📂 ${t.timelineProto}: <tspan fill="white" font-weight="bold">${formData.protocolDate}</tspan></text>`;
+        timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">📂 ${t.timelineProto}: <tspan fill="${titleColor}" font-weight="bold">${formData.protocolDate}</tspan></text>`;
     }
 
     timelineY += 30;
     if (formData.status === CaseStatus.APPROVED && formData.approvalDate) {
-         timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="#CCC">🏆 ${t.timelineUrkunde}: <tspan fill="#10B981" font-weight="bold">${formData.approvalDate}</tspan></text>`;
+         timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">🏆 ${t.timelineUrkunde}: <tspan fill="#10B981" font-weight="bold">${formData.approvalDate}</tspan></text>`;
     } else if (formData.status === CaseStatus.CLOSED && formData.closedDate) {
-         timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="#CCC">❌ ${t.timelineClosed}: <tspan fill="#EF4444" font-weight="bold">${formData.closedDate}</tspan></text>`;
+         timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">❌ ${t.timelineClosed}: <tspan fill="#EF4444" font-weight="bold">${formData.closedDate}</tspan></text>`;
     } else {
-         timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="#CCC">⏳ ${t.timelineStatus}: <tspan fill="${statusColor}" font-weight="bold">${statusT[formData.status || CaseStatus.SUBMITTED]}</tspan></text>`;
+         timelineContent += `<text x="50" y="${timelineY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">⏳ ${t.timelineStatus}: <tspan fill="${statusColor}" font-weight="bold">${statusT[formData.status || CaseStatus.SUBMITTED]}</tspan></text>`;
     }
 
     const boxHeight = timelineY - 210 + 25; 
+    const boxFill = cardTheme === 'Light' ? "#F3F4F6" : "#1a1a1a";
+    const boxStroke = cardTheme === 'Light' ? "#E5E7EB" : "#333333";
 
     const rawType = formData.caseType || '';
     let displayType = rawType;
@@ -257,30 +289,35 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
             <stop offset="0%" style="stop-color:#111111;stop-opacity:1" />
             <stop offset="100%" style="stop-color:#222222;stop-opacity:1" />
           </linearGradient>
+           <linearGradient id="gradFlag" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#000000;stop-opacity:1" />
+            <stop offset="50%" style="stop-color:#DD0000;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#FFCC00;stop-opacity:1" />
+          </linearGradient>
         </defs>
-        <rect width="600" height="400" rx="15" fill="url(#grad1)" />
+        <rect width="600" height="400" rx="15" fill="${bgFill}" stroke="${cardTheme === 'Light' ? '#DDD' : '#333'}" stroke-width="1"/>
         <rect x="0" y="0" width="600" height="8" fill="#DD0000" />
         <rect x="0" y="8" width="600" height="8" fill="#FFCC00" />
         
-        <text x="30" y="60" font-family="Arial, sans-serif" font-size="24" fill="white" font-weight="bold">German Citizenship Tracker</text>
+        <text x="30" y="60" font-family="Arial, sans-serif" font-size="24" fill="${titleColor}" font-weight="bold">German Citizenship Tracker</text>
         
-        <rect x="30" y="100" width="540" height="2" fill="#333" />
+        <rect x="30" y="100" width="540" height="2" fill="${boxStroke}" />
         
-        <text x="30" y="140" font-family="Arial, sans-serif" font-size="14" fill="#888">${t.cardApplicant}</text>
+        <text x="30" y="140" font-family="Arial, sans-serif" font-size="14" fill="${subTextColor}">${t.cardApplicant}</text>
         <text x="30" y="170" font-family="Arial, sans-serif" font-size="24" fill="#FFCC00" font-weight="bold">${formData.fantasyName || 'Anonymous'}</text>
-        <text x="30" y="200" font-family="Arial, sans-serif" font-size="16" fill="#CCC">${formData.countryOfApplication || 'Unknown'} ${formData.consulate ? `(${formData.consulate})` : ''}</text>
+        <text x="30" y="200" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">${formData.countryOfApplication || 'Unknown'} ${formData.consulate ? `(${formData.consulate})` : ''}</text>
         
-        <text x="400" y="140" font-family="Arial, sans-serif" font-size="14" fill="#888">${t.cardType}</text>
-        <text x="400" y="170" font-family="Arial, sans-serif" font-size="20" fill="white">${displayType}</text>
+        <text x="400" y="140" font-family="Arial, sans-serif" font-size="14" fill="${subTextColor}">${t.cardType}</text>
+        <text x="400" y="170" font-family="Arial, sans-serif" font-size="20" fill="${titleColor}">${displayType}</text>
         
-        <rect x="30" y="220" width="540" height="${boxHeight}" rx="10" fill="#1a1a1a" stroke="#333" />
+        <rect x="30" y="220" width="540" height="${boxHeight}" rx="10" fill="${boxFill}" stroke="${boxStroke}" />
         
         ${timelineContent}
         
-        <text x="570" y="380" font-family="Arial, sans-serif" font-size="12" fill="#444" text-anchor="end">${t.cardGenerated}</text>
+        <text x="570" y="380" font-family="Arial, sans-serif" font-size="12" fill="${subTextColor}" text-anchor="end">${t.cardGenerated}</text>
       </svg>
     `;
-  }, [formData, statusT, t]);
+  }, [formData, statusT, t, cardTheme]);
 
   const validate = (): string | null => {
     if (nameError) return t.usernameTaken;
@@ -338,6 +375,13 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
     }
     setError(null);
     setIsSaving(true);
+    
+    // Check if new status is approved to trigger confetti
+    if (formData.status === CaseStatus.APPROVED && initialData?.status !== CaseStatus.APPROVED) {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 8000); // 8 seconds of joy
+    }
+
     setTimeout(() => {
       const updatedCase: CitizenshipCase = {
         ...formData as CitizenshipCase,
@@ -441,9 +485,21 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md border border-de-gray/20 relative">
+      {showConfetti && <Confetti />}
+
       <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4 relative">
         <h2 className="text-xl font-bold text-de-black">{t.myCase}</h2>
         
+        {/* Days Counter Badge */}
+        {daysElapsed > 0 && (
+             <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-gray-100 rounded-full border border-gray-200 shadow-inner">
+                <Clock size={14} className="text-gray-500" />
+                <span className="text-xs font-bold text-gray-700">
+                    {formatDuration(daysElapsed, lang)} {t.daysSince}
+                </span>
+             </div>
+        )}
+
         <div className="flex flex-col items-end relative">
             <button 
                 type="button"
@@ -518,6 +574,13 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
         <div className="mb-4 p-3 bg-red-50 text-de-red flex items-center gap-2 rounded text-sm font-medium border border-red-100 animate-pulse">
           <AlertTriangle size={16} />
           {error}
+        </div>
+      )}
+      
+      {showConfetti && (
+         <div className="mb-4 p-3 bg-green-50 text-green-700 flex items-center gap-2 rounded text-sm font-bold border border-green-100 animate-in slide-in-from-top">
+            <CheckCircle2 size={16} />
+            {t.celebration}
         </div>
       )}
 
@@ -734,7 +797,21 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
           </button>
           
           <div className="border-t pt-4">
-            <p className="text-xs font-bold text-gray-400 uppercase mb-3 text-center">{t.shareTitle}</p>
+            <div className="flex justify-between items-center mb-3">
+                 <p className="text-xs font-bold text-gray-400 uppercase">{t.shareTitle}</p>
+                 <div className="flex items-center gap-2">
+                     <Palette size={14} className="text-gray-400" />
+                     <select 
+                        value={cardTheme}
+                        onChange={e => setCardTheme(e.target.value as any)}
+                        className="text-xs border rounded p-1 bg-white focus:ring-de-gold cursor-pointer"
+                     >
+                         <option value="Dark">{t.themeDark}</option>
+                         <option value="Light">{t.themeLight}</option>
+                         <option value="Flag">{t.themeFlag}</option>
+                     </select>
+                 </div>
+            </div>
             
             <div className="mb-4 flex justify-center bg-gray-100 p-4 rounded border border-gray-200">
                 <img 

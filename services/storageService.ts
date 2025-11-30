@@ -285,3 +285,25 @@ export const setMaintenanceMode = (enabled: boolean) => {
     config.maintenanceMode = enabled;
     localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
 };
+
+// --- BACKUP UTILS ---
+
+export const getFullDatabaseDump = async () => {
+    const cases = await fetchCases();
+    const logs = getAuditLogs();
+    const config = getAppConfig();
+
+    return {
+        timestamp: new Date().toISOString(),
+        version: "1.0",
+        stats: {
+            cases: cases.length,
+            logs: logs.length
+        },
+        data: {
+            cases,
+            logs,
+            config
+        }
+    };
+};

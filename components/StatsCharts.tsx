@@ -1,4 +1,5 @@
 
+
 import React, { useMemo, useState } from 'react';
 import { 
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine, LabelList
@@ -6,7 +7,7 @@ import {
 import { CitizenshipCase, Language, CaseStatus } from '../types';
 import { TRANSLATIONS, STATUS_TRANSLATIONS } from '../constants';
 import { calculateAdvancedStats, formatDuration, getDaysDiff, formatISODateToLocale } from '../services/statsUtils';
-import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X, TrendingUp } from 'lucide-react';
+import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 interface StatsDashboardProps {
   cases: CitizenshipCase[]; // Receiving filtered cases from App.tsx
@@ -200,7 +201,8 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
         avgDaysTotal: 0,
         waitingStats: { min:0, max:0, mean:0, mode:0, stdDev:0, count:0 },
         byType: [],
-        byStatus: []
+        byStatus: [],
+        trendDirection: 'Stable'
     };
 
     const total = cases.length;
@@ -226,6 +228,10 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
     const protoToApproval: number[] = [];
     const subToApproval: number[] = [];
     const currentWaiting: number[] = [];
+    const recentApprovals: number[] = [];
+
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
     cases.forEach(c => {
       const subDate = c.submissionDate;
@@ -242,7 +248,14 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
       }
       if (subDate && appDate) {
          const diff = getDaysDiff(subDate, appDate);
-        if (diff !== null && diff > 0) subToApproval.push(diff);
+        if (diff !== null && diff > 0) {
+            subToApproval.push(diff);
+            
+            // Collect Recent Trend Data
+            if (new Date(appDate) > ninetyDaysAgo) {
+                recentApprovals.push(diff);
+            }
+        }
       }
       if (subDate && c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED) {
          const diff = getDaysDiff(subDate, new Date().toISOString());
@@ -251,16 +264,27 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
     });
 
     const calcMean = (arr: number[]) => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : 0;
+    
+    const overallAvg = calcMean(subToApproval);
+    const recentAvg = calcMean(recentApprovals);
+    
+    let trendDirection = 'Stable';
+    if (recentApprovals.length > 0) {
+        if (recentAvg < overallAvg * 0.95) trendDirection = 'Faster';
+        else if (recentAvg > overallAvg * 1.05) trendDirection = 'Slower';
+    }
+
     return {
       totalCases: total,
       approvedCases: approvedCount,
       closedCases: closedCount,
       avgDaysToProtocol: calcMean(subToProtocol),
       avgDaysToApproval: calcMean(protoToApproval),
-      avgDaysTotal: calcMean(subToApproval),
+      avgDaysTotal: overallAvg,
       waitingStats: calculateAdvancedStats(currentWaiting),
       byType,
-      byStatus
+      byStatus,
+      trendDirection
     };
   }, [cases, statusT]);
 
@@ -372,12 +396,25 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
             <p className="text-2xl font-bold text-de-black">{stats.approvedCases}</p>
           </div>
 
-          <div className="bg-white p-5 rounded-xl shadow border-b-4 border-red-500">
-            <div className="flex items-center gap-2 mb-2">
-                <XCircle size={16} className="text-red-500" />
-                <p className="text-xs text-gray-500 font-bold uppercase">{statusT[CaseStatus.CLOSED]}</p>
+          <div className="bg-white p-5 rounded-xl shadow border-b-4 border-gray-600 relative">
+             <div className="flex items-center gap-2 mb-2">
+                <CheckCircle size={16} className="text-gray-600" />
+                <p className="text-xs text-gray-500 font-bold uppercase">{t.avgTotal}</p>
             </div>
-            <p className="text-2xl font-bold text-de-black">{stats.closedCases}</p>
+            <p className="text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysTotal, lang)}</p>
+            
+            {/* Trend Indicator */}
+            {stats.trendDirection !== 'Stable' && (
+                <div className={`absolute top-4 right-4 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 ${stats.trendDirection === 'Faster' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {stats.trendDirection === 'Faster' ? <TrendingDown size={14} /> : <TrendingUp size={14} />}
+                    {stats.trendDirection === 'Faster' ? t.trendFaster : t.trendSlower}
+                </div>
+            )}
+            {stats.trendDirection === 'Stable' && (
+                <div className="absolute top-4 right-4 text-xs font-bold px-2 py-1 rounded bg-gray-100 text-gray-500 flex items-center gap-1">
+                    <Minus size={14} /> {t.trendStable}
+                </div>
+            )}
           </div>
 
           <div className="bg-white p-5 rounded-xl shadow border-b-4 border-blue-500">
@@ -395,12 +432,13 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
             </div>
             <p className="text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysToApproval, lang)}</p>
           </div>
-           <div className="bg-white p-5 rounded-xl shadow border-b-4 border-gray-600">
-             <div className="flex items-center gap-2 mb-2">
-                <CheckCircle size={16} className="text-gray-600" />
-                <p className="text-xs text-gray-500 font-bold uppercase">{t.avgTotal}</p>
+           
+           <div className="bg-white p-5 rounded-xl shadow border-b-4 border-red-500">
+            <div className="flex items-center gap-2 mb-2">
+                <XCircle size={16} className="text-red-500" />
+                <p className="text-xs text-gray-500 font-bold uppercase">{statusT[CaseStatus.CLOSED]}</p>
             </div>
-            <p className="text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysTotal, lang)}</p>
+            <p className="text-2xl font-bold text-de-black">{stats.closedCases}</p>
           </div>
       </div>
 
