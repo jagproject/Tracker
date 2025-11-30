@@ -1,5 +1,3 @@
-
-
 import { CitizenshipCase, CaseType, CaseStatus, AuditLogEntry } from "../types";
 import { supabase, isSupabaseEnabled } from "./authService";
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -85,25 +83,39 @@ export const fetchCases = async (): Promise<CitizenshipCase[]> => {
             throw error;
         }
         if (data) {
-            return data as CitizenshipCase[];
+            const cases = data as CitizenshipCase[];
+            
+            // --- CRITICAL FIX: CACHE-ON-READ ---
+            // We successfully fetched the master list (e.g. 800 cases).
+            // We MUST save this to localStorage immediately. 
+            // This ensures that if the API fails next time, the fallback has 800 cases, 
+            // not just the few local ones created via upsert.
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
+            } catch (storageError) {
+                console.warn("Failed to cache cases to localStorage (quota exceeded?)", storageError);
+            }
+
+            return cases;
         }
     } catch (e) {
-        console.warn("Supabase fetch failed. Ensure table 'cases' exists.", e);
-        // If Supabase is configured but fails, we might return empty or local depending on strategy.
-        // For now, let's fall back to local to prevent crash.
+        console.warn("Supabase fetch failed. Falling back to cached data.", e);
+        // Fall through to Step 2 (LocalStorage)
     }
   }
 
   // 2. Fallback to LocalStorage
   const stored = localStorage.getItem(STORAGE_KEY);
   if (!stored) {
-    // Only generate mocks if Supabase is NOT enabled. 
-    // If Supabase IS enabled but returned no data (or error), we probably want to see "No cases" rather than fake data.
+    // Only generate mocks if Supabase is NOT enabled (pure offline mode). 
+    // If Supabase IS enabled but returned no data/error, returning mocks might be confusing,
+    // but better than crashing.
     if (!isSupabaseEnabled()) {
         const mocks = generateMockData();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(mocks));
         return mocks;
     }
+    // If we expected Supabase data but got none and have no cache, return empty
     return [];
   }
   return JSON.parse(stored);
