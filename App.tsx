@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -36,11 +37,12 @@ import {
   Home,
   ArrowLeftRight,
   Clock,
-  Calendar
+  Calendar,
+  LogIn
 } from 'lucide-react';
 import { CitizenshipCase, UserSession, CaseType, CaseStatus, Language } from './types';
 import { generateFantasyUsername, generateStatisticalInsights } from './services/geminiService';
-import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig, subscribeToCases } from './services/storageService';
+import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig, subscribeToCases, getLastFetchError } from './services/storageService';
 import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickStats, formatISODateToLocale, isGhostCase, formatDuration } from './services/statsUtils';
 import { logoutUser, subscribeToAuthChanges, isSupabaseEnabled } from './services/authService';
 import { StatsDashboard } from './components/StatsCharts';
@@ -284,15 +286,17 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
 };
 
 // Bottom Navigation for Mobile
-const MobileNavBar = ({ activeTab, setActiveTab, t }: { activeTab: string, setActiveTab: (t: 'myCase' | 'dashboard' | 'faq' | 'ai') => void, t: any }) => (
+const MobileNavBar = ({ activeTab, setActiveTab, t, isGuest }: { activeTab: string, setActiveTab: (t: 'myCase' | 'dashboard' | 'faq' | 'ai') => void, t: any, isGuest: boolean }) => (
   <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 flex justify-around items-center h-16 pb-safe md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-    <button 
-      onClick={() => setActiveTab('myCase')}
-      className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'myCase' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
-    >
-      <User size={22} className={activeTab === 'myCase' ? 'fill-current' : ''} strokeWidth={2} />
-      <span className="text-[10px] font-bold mt-1">{t.myCase}</span>
-    </button>
+    {!isGuest && (
+      <button 
+        onClick={() => setActiveTab('myCase')}
+        className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'myCase' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
+      >
+        <User size={22} className={activeTab === 'myCase' ? 'fill-current' : ''} strokeWidth={2} />
+        <span className="text-[10px] font-bold mt-1">{t.myCase}</span>
+      </button>
+    )}
     <button 
       onClick={() => setActiveTab('dashboard')}
       className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'dashboard' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
@@ -300,13 +304,15 @@ const MobileNavBar = ({ activeTab, setActiveTab, t }: { activeTab: string, setAc
       <LayoutDashboard size={22} className={activeTab === 'dashboard' ? 'fill-current' : ''} strokeWidth={2} />
       <span className="text-[10px] font-bold mt-1">{t.dashboard}</span>
     </button>
-     <button 
-      onClick={() => setActiveTab('ai')}
-      className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'ai' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
-    >
-      <Sparkles size={22} className={activeTab === 'ai' ? 'fill-current' : ''} strokeWidth={2} />
-      <span className="text-[10px] font-bold mt-1">AI</span>
-    </button>
+    {!isGuest && (
+      <button 
+        onClick={() => setActiveTab('ai')}
+        className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'ai' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
+      >
+        <Sparkles size={22} className={activeTab === 'ai' ? 'fill-current' : ''} strokeWidth={2} />
+        <span className="text-[10px] font-bold mt-1">AI</span>
+      </button>
+    )}
     <button 
       onClick={() => setActiveTab('faq')}
       className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'faq' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
@@ -332,6 +338,7 @@ const App: React.FC = () => {
   const [showAdmin, setShowAdmin] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [selectedDetailCase, setSelectedDetailCase] = useState<CitizenshipCase | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null); // New state for fetch errors
   
   // Dashboard Filters State (Hoisted from StatsCharts)
   const [filterCountry, setFilterCountry] = useState<string>('All');
@@ -341,6 +348,9 @@ const App: React.FC = () => {
   
   // Ghost Case View Mode
   const [viewGhosts, setViewGhosts] = useState(false);
+
+  // Guest Mode
+  const [isGuest, setIsGuest] = useState(false);
 
   // Onboarding / Claiming State
   const [onboardingMode, setOnboardingMode] = useState<'CREATE' | 'CLAIM'>('CREATE');
@@ -423,6 +433,8 @@ const App: React.FC = () => {
 
     const loadedCases = await fetchCases();
     setAllCases(loadedCases);
+    setFetchError(getLastFetchError()); // Check if there was an error fetching
+    
     const config = getAppConfig();
     setIsMaintenance(config.maintenanceMode);
 
@@ -665,6 +677,18 @@ const App: React.FC = () => {
     await handleSessionStart(emailInput.trim().toLowerCase());
   };
 
+  const enterGuestMode = () => {
+      setIsGuest(true);
+      setActiveTab('dashboard'); // Default to dashboard for guests
+      setUserCase(undefined);
+      setSession({
+          email: 'guest@tracker.local',
+          fantasyName: 'Guest',
+          isAuthenticated: false,
+          language: 'en'
+      });
+  };
+
   // Item 2: Optimistic UI Updates
   const handleUpdateCase = async (updatedCase: CitizenshipCase) => {
     // 1. Optimistic Update (Immediate)
@@ -692,7 +716,11 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await logoutUser();
+    if (isGuest) {
+        setIsGuest(false);
+    } else {
+        await logoutUser();
+    }
     setSession(null);
     setEmailInput('');
     setUserCase(undefined);
@@ -714,7 +742,7 @@ const App: React.FC = () => {
     }
   };
 
-  if (!session) {
+  if (!session && !isGuest) {
     return (
       <div 
         className={`min-h-screen flex flex-col justify-center items-center p-4 font-sans relative transition-all duration-1000 ${
@@ -748,48 +776,68 @@ const App: React.FC = () => {
                 </div>
             ) : (
                 loginStep === 'INPUT' ? (
-                <form onSubmit={handleLoginSubmit} className="space-y-6">
-                    <div>
-                    <label className="block text-xs font-bold text-de-gray uppercase mb-2">{t.loginEmailLabel}</label>
-                    <input 
-                        type="email" 
-                        value={emailInput} 
-                        onChange={(e) => setEmailInput(e.target.value)} 
-                        className="w-full px-4 py-3 rounded border border-gray-300 focus:ring-2 focus:ring-de-gold focus:border-transparent outline-none transition-all bg-white text-gray-900" 
-                        placeholder={t.loginPlaceholder} 
-                        required 
-                    />
-                    </div>
+                <>
+                    <form onSubmit={handleLoginSubmit} className="space-y-6">
+                        <div>
+                            <label className="block text-xs font-bold text-de-gray uppercase mb-2">{t.loginEmailLabel}</label>
+                            {/* Fake Email Disclaimer */}
+                            <div className="mb-2 p-2 bg-blue-50 border border-blue-100 rounded flex items-start gap-2">
+                                <AlertCircle size={14} className="text-blue-500 mt-0.5 flex-shrink-0" />
+                                <p className="text-[10px] text-blue-800 leading-tight">
+                                    {t.fakeEmailInfo}
+                                </p>
+                            </div>
+                            <input 
+                                type="email" 
+                                value={emailInput} 
+                                onChange={(e) => setEmailInput(e.target.value)} 
+                                className="w-full px-4 py-3 rounded border border-gray-300 focus:ring-2 focus:ring-de-gold focus:border-transparent outline-none transition-all bg-white text-gray-900" 
+                                placeholder={t.loginPlaceholder} 
+                                required 
+                            />
+                        </div>
 
-                    {/* Privacy Policy Checkbox */}
-                    <div className="flex items-start gap-3 p-3 bg-gray-50 rounded border border-gray-100">
-                      <input 
-                        type="checkbox"
-                        checked={privacyAccepted}
-                        onChange={e => setPrivacyAccepted(e.target.checked)}
-                        className="mt-1 h-4 w-4 text-de-gold border-gray-300 rounded focus:ring-de-gold cursor-pointer flex-shrink-0"
-                        id="privacy-check"
-                      />
-                      <label htmlFor="privacy-check" className="text-xs text-gray-600 cursor-pointer select-none">
-                        {t.acceptPrivacy}
+                        {/* Privacy Policy Checkbox */}
+                        <div className="flex items-start gap-3 p-3 bg-gray-50 rounded border border-gray-100">
+                        <input 
+                            type="checkbox"
+                            checked={privacyAccepted}
+                            onChange={e => setPrivacyAccepted(e.target.checked)}
+                            className="mt-1 h-4 w-4 text-de-gold border-gray-300 rounded focus:ring-de-gold cursor-pointer flex-shrink-0"
+                            id="privacy-check"
+                        />
+                        <label htmlFor="privacy-check" className="text-xs text-gray-600 cursor-pointer select-none">
+                            {t.acceptPrivacy}
+                            <button 
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); setShowPrivacyModal(true); }}
+                            className="block text-de-gold font-bold hover:underline mt-1 flex items-center gap-1"
+                            >
+                            <ShieldCheck size={12} /> {t.privacyLink}
+                            </button>
+                        </label>
+                        </div>
+
                         <button 
-                          type="button"
-                          onClick={(e) => { e.preventDefault(); setShowPrivacyModal(true); }}
-                          className="block text-de-gold font-bold hover:underline mt-1 flex items-center gap-1"
+                            type="submit" 
+                            disabled={loading || !privacyAccepted} 
+                            className="w-full bg-de-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded transition-colors flex justify-center items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <ShieldCheck size={12} /> {t.privacyLink}
+                        {t.loginButton} <ArrowRight size={16} />
                         </button>
-                      </label>
+                    </form>
+                    
+                    {/* Guest Access Button */}
+                    <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+                        <button 
+                            type="button"
+                            onClick={enterGuestMode}
+                            className="text-gray-500 hover:text-de-black font-medium text-sm flex items-center justify-center gap-1 mx-auto transition-colors"
+                        >
+                            <Eye size={16} /> {t.guestAccess}
+                        </button>
                     </div>
-
-                    <button 
-                        type="submit" 
-                        disabled={loading || !privacyAccepted} 
-                        className="w-full bg-de-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded transition-colors flex justify-center items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                    {t.loginButton} <ArrowRight size={16} />
-                    </button>
-                </form>
+                </>
                 ) : loginStep === 'CONFIRM' ? (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                     <div className="bg-yellow-50 border border-yellow-200 rounded p-5 text-center">
@@ -989,13 +1037,29 @@ const App: React.FC = () => {
               </div>
               <div className="flex items-center gap-4 md:gap-6">
                 <div className="hidden md:block"><LanguageSelector lang={lang} setLang={setLang} /></div>
-                <div className="hidden md:flex flex-col items-end border-l border-gray-700 pl-4">
-                  <div className="flex flex-col items-end">
-                      <span className="text-[10px] text-gray-400 uppercase font-bold">{t.username}</span>
-                      <span className="text-sm font-bold text-de-gold">{session.fantasyName}</span>
-                  </div>
-                </div>
-                <button onClick={handleLogout} className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-300 hover:text-white"><LogOut size={20} /></button>
+                
+                {/* User Info or Guest Info */}
+                {!isGuest ? (
+                    <div className="hidden md:flex flex-col items-end border-l border-gray-700 pl-4">
+                        <div className="flex flex-col items-end">
+                            <span className="text-[10px] text-gray-400 uppercase font-bold">{t.username}</span>
+                            <span className="text-sm font-bold text-de-gold">{session?.fantasyName}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="hidden md:flex items-center gap-2 border-l border-gray-700 pl-4 text-gray-400">
+                        <Eye size={16} />
+                        <span className="text-xs font-bold uppercase">{t.guestModeActive}</span>
+                    </div>
+                )}
+
+                <button 
+                    onClick={handleLogout} 
+                    className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-300 hover:text-white flex items-center gap-2"
+                    title={isGuest ? t.guestLoginPrompt : t.logout}
+                >
+                    {isGuest ? <LogIn size={20} /> : <LogOut size={20} />}
+                </button>
               </div>
             </div>
           </div>
@@ -1014,6 +1078,17 @@ const App: React.FC = () => {
                       <p className="text-sm">{t.maintenanceMessage}</p>
                   </div>
               </div>
+          )}
+
+          {/* FETCH ERROR WARNING (OFFLINE MODE) */}
+          {fetchError && !isMaintenance && (
+            <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded shadow mb-6 flex items-start gap-3 animate-in slide-in-from-top-2">
+              <AlertCircle className="flex-shrink-0 mt-1" size={20} />
+              <div className="pr-6">
+                  <p className="font-bold">Connection Issue</p>
+                  <p className="text-sm">{fetchError}. Some community cases may be missing or outdated.</p>
+              </div>
+            </div>
           )}
 
           {notificationMsg && !isMaintenance && (
@@ -1045,9 +1120,9 @@ const App: React.FC = () => {
           </div>
 
           <div className="hidden md:flex gap-1 mb-6 border-b border-gray-300 overflow-x-auto">
-            <TabButton id='myCase' label={t.myCase} icon={<User size={16} />} active={activeTab} onClick={setActiveTab} />
+            {!isGuest && <TabButton id='myCase' label={t.myCase} icon={<User size={16} />} active={activeTab} onClick={setActiveTab} />}
             <TabButton id='dashboard' label={t.dashboard} icon={<LayoutDashboard size={16} />} active={activeTab} onClick={setActiveTab} />
-            <TabButton id='ai' label={t.aiModel} icon={<Monitor size={16} />} active={activeTab} onClick={setActiveTab} />
+            {!isGuest && <TabButton id='ai' label={t.aiModel} icon={<Monitor size={16} />} active={activeTab} onClick={setActiveTab} />}
             <TabButton id='faq' label={t.faq} icon={<HelpCircle size={16} />} active={activeTab} onClick={setActiveTab} />
           </div>
 
@@ -1056,13 +1131,14 @@ const App: React.FC = () => {
               <div className="col-span-1 xl:col-span-3 animate-in slide-in-from-left-4">
                   <CaseForm 
                     initialData={userCase} 
-                    userEmail={session.email} 
-                    fantasyName={session.fantasyName}
+                    userEmail={session?.email || ''} 
+                    fantasyName={session?.fantasyName || 'Guest'}
                     existingNames={allFantasyNames}
                     lang={lang}
                     avgWaitTime={userTypeStats.avgDaysTotal}
                     onSave={handleUpdateCase} 
                     isMaintenanceMode={isMaintenance}
+                    isGuest={isGuest}
                   />
               </div>
             )}
@@ -1117,7 +1193,7 @@ const App: React.FC = () => {
 
             {(activeTab === 'faq' || activeTab === 'ai') && (
               <div className="xl:col-span-3 col-span-1">
-                {activeTab === 'faq' && <FAQ lang={lang} userEmail={session.email} />}
+                {activeTab === 'faq' && <FAQ lang={lang} userEmail={session?.email || ''} />}
                 {/* IMPORTANT: Passing userTypeStats here satisfies the requirement for AI analysis to be by Case Type */}
                 {activeTab === 'ai' && <AIModelTab userCase={userCase} stats={userTypeStats} lang={lang} />}
               </div>
@@ -1204,7 +1280,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <MobileNavBar activeTab={activeTab} setActiveTab={setActiveTab} t={t} />
+      <MobileNavBar activeTab={activeTab} setActiveTab={setActiveTab} t={t} isGuest={isGuest} />
     </>
   );
 };

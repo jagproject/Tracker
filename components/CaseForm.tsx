@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CitizenshipCase, CaseType, CaseStatus, Language } from '../types';
 import { COUNTRIES, TRANSLATIONS, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { Save, Loader2, AlertTriangle, Edit2, Download, Twitter, ChevronDown, Mail, Power, Facebook, Instagram, Share2, Clock, CheckCircle2, Circle, FileText, Send, Palette } from 'lucide-react';
+import { Save, Loader2, AlertTriangle, Edit2, Download, Twitter, ChevronDown, Mail, Power, Facebook, Instagram, Share2, Clock, CheckCircle2, Circle, FileText, Send, Palette, UserCircle } from 'lucide-react';
 import { getDaysDiff, formatISODateToLocale, formatDateTimeToLocale, formatDuration } from '../services/statsUtils';
 import { Confetti } from './Confetti';
 
@@ -16,6 +16,7 @@ interface CaseFormProps {
   avgWaitTime: number;
   onSave: (data: CitizenshipCase) => void;
   isMaintenanceMode?: boolean;
+  isGuest?: boolean;
 }
 
 interface CustomDateInputProps {
@@ -172,7 +173,7 @@ const VisualGapTimeline: React.FC<{ status: CaseStatus, dates: { sub?: string, p
   );
 };
 
-export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fantasyName, existingNames, lang, avgWaitTime, onSave, isMaintenanceMode = false }) => {
+export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fantasyName, existingNames, lang, avgWaitTime, onSave, isMaintenanceMode = false, isGuest = false }) => {
   const t = TRANSLATIONS[lang];
   const statusT = STATUS_TRANSLATIONS[lang];
 
@@ -366,6 +367,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isMaintenanceMode) return;
+    if (isGuest) return; // Guard for Guest Mode
 
     const validationMsg = validate();
     if (validationMsg) {
@@ -482,6 +484,25 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
 
   const inputClass = "w-full rounded border border-gray-300 bg-white p-2.5 text-sm focus:ring-2 focus:ring-de-gold focus:border-de-gold transition-colors";
   const labelClass = "block text-xs font-bold text-de-gray uppercase mb-1";
+
+  if (isGuest) {
+      return (
+          <div className="bg-white p-8 rounded-xl shadow-md border border-de-gray/20 text-center flex flex-col items-center justify-center min-h-[400px]">
+              <div className="bg-gray-100 p-4 rounded-full mb-4">
+                 <UserCircle size={48} className="text-gray-400" />
+              </div>
+              <h2 className="text-xl font-bold text-de-black mb-2">{t.guestRestricted}</h2>
+              <p className="text-gray-500 mb-6 max-w-sm">{t.guestRestrictedDesc}</p>
+              
+              <button 
+                onClick={() => window.location.reload()} 
+                className="bg-de-gold text-de-black font-bold py-3 px-6 rounded-lg hover:bg-yellow-400 transition-colors shadow-md"
+              >
+                  {t.guestLoginPrompt}
+              </button>
+          </div>
+      );
+  }
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md border border-de-gray/20 relative">

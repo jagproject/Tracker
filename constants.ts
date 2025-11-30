@@ -330,7 +330,15 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     lastBackup: "Last Backup:",
     backupOverdue: "Backup Required!",
     backupSafe: "Backup Safe",
-    restoreJson: "Restore DB (JSON)"
+    restoreJson: "Restore DB (JSON)",
+    
+    // NEW FOR FAKE EMAIL
+    fakeEmailInfo: "Note: You can use a made-up email (e.g. mycase@tracker.local). We DO NOT send emails or verify them. It is simply a password to retrieve your case later.",
+    guestAccess: "View Dashboard as Guest",
+    guestModeActive: "Guest Mode Active",
+    guestLoginPrompt: "Log In / Register",
+    guestRestricted: "You are viewing as a guest.",
+    guestRestrictedDesc: "To track your own case and contribute to the statistics, please create a profile."
   },
   es: {
     title: "Rastreador de Ciudadanía Alemana",
@@ -547,7 +555,15 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     lastBackup: "Último Respaldo:",
     backupOverdue: "¡Respaldo Requerido!",
     backupSafe: "Respaldo al día",
-    restoreJson: "Restaurar BD (JSON)"
+    restoreJson: "Restaurar BD (JSON)",
+
+    // NEW FOR FAKE EMAIL
+    fakeEmailInfo: "Nota: Puedes usar un email inventado (ej. micaso@tracker.local). NO enviamos correos ni verificamos validez. Es solo una contraseña para recuperar tu caso después.",
+    guestAccess: "Ver Panel como Invitado",
+    guestModeActive: "Modo Invitado Activo",
+    guestLoginPrompt: "Iniciar Sesión / Registro",
+    guestRestricted: "Estás viendo como invitado.",
+    guestRestrictedDesc: "Para rastrear tu propio caso y contribuir a las estadísticas, por favor crea un perfil."
   },
   de: {
     title: "Einbürgerung Tracker",
@@ -764,7 +780,15 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     lastBackup: "Letztes Backup:",
     backupOverdue: "Backup Erforderlich!",
     backupSafe: "Backup OK",
-    restoreJson: "DB Wiederherstellen (JSON)"
+    restoreJson: "DB Wiederherstellen (JSON)",
+
+     // NEW FOR FAKE EMAIL
+    fakeEmailInfo: "Hinweis: E-Mail muss nicht echt sein. Wir senden keine E-Mails. Es ist nur ein Passwort.",
+    guestAccess: "Als Gast ansehen",
+    guestModeActive: "Gastmodus aktiv",
+    guestLoginPrompt: "Anmelden / Registrieren",
+    guestRestricted: "Sie sehen dies als Gast.",
+    guestRestrictedDesc: "Um Ihren eigenen Fall zu verfolgen, erstellen Sie bitte ein Profil."
   },
   it: {
     title: "Tracker Cittadinanza Tedesca",
@@ -981,7 +1005,15 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     lastBackup: "Ultimo Backup:",
     backupOverdue: "Backup Richiesto!",
     backupSafe: "Backup OK",
-    restoreJson: "Ripristina DB (JSON)"
+    restoreJson: "Ripristina DB (JSON)",
+
+    // NEW FOR FAKE EMAIL
+    fakeEmailInfo: "Nota: L'email non deve essere reale. Non inviamo email. È solo una password.",
+    guestAccess: "Visualizza Dashboard Ospite",
+    guestModeActive: "Modalità Ospite Attiva",
+    guestLoginPrompt: "Accedi / Registrati",
+    guestRestricted: "Stai visualizzando come ospite.",
+    guestRestrictedDesc: "Per tracciare il tuo caso, crea un profilo."
   },
   pt: {
     title: "Rastreador Cidadania Alemã",
@@ -1198,6 +1230,14 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     lastBackup: "Último Backup:",
     backupOverdue: "Backup Necessário!",
     backupSafe: "Backup OK",
-    restoreJson: "Restaurar BD (JSON)"
+    restoreJson: "Restaurar BD (JSON)",
+
+     // NEW FOR FAKE EMAIL
+    fakeEmailInfo: "Nota: O email pode ser fictício. Não enviamos emails nem verificamos. É apenas uma senha para recuperar seu caso.",
+    guestAccess: "Ver Painel como Convidado",
+    guestModeActive: "Modo Convidado",
+    guestLoginPrompt: "Entrar / Registrar",
+    guestRestricted: "Você está visualizando como convidado.",
+    guestRestrictedDesc: "Para rastrear seu próprio caso, crie um perfil."
   }
 };

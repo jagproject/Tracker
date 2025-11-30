@@ -11,6 +11,10 @@ export interface AppConfig {
     maintenanceMode: boolean;
 }
 
+// Track connection state
+let lastFetchError: string | null = null;
+export const getLastFetchError = () => lastFetchError;
+
 // Helper to generate mock data if empty
 const generateMockData = (): CitizenshipCase[] => {
   const mockCases: CitizenshipCase[] = [
@@ -79,17 +83,18 @@ export const fetchCases = async (): Promise<CitizenshipCase[]> => {
     try {
         const { data, error } = await supabase.from(DB_TABLE).select('*');
         if (error) {
-            console.error("Supabase Error:", error.message);
             throw error;
         }
+        
+        lastFetchError = null; // Clear error on success
+
         if (data) {
             const cases = data as CitizenshipCase[];
             
             // --- CRITICAL FIX: CACHE-ON-READ ---
             // We successfully fetched the master list (e.g. 800 cases).
             // We MUST save this to localStorage immediately. 
-            // This ensures that if the API fails next time, the fallback has 800 cases, 
-            // not just the few local ones created via upsert.
+            // This ensures that if the API fails next time, the fallback has 800 cases.
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
             } catch (storageError) {
@@ -98,8 +103,10 @@ export const fetchCases = async (): Promise<CitizenshipCase[]> => {
 
             return cases;
         }
-    } catch (e) {
+    } catch (e: any) {
         console.warn("Supabase fetch failed. Falling back to cached data.", e);
+        // Set error message so UI can warn user
+        lastFetchError = "Could not connect to database. Showing local cached data only.";
         // Fall through to Step 2 (LocalStorage)
     }
   }

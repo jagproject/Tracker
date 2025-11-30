@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { CitizenshipCase, StatSummary, Language } from "../types";
 import { TRANSLATIONS } from "../constants";
@@ -18,6 +17,19 @@ const cleanJson = (text: string) => {
   return text.replace(/^```(json)?\n?/i, '').replace(/\n?```$/, '').trim();
 };
 
+// Helper to sanitize AI errors in console (prevents leaking keys or raw JSON)
+const logAiError = (context: string, error: any) => {
+  const msg = error instanceof Error ? error.message : JSON.stringify(error);
+  
+  if (msg.includes("API key") || msg.includes("expired") || msg.includes("403") || msg.includes("400")) {
+      console.warn(`[Gemini] ${context}: AI Service unavailable (Auth/Key Expired). Using fallback.`);
+  } else if (msg.includes("429") || msg.includes("quota")) {
+      console.warn(`[Gemini] ${context}: Quota Exceeded. Using fallback.`);
+  } else {
+      console.warn(`[Gemini] ${context} error:`, error);
+  }
+};
+
 // Generate a fantasy username
 export const generateFantasyUsername = async (seed: string): Promise<string> => {
   try {
@@ -29,7 +41,7 @@ export const generateFantasyUsername = async (seed: string): Promise<string> => 
     });
     return response.text?.trim() || "Anonymous Wanderer";
   } catch (error) {
-    console.warn("AI Name Gen failed (likely quota), using fallback.", error);
+    logAiError("NameGen", error);
     const random = FALLBACK_NAMES[Math.floor(Math.random() * FALLBACK_NAMES.length)];
     const suffix = Math.floor(Math.random() * 999);
     return `${random} ${suffix}`;
@@ -71,8 +83,10 @@ export const generateStatisticalInsights = async (stats: StatSummary, cases: Cit
     });
 
     return response.text?.trim() || "";
-  } catch (error) {
-    console.warn("AI Insights failed (likely quota).", error);
+  } catch (error: any) {
+    logAiError("Insights", error);
+    
+    // Fallback messages
     const fallbackMap: Record<Language, string> = {
         en: "AI Analysis unavailable due to high traffic. Based on data, processing times vary significantly by case type.",
         es: "Análisis de IA no disponible por alto tráfico. Los tiempos varían significativamente según el tipo de caso.",
@@ -187,12 +201,12 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
         };
 
     } catch (error: any) {
-        console.warn("AI Prediction generation failed", error);
-        const errorDetail = error instanceof Error ? error.message : String(error);
-
+        logAiError("Prediction", error);
+        
+        // Use mathematical fallback
         const fallbackReasoning = lang === 'es' 
-            ? `Cálculo matemático directo basado en el promedio de ${avgWaitDays} días observados en ${stats.totalCases} casos similares. (Error IA: ${errorDetail})` 
-            : `Direct mathematical calculation based on average of ${avgWaitDays} days observed in ${stats.totalCases} similar cases. (AI Error: ${errorDetail})`;
+            ? `Cálculo matemático directo basado en el promedio de ${avgWaitDays} días observados en ${stats.totalCases} casos similares. (Estado: Offline Mode)` 
+            : `Direct mathematical calculation based on average of ${avgWaitDays} days observed in ${stats.totalCases} similar cases. (Status: Offline Mode)`;
 
         return {
             date: estimatedDateStr,
