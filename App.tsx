@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -1135,8 +1133,8 @@ const App: React.FC = () => {
             <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded shadow mb-6 mx-0 sm:mx-0 flex items-start gap-3 animate-in slide-in-from-top-2">
               <AlertCircle className="flex-shrink-0 mt-1" size={20} />
               <div className="pr-6">
-                  <p className="font-bold">Connection Issue</p>
-                  <p className="text-sm">{fetchError}. Some community cases may be missing or outdated.</p>
+                  <p className="font-bold">Database Connection Issue</p>
+                  <p className="text-sm">{fetchError}. Some data might be unavailable.</p>
               </div>
             </div>
           )}

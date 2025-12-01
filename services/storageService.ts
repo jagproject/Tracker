@@ -15,66 +15,6 @@ export interface AppConfig {
 let lastFetchError: string | null = null;
 export const getLastFetchError = () => lastFetchError;
 
-// Helper to generate mock data if empty
-const generateMockData = (): CitizenshipCase[] => {
-  const mockCases: CitizenshipCase[] = [
-    {
-      id: '1',
-      email: 'mock1@example.com',
-      fantasyName: 'Aguila Dorada',
-      countryOfApplication: 'Argentina',
-      consulate: 'Buenos Aires',
-      caseType: CaseType.STAG_5,
-      submissionDate: '2024-03-15',
-      protocolDate: '2024-06-20',
-      status: CaseStatus.PROTOCOL_RECEIVED,
-      lastUpdated: '2024-06-20',
-      documents: ["Application Form (Antrag)", "Birth Certificate (Applicant)"],
-      notes: "Sent via DHL. Arrived in 4 days."
-    },
-    {
-      id: '2',
-      email: 'mock2@example.com',
-      fantasyName: 'Bavarian Lion',
-      countryOfApplication: 'United States',
-      consulate: 'New York',
-      caseType: CaseType.ART_116,
-      submissionDate: '2024-01-10',
-      protocolDate: '2024-04-15',
-      approvalDate: '2025-01-01',
-      status: CaseStatus.APPROVED,
-      lastUpdated: '2025-01-01',
-      documents: ["Application Form (Antrag)", "Proof of Loss of Citizenship"],
-      notes: "Straightforward case."
-    },
-    {
-      id: '3',
-      email: 'mock3@example.com',
-      fantasyName: 'Río Danubio',
-      countryOfApplication: 'Israel',
-      consulate: 'Tel Aviv',
-      caseType: CaseType.STAG_15,
-      submissionDate: '2025-02-05',
-      status: CaseStatus.SUBMITTED,
-      lastUpdated: '2025-02-05',
-    },
-     {
-      id: '4',
-      email: 'mock4@example.com',
-      fantasyName: 'Forest Walker',
-      countryOfApplication: 'Brazil',
-      consulate: 'Sao Paulo',
-      caseType: CaseType.STAG_5,
-      submissionDate: '2024-08-10',
-      protocolDate: '2025-01-01',
-      status: CaseStatus.PROTOCOL_RECEIVED,
-      lastUpdated: '2025-01-01',
-      notes: "Had to translate documents twice because of a typo."
-    }
-  ];
-  return mockCases;
-};
-
 // --- READ OPERATIONS ---
 
 export const fetchCases = async (): Promise<CitizenshipCase[]> => {
@@ -91,41 +31,32 @@ export const fetchCases = async (): Promise<CitizenshipCase[]> => {
         if (data) {
             const cases = data as CitizenshipCase[];
             
-            // --- CRITICAL FIX: CACHE-ON-READ ---
-            // We successfully fetched the master list (e.g. 800 cases).
-            // We MUST save this to localStorage immediately. 
-            // This ensures that if the API fails next time, the fallback has 800 cases.
+            // Cache successfully fetched data
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
             } catch (storageError) {
-                console.warn("Failed to cache cases to localStorage (quota exceeded?)", storageError);
+                console.warn("Failed to cache cases to localStorage", storageError);
             }
 
             return cases;
         }
     } catch (e: any) {
-        console.warn("Supabase fetch failed. Falling back to cached data.", e);
+        console.error("Supabase fetch failed:", e);
         // Set error message so UI can warn user
-        lastFetchError = "Could not connect to database. Showing local cached data only.";
+        lastFetchError = `Connection Error: ${e.message || 'Unknown DB Error'}`;
         // Fall through to Step 2 (LocalStorage)
     }
   }
 
   // 2. Fallback to LocalStorage
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    // Only generate mocks if Supabase is NOT enabled (pure offline mode). 
-    // If Supabase IS enabled but returned no data/error, returning mocks might be confusing,
-    // but better than crashing.
-    if (!isSupabaseEnabled()) {
-        const mocks = generateMockData();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(mocks));
-        return mocks;
-    }
-    // If we expected Supabase data but got none and have no cache, return empty
-    return [];
+  if (stored) {
+    return JSON.parse(stored);
   }
-  return JSON.parse(stored);
+  
+  // CRITICAL CHANGE: Do NOT return mock data automatically.
+  // If DB fails and Local is empty, return empty array to avoid "Reset" confusion.
+  return [];
 };
 
 export const fetchCaseByEmail = async (email: string): Promise<CitizenshipCase | undefined> => {
@@ -167,7 +98,10 @@ export const upsertCase = async (newCase: CitizenshipCase) => {
   // 1. Try Supabase
   if (supabase) {
       const { error } = await supabase.from(DB_TABLE).upsert(caseToSave);
-      if (error) console.error("Supabase Upsert Error:", error);
+      if (error) {
+          console.error("Supabase Upsert Error:", error);
+          lastFetchError = `Save Failed: ${error.message}`;
+      }
   }
 
   // 2. Always update LocalStorage (for offline redundancy or current session speed)
