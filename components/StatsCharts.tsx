@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { 
-  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine, LabelList, Sankey
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList, FunnelChart, Funnel, Label
 } from 'recharts';
 import { CitizenshipCase, Language, CaseStatus } from '../types';
 import { TRANSLATIONS, STATUS_TRANSLATIONS } from '../constants';
 import { calculateAdvancedStats, formatDuration, getDaysDiff, formatISODateToLocale } from '../services/statsUtils';
-import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X, TrendingUp, TrendingDown, Minus, GitMerge } from 'lucide-react';
+import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X, TrendingUp, TrendingDown, Minus, Filter } from 'lucide-react';
 
 interface StatsDashboardProps {
   cases: CitizenshipCase[]; // Receiving filtered cases from App.tsx
@@ -69,92 +69,78 @@ const DrillDownModal = ({ title, cases, onClose, statusT, lang, t }: { title: st
     </div>
 );
 
-// --- Feature: Case Flow (Sankey) Diagram ---
-const CaseFlowDiagram = ({ cases, lang }: { cases: CitizenshipCase[], lang: Language }) => {
+// --- Feature: Case Funnel Chart ---
+const CaseFunnelChart = ({ cases, lang }: { cases: CitizenshipCase[], lang: Language }) => {
     const t = TRANSLATIONS[lang];
     
-    // Construct Sankey Data
+    // Construct Funnel Data
     const data = useMemo(() => {
         const total = cases.length;
-        if (total === 0) return { nodes: [], links: [] };
+        if (total === 0) return [];
 
-        const submitted = cases.filter(c => c.status === CaseStatus.SUBMITTED).length;
-        const protocol = cases.filter(c => c.status === CaseStatus.PROTOCOL_RECEIVED).length;
-        const docs = cases.filter(c => c.status === CaseStatus.ADDITIONAL_DOCS).length;
-        const approved = cases.filter(c => c.status === CaseStatus.APPROVED).length;
-        const closed = cases.filter(c => c.status === CaseStatus.CLOSED).length;
+        // Funnel Stages Logic
+        // 1. All Submitted Cases
+        // 2. Protocol Received (Status is NOT Submitted)
+        // 3. Decision Made (Approved or Closed)
+        // 4. Approved (Urkunde)
 
-        // Colors
-        // Total (Gray), Submitted (Blue), Protocol (Yellow), Approved (Green), Closed (Red)
-        const COLOR_TOTAL = "#9ca3af";
-        const COLOR_SUB = "#3B82F6"; // Blue
-        const COLOR_PROTO = "#F59E0B"; // Yellow/Orange
-        const COLOR_PROC = "#8B5CF6"; // Purple (Intermediate)
-        const COLOR_APP = "#10B981"; // Green
-        const COLOR_CLOSE = "#EF4444"; // Red
+        const stage1 = total;
+        const stage2 = cases.filter(c => c.status !== CaseStatus.SUBMITTED).length;
+        const stage3 = cases.filter(c => c.status === CaseStatus.APPROVED || c.status === CaseStatus.CLOSED).length;
+        const stage4 = cases.filter(c => c.status === CaseStatus.APPROVED).length;
 
-        // Count Logic
-        const countWithProtocol = protocol + docs + approved + closed;
-        const countDecided = approved + closed;
-        const countInProcess = protocol + docs;
-
-        const nodes = [
-            { name: t.totalCases || "Total", fill: COLOR_TOTAL },        // 0
-            { name: t.flowSubmitted || "Submitted", fill: COLOR_SUB },   // 1
-            { name: t.flowProtocol || "Protocol", fill: COLOR_PROTO },   // 2
-            { name: t.flowInProcess || "Processing", fill: COLOR_PROC }, // 3
-            { name: t.flowDecision || "Decision", fill: COLOR_PROC },    // 4
-            { name: t.flowApproved || "Approved", fill: COLOR_APP },     // 5
-            { name: t.flowClosed || "Closed", fill: COLOR_CLOSE }        // 6
+        return [
+            { 
+                "value": stage1, 
+                "name": t.stepSubmitted || "Submitted", 
+                "fill": "#A9A9A9",
+                "labelFill": "#333"
+            },
+            { 
+                "value": stage2, 
+                "name": t.stepProtocol || "Protocol", 
+                "fill": "#3B82F6",
+                "labelFill": "#fff"
+            },
+            { 
+                "value": stage3, 
+                "name": t.stepDecision || "Decision", 
+                "fill": "#F59E0B",
+                "labelFill": "#fff"
+            },
+            { 
+                "value": stage4, 
+                "name": t.timelineUrkunde || "Approved", 
+                "fill": "#10B981",
+                "labelFill": "#fff"
+            }
         ];
-
-        const links = [];
-        
-        // Total -> Submitted (Blue Link)
-        if (submitted > 0) links.push({ source: 0, target: 1, value: submitted, fill: COLOR_SUB });
-        
-        // Total -> With Protocol (Yellow Link)
-        if (countWithProtocol > 0) links.push({ source: 0, target: 2, value: countWithProtocol, fill: COLOR_PROTO });
-
-        // With Protocol -> In Process (Yellow Link)
-        if (countInProcess > 0) links.push({ source: 2, target: 3, value: countInProcess, fill: COLOR_PROTO });
-        
-        // With Protocol -> Decision (Yellow Link - transition)
-        if (countDecided > 0) links.push({ source: 2, target: 4, value: countDecided, fill: COLOR_PROTO });
-
-        // Decision -> Approved (Green Link)
-        if (approved > 0) links.push({ source: 4, target: 5, value: approved, fill: COLOR_APP });
-        
-        // Decision -> Closed (Red Link)
-        if (closed > 0) links.push({ source: 4, target: 6, value: closed, fill: COLOR_CLOSE });
-
-        return { nodes, links };
     }, [cases, t]);
 
-    if (data.nodes.length === 0) return null;
+    if (data.length === 0) return null;
 
     return (
         <div className="bg-white p-2 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 mb-8 -mx-0 sm:mx-0">
             <h3 className="text-lg font-bold text-de-black mb-4 px-4 sm:px-0 pt-4 sm:pt-0 flex items-center gap-2">
-                <GitMerge className="text-de-black" size={20} /> {t.caseFlow}
+                <Filter className="text-de-black" size={20} /> {t.caseFlow || "Process Funnel"}
             </h3>
             <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                    <Sankey
-                        data={data}
-                        node={{ stroke: '#000', strokeWidth: 0 }}
-                        nodePadding={50}
-                        margin={{ left: 10, right: 10, top: 10, bottom: 10 }}
-                        link={{ strokeOpacity: 0.4 }}
-                    >
+                    <FunnelChart>
                         <Tooltip />
-                    </Sankey>
+                        <Funnel
+                            dataKey="value"
+                            data={data}
+                            isAnimationActive
+                        >
+                            <LabelList position="right" fill="#000" stroke="none" dataKey="name" />
+                            <LabelList position="center" fill="#fff" stroke="none" dataKey="value" fontSize={12} fontWeight="bold" />
+                        </Funnel>
+                    </FunnelChart>
                 </ResponsiveContainer>
             </div>
             <p className="text-center text-xs text-gray-400 mt-2">
-                <span className="text-blue-500 font-bold">Blue: Submitted</span> • 
-                <span className="text-yellow-500 font-bold mx-2">Yellow: Protocol</span> • 
-                <span className="text-green-500 font-bold">Green: Urkunde</span>
+                {t.breakdownExample || "Conversion metrics from Submission to Approval"}
             </p>
         </div>
     );
@@ -534,8 +520,8 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
       {/* Feature 7: Wait Time Distribution */}
       <WaitTimeDistribution cases={cases} userCase={userCase} t={t} lang={lang} />
 
-      {/* Feature: Sankey Diagram */}
-      <CaseFlowDiagram cases={cases} lang={lang} />
+      {/* Feature: Funnel Chart (Replaces Sankey) */}
+      <CaseFunnelChart cases={cases} lang={lang} />
 
       {/* Waiting Stats */}
       {stats.waitingStats && stats.waitingStats.count > 0 && (

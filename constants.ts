@@ -349,6 +349,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     slow: "Slow",
     avgTime: "Avg Time",
     
+    // Monthly Check-in
+    checkIn: "Monthly Check-in",
+    stillWaiting: "I'm Still Waiting",
+    confirmActive: "Confirm Active Status",
+    checkInSuccess: "Thanks for checking in! Your case is active.",
+    upToDate: "You are checked in for this month.",
+
     // NEW FOR FAKE EMAIL
     fakeEmailInfo: "Note: You can use a made-up email (e.g. mycase@tracker.local). We DO NOT send emails or verify them. It is simply a password to retrieve your case later.",
     guestAccess: "View Dashboard as Guest",
@@ -595,6 +602,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     fast: "Rápido",
     slow: "Lento",
     avgTime: "Tiempo Promedio",
+
+    // Monthly Check-in
+    checkIn: "Check-in Mensual",
+    stillWaiting: "Sigo Esperando",
+    confirmActive: "Confirmar Estado Activo",
+    checkInSuccess: "¡Gracias! Tu caso se mantiene activo.",
+    upToDate: "Ya hiciste check-in este mes.",
 
     // NEW FOR FAKE EMAIL
     fakeEmailInfo: "Nota: Puedes usar un email inventado (ej. micaso@tracker.local). NO enviamos correos ni verificamos validez. Es solo una contraseña para recuperar tu caso después.",
@@ -844,6 +858,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     slow: "Langsam",
     avgTime: "Ø Zeit",
 
+    // Monthly Check-in
+    checkIn: "Monatlicher Check-in",
+    stillWaiting: "Ich warte noch",
+    confirmActive: "Status bestätigen",
+    checkInSuccess: "Danke! Ihr Fall bleibt aktiv.",
+    upToDate: "Sie sind für diesen Monat eingecheckt.",
+
      // NEW FOR FAKE EMAIL
     fakeEmailInfo: "Hinweis: E-Mail muss nicht echt sein. Wir senden keine E-Mails. Es ist nur ein Passwort.",
     guestAccess: "Als Gast ansehen",
@@ -1092,6 +1113,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     slow: "Lento",
     avgTime: "Tempo Medio",
 
+    // Monthly Check-in
+    checkIn: "Check-in Mensile",
+    stillWaiting: "Sto Ancora Aspettando",
+    confirmActive: "Conferma Stato Attivo",
+    checkInSuccess: "Grazie! Il tuo caso rimane attivo.",
+    upToDate: "Hai effettuato il check-in per questo mese.",
+
     // NEW FOR FAKE EMAIL
     fakeEmailInfo: "Nota: L'email non deve essere reale. Non inviamo email. È solo una password.",
     guestAccess: "Visualizza Dashboard Ospite",
@@ -1323,7 +1351,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     backupOverdue: "Backup Necessário!",
     backupSafe: "Backup OK",
     restoreJson: "Restaurar BD (JSON)",
-
+    
     // Feature Translations
     cohort: "Minha Coorte",
     viewCohort: "Ver Minha Coorte",
@@ -1339,6 +1367,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     fast: "Rápido",
     slow: "Lento",
     avgTime: "Tempo Médio",
+
+    // Monthly Check-in
+    checkIn: "Check-in Mensal",
+    stillWaiting: "Ainda Aguardando",
+    confirmActive: "Confirmar Status Ativo",
+    checkInSuccess: "Obrigado! Seu caso permanece ativo.",
+    upToDate: "Você já fez o check-in este mês.",
 
      // NEW FOR FAKE EMAIL
     fakeEmailInfo: "Nota: O email pode ser fictício. Não enviamos emails nem verificamos. É apenas uma senha para recuperar seu caso.",

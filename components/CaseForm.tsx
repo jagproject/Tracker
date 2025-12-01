@@ -1,7 +1,9 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { CitizenshipCase, CaseType, CaseStatus, Language } from '../types';
 import { COUNTRIES, TRANSLATIONS, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { Save, Loader2, AlertTriangle, Edit2, ChevronDown, Mail, Power, Clock, CheckCircle2, FileText, Send, UserCircle } from 'lucide-react';
+import { Save, Loader2, AlertTriangle, Edit2, ChevronDown, Mail, Power, Clock, CheckCircle2, FileText, Send, UserCircle, CalendarCheck, Check } from 'lucide-react';
 import { getDaysDiff, formatDateTimeToLocale, formatDuration, formatISODateToLocale } from '../services/statsUtils';
 import { Confetti } from './Confetti';
 
@@ -193,6 +195,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [checkInSuccess, setCheckInSuccess] = useState(false);
 
   // Check if email is a placeholder for unclaimed cases
   const isPendingEmail = userEmail.startsWith('unclaimed_');
@@ -209,6 +212,18 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   const lastUpdateText = useMemo(() => {
     return formatDateTimeToLocale(initialData?.lastUpdated, lang);
   }, [initialData?.lastUpdated, lang]);
+
+  // --- Monthly Check-in Logic ---
+  const daysSinceUpdate = useMemo(() => {
+     if (!initialData?.lastUpdated) return 30; // Treat new/missing as outdated for logic (but won't show if status is new)
+     const diff = getDaysDiff(initialData.lastUpdated, new Date().toISOString());
+     return diff !== null ? diff : 0;
+  }, [initialData?.lastUpdated]);
+
+  const needsCheckIn = daysSinceUpdate >= 30;
+
+  // Only show check-in for active cases (Not approved/closed)
+  const showCheckIn = initialData && formData.status !== CaseStatus.APPROVED && formData.status !== CaseStatus.CLOSED;
 
   useEffect(() => {
     if (initialData) {
@@ -271,8 +286,12 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    saveData();
+  };
+
+  const saveData = () => {
     if (isMaintenanceMode) return;
-    if (isGuest) return; // Guard for Guest Mode
+    if (isGuest) return; 
 
     const validationMsg = validate();
     if (validationMsg) {
@@ -300,6 +319,26 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
       onSave(updatedCase);
       setIsSaving(false);
     }, 800);
+  };
+
+  const handleCheckIn = () => {
+    // Just update the timestamp
+    setCheckInSuccess(true);
+    setTimeout(() => setCheckInSuccess(false), 4000);
+    
+    // We update the local form data AND trigger a save
+    const now = new Date().toISOString();
+    setFormData(prev => ({ ...prev, lastUpdated: now }));
+    
+    const updatedCase: CitizenshipCase = {
+        ...formData as CitizenshipCase,
+        // Ensure ID and other critical fields are present
+        id: initialData?.id || crypto.randomUUID(),
+        email: userEmail,
+        fantasyName: formData.fantasyName || fantasyName,
+        lastUpdated: now
+    };
+    onSave(updatedCase);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -454,10 +493,49 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
         </div>
       )}
 
+      {checkInSuccess && (
+         <div className="mb-4 p-3 bg-blue-50 text-blue-700 flex items-center gap-2 rounded text-sm font-bold border border-blue-100 animate-in slide-in-from-top">
+            <CalendarCheck size={16} />
+            {t.checkInSuccess}
+        </div>
+      )}
+
       {isMaintenanceMode && (
          <div className="mb-4 p-3 bg-orange-50 text-orange-800 flex items-center gap-2 rounded text-sm font-medium border border-orange-100">
             <Power size={16} />
             {t.maintenanceMessage}
+        </div>
+      )}
+
+      {/* Monthly Check-in Section (Only for active cases) */}
+      {showCheckIn && (
+        <div className={`mb-6 rounded-lg p-4 border transition-colors ${needsCheckIn ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100 opacity-80'}`}>
+            <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${needsCheckIn ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                        {needsCheckIn ? <Clock size={20} /> : <Check size={20} />}
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-de-black text-sm">{t.checkIn}</h4>
+                        <p className="text-xs text-gray-500">
+                            {needsCheckIn ? t.confirmActive : t.upToDate}
+                        </p>
+                    </div>
+                </div>
+                {needsCheckIn ? (
+                    <button 
+                        onClick={handleCheckIn}
+                        disabled={isSaving}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2 px-4 rounded shadow-sm transition-all active:scale-95"
+                    >
+                        {t.stillWaiting}
+                    </button>
+                ) : (
+                    <span className="text-xs font-bold text-green-600 bg-white px-2 py-1 rounded border border-green-200">
+                         {Math.max(0, 30 - daysSinceUpdate)} days until next
+                    </span>
+                )}
+            </div>
         </div>
       )}
 
