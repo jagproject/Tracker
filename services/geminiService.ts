@@ -247,3 +247,50 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
         };
     }
 };
+
+// Feature 8: Detect Anomalies
+export const detectAnomalies = async (cases: CitizenshipCase[]): Promise<any[]> => {
+    try {
+        // We send a simplified version of cases to save tokens, removing irrelevant fields
+        const simplifiedCases = cases.map(c => ({
+            id: c.id,
+            name: c.fantasyName,
+            country: c.countryOfApplication,
+            submission: c.submissionDate,
+            approval: c.approvalDate,
+            protocol: c.protocolDate,
+            type: c.caseType
+        }));
+
+        const prompt = `
+            Analyze this JSON dataset of citizenship applications for anomalies.
+            
+            Look for:
+            1. Duplicates: Cases with same submission date + country + case type but different names (likely same person submitted twice).
+            2. Logical Date Errors: Approval Date before Submission Date, dates in the future (relative to today ${new Date().toISOString().split('T')[0]}).
+            3. Suspicious Data: Submission date very old (> 5 years ago) but status is Submitted (Ghost).
+            
+            Return a JSON ARRAY of objects with:
+            - id: string
+            - name: string
+            - issueType: "Duplicate" | "Date Error" | "Suspicious"
+            - details: string (explanation)
+            
+            Dataset (first 100 for safety if large):
+            ${JSON.stringify(simplifiedCases.slice(0, 100))}
+        `;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: { responseMimeType: "application/json" }
+        });
+
+        const text = cleanJson(response.text || "[]");
+        return JSON.parse(text);
+
+    } catch (error) {
+        logAiError("AnomalyDetect", error);
+        return [];
+    }
+}

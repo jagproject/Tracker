@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock, Wifi, WifiOff, RefreshCw, ShieldCheck, Ghost, LockKeyhole } from 'lucide-react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock, Wifi, WifiOff, RefreshCw, ShieldCheck, Ghost, LockKeyhole, Mail, Recycle, RefreshCcw, ScanSearch, Server, FileText, ArrowUpDown, ChevronUp, ChevronDown, Check, EyeOff } from 'lucide-react';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
-import { TRANSLATIONS, COUNTRIES, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, restoreFullDatabaseDump, getLastFetchError, checkConnection } from '../services/storageService';
-import { generateFantasyUsername } from '../services/geminiService';
-import { calculateQuickStats, formatDuration, formatISODateToLocale, isGhostCase } from '../services/statsUtils';
+import { TRANSLATIONS, STATUS_TRANSLATIONS, COUNTRIES } from '../constants';
+import { importCases, fetchCases, fetchDeletedCases, restoreCase, hardDeleteCase, addAuditLog, getAuditLogs, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, getLastFetchError, checkConnection, parseAndImportCSV } from '../services/storageService';
+import { detectAnomalies } from '../services/geminiService';
+import { calculateQuickStats, formatDuration, isGhostCase, formatISODateToLocale } from '../services/statsUtils';
 import { isSupabaseEnabled } from '../services/authService';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface AdminToolsProps {
   lang: Language;
@@ -15,101 +15,9 @@ interface AdminToolsProps {
 }
 
 type AuthState = 'EMAIL' | 'OTP' | 'AUTHENTICATED';
-type AdminTab = 'SUMMARY' | 'ACTIONS' | 'MANAGE' | 'LOGS';
+type AdminTab = 'SUMMARY' | 'ACTIONS' | 'MANAGE' | 'RECYCLE' | 'LOGS';
 
-// Colors for Charts
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#DD0000', '#333'];
-const STATUS_COLORS = {
-  [CaseStatus.SUBMITTED]: '#A9A9A9',
-  [CaseStatus.PROTOCOL_RECEIVED]: '#3B82F6',
-  [CaseStatus.ADDITIONAL_DOCS]: '#F59E0B',
-  [CaseStatus.APPROVED]: '#10B981',
-  [CaseStatus.CLOSED]: '#EF4444'
-};
-
-// --- HELPERS ---
-
-// Helper to parse Spanish/English short dates (e.g., "23-jul-25" -> "2025-07-23")
-const parseFlexibleDate = (dateStr: string): string | undefined => {
-    if (!dateStr || dateStr.trim() === '' || dateStr.toUpperCase() === 'NULL') return undefined;
-    const clean = dateStr.trim().toLowerCase();
-    
-    // Map month abbreviations (Spanish & English mixed cover)
-    const monthMap: Record<string, string> = {
-        'ene': '01', 'jan': '01', 'feb': '02', 'mar': '03', 'abr': '04', 'apr': '04',
-        'may': '05', 'mai': '05', 'jun': '06', 'jul': '07', 'ago': '08', 'aug': '08',
-        'sep': '09', 'oct': '10', 'okt': '10', 'nov': '11', 'dic': '12', 'dec': '12', 'dez': '12'
-    };
-
-    // Regex for DD-MMM-YY or DD-MMM-YYYY
-    const parts = clean.split(/[-/ ]/);
-    
-    if (parts.length === 3) {
-        let d = parts[0];
-        let m = parts[1];
-        let y = parts[2];
-
-        // Fix numeric month if passed as number
-        if (!isNaN(parseInt(m))) {
-            m = parseInt(m).toString().padStart(2, '0');
-        } else {
-            // Try to map text month (first 3 chars)
-            const mKey = m.substring(0, 3);
-            m = monthMap[mKey] || '01';
-        }
-
-        // Fix Year (25 -> 2025)
-        if (y.length === 2) {
-            const yNum = parseInt(y);
-            y = (yNum < 50 ? '20' : '19') + y;
-        }
-
-        d = d.padStart(2, '0');
-
-        // Construct ISO
-        const iso = `${y}-${m}-${d}`;
-        const dateObj = new Date(iso);
-        if (!isNaN(dateObj.getTime())) return iso;
-    }
-
-    // Try standard parsing
-    const standardDate = new Date(dateStr);
-    if (!isNaN(standardDate.getTime())) {
-        return standardDate.toISOString().split('T')[0];
-    }
-
-    return undefined;
-};
-
-// Helper to map CSV status strings to internal Enum
-const normalizeStatus = (rawStatus: string): CaseStatus => {
-    if (!rawStatus) return CaseStatus.SUBMITTED;
-    const s = rawStatus.toLowerCase().trim();
-
-    if (s.includes('aprob') || s.includes('approv') || s.includes('urkunde')) return CaseStatus.APPROVED;
-    if (s.includes('cerrad') || s.includes('closed') || s.includes('rechaz') || s.includes('reject')) return CaseStatus.CLOSED;
-    if (s.includes('akten') || s.includes('proto') || s.includes('az') || s.includes('recibido') || s.includes('received')) return CaseStatus.PROTOCOL_RECEIVED;
-    if (s.includes('doc') || s.includes('add') || s.includes('adicional') || s.includes('unterlagen')) return CaseStatus.ADDITIONAL_DOCS;
-    
-    // Default fallback
-    return CaseStatus.SUBMITTED;
-};
-
-// Helper to calculate simple Estimated Completion Date
-const getEstCompletion = (c: CitizenshipCase, avgWaitDays: number): string => {
-    if (c.status === CaseStatus.APPROVED && c.approvalDate) return formatISODateToLocale(c.approvalDate, 'en');
-    if (c.status === CaseStatus.CLOSED && c.closedDate) return "Closed";
-    
-    if (c.submissionDate) {
-        const subDate = new Date(c.submissionDate);
-        if (isNaN(subDate.getTime())) return '--';
-        
-        // Add avg wait time
-        const estDate = new Date(subDate.getTime() + (avgWaitDays * 24 * 60 * 60 * 1000));
-        return formatISODateToLocale(estDate.toISOString(), 'en');
-    }
-    return '--';
-};
+const COLORS = ['#000000', '#DD0000', '#FFCC00', '#666666', '#A9A9A9', '#8B0000'];
 
 export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataChange }) => {
   const t = TRANSLATIONS[lang];
@@ -119,17 +27,25 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const [activeTab, setActiveTab] = useState<AdminTab>('SUMMARY');
   const [importStatus, setImportStatus] = useState<{success: boolean, msg: string} | null>(null);
   const [isImporting, setIsImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState(0);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [allCases, setAllCases] = useState<CitizenshipCase[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [deletedCases, setDeletedCases] = useState<CitizenshipCase[]>([]);
+  
+  // Manage Tab State
+  const [manageSearchTerm, setManageSearchTerm] = useState('');
   const [editForm, setEditForm] = useState<CitizenshipCase | null>(null);
+  const [emailEditValue, setEmailEditValue] = useState(''); // Separate state for email editing
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+  
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
-  const [statusDistFilter, setStatusDistFilter] = useState<string>('All');
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   
   const [dbError, setDbError] = useState<string | null>(null);
   const [isVerifyingDb, setIsVerifyingDb] = useState(false);
+
+  // Anomaly Detection State
+  const [anomalies, setAnomalies] = useState<any[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -140,27 +56,40 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     const initData = async () => {
         if (authState === 'AUTHENTICATED') {
             setAuditLogs(getAuditLogs());
-            const cases = await fetchCases();
-            setAllCases(cases);
+            setAllCases(await fetchCases()); // Fetch Active
+            setDeletedCases(await fetchDeletedCases()); // Fetch Deleted (Recycle Bin)
             setMaintenanceEnabled(getAppConfig().maintenanceMode);
-            // Read last backup timestamp
             setLastBackup(localStorage.getItem('de_tracker_last_backup_ts'));
-            // Check DB Status
             setDbError(getLastFetchError());
         }
     };
     initData();
   }, [authState, activeTab]);
 
+  const refreshAll = async () => {
+       setAllCases(await fetchCases());
+       setDeletedCases(await fetchDeletedCases());
+       onDataChange();
+  };
+
+  const maskEmail = (emailStr: string) => {
+    if (!emailStr) return '';
+    if (emailStr.startsWith('unclaimed_') || emailStr.startsWith('imported_')) return 'System/Unclaimed';
+    const parts = emailStr.split('@');
+    if (parts.length !== 2) return emailStr;
+    const user = parts[0];
+    const domain = parts[1];
+    const maskedUser = user.length > 2 ? `${user.substring(0, 2)}***` : `${user}***`;
+    return `${maskedUser}@${domain}`;
+  };
+
   const handleVerifyConnection = async () => {
       setIsVerifyingDb(true);
       const isOk = await checkConnection();
       if (isOk) {
           setDbError(null);
-          // Small delay to simulate thorough check
           setTimeout(() => {
              setIsVerifyingDb(false);
-             alert("✅ Database Connection Verified: Stable & Secure.\nNo auto-deletion scripts detected.");
           }, 800);
       } else {
           setDbError("Verification Failed. Check Console.");
@@ -168,473 +97,245 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
       }
   };
 
-  const handleSendCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email.toLowerCase() === OWNER_EMAIL) {
-      setAuthState('OTP');
-    } else {
-      alert("Access Denied: Not an authorized owner email.");
-    }
+  const handleScanAnomalies = async () => {
+      setIsScanning(true);
+      const issues = await detectAnomalies(allCases);
+      setAnomalies(issues);
+      setIsScanning(false);
   };
 
-  const handleVerifyOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp === SECRET_KEY) {
-      setAuthState('AUTHENTICATED');
-      addAuditLog("Login", "Owner authenticated via Password", email);
-    } else {
-      alert("Invalid Password");
-    }
+  const handleEmailBackup = async () => {
+      const dump = await getFullDatabaseDump();
+      const jsonString = JSON.stringify(dump, null, 2);
+      
+      const mailtoLink = `mailto:${OWNER_EMAIL}?subject=TRACKER_BACKUP_${new Date().toISOString()}&body=Please find the database backup attached.`;
+      window.open(mailtoLink);
   };
 
-  const handleToggleMaintenance = () => {
-    const newState = !maintenanceEnabled;
-    setMaintenanceMode(newState);
-    setMaintenanceEnabled(newState);
-    addAuditLog("Maintenance", `Maintenance Mode set to ${newState}`, email);
-    onDataChange(); 
+  const handleDownloadJSON = async () => {
+      const dump = await getFullDatabaseDump();
+      const jsonString = JSON.stringify(dump, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `TRACKER_FULL_BACKUP_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      window.URL.revokeObjectURL(url);
   };
 
-  // Check Backup Status
-  const isBackupOverdue = useMemo(() => {
-     if (!lastBackup) return true; // Never backed up
-     const last = new Date(lastBackup).getTime();
-     const now = new Date().getTime();
-     const diffHours = (now - last) / (1000 * 60 * 60);
-     return diffHours > 24;
-  }, [lastBackup]);
-  
-  // DB Connection Status
-  const isDbConnected = useMemo(() => isSupabaseEnabled() && !dbError, [dbError]);
-
-  // --- STATS CALCULATION FOR SUMMARY TAB ---
-  const summaryStats = useMemo(() => {
-    if (allCases.length === 0) return null;
-
-    const total = allCases.length;
-    const unclaimed = allCases.filter(c => c.email.startsWith('unclaimed_')).length;
-    const submitted = allCases.filter(c => c.status === CaseStatus.SUBMITTED).length;
-    const protocol = allCases.filter(c => c.status === CaseStatus.PROTOCOL_RECEIVED).length;
-    const approved = allCases.filter(c => c.status === CaseStatus.APPROVED).length;
-    
-    // Ghost Cases Logic
-    const ghostCount = allCases.filter(c => isGhostCase(c)).length;
-    const activeCount = total - ghostCount;
-    
-    // 1. DYNAMIC TYPE STATS (Fix for discrepancy)
-    const typeMap = new Map<string, CitizenshipCase[]>();
-    
-    allCases.forEach(c => {
-        const typeKey = c.caseType || "Unknown";
-        if (!typeMap.has(typeKey)) {
-            typeMap.set(typeKey, []);
-        }
-        typeMap.get(typeKey)?.push(c);
-    });
-
-    const typeStats = Array.from(typeMap.entries()).map(([type, cases]) => {
-         const stats = calculateQuickStats(cases);
-         return {
-            type,
-            count: cases.length,
-            avgWait: stats.avgDaysTotal
-         };
-    }).sort((a,b) => b.count - a.count);
-
-    // Chart Data for Types
-    const typeChartData = typeStats.map(s => ({
-        name: s.type.split(' ')[0] + ' ' + (s.type.split(' ')[1] || ''), // Shorten name
-        fullType: s.type,
-        value: s.count
-    }));
-
-    // 2. FILTERED STATUS DISTRIBUTION
-    const statusCounts: Record<string, number> = {
-        [CaseStatus.SUBMITTED]: 0,
-        [CaseStatus.PROTOCOL_RECEIVED]: 0,
-        [CaseStatus.ADDITIONAL_DOCS]: 0,
-        [CaseStatus.APPROVED]: 0,
-        [CaseStatus.CLOSED]: 0,
-    };
-    
-    const casesForStatus = statusDistFilter === 'All' 
-        ? allCases 
-        : allCases.filter(c => c.caseType === statusDistFilter);
-
-    casesForStatus.forEach(c => {
-        if (statusCounts[c.status] !== undefined) {
-            statusCounts[c.status]++;
-        }
-    });
-
-    const statusChartData = Object.entries(statusCounts).map(([key, value]) => ({
-        name: key,
-        value: value
-    })).filter(d => d.value > 0);
-
-    // Calculate Global Avg Wait for "Est. Completion" column fallback
-    const globalStats = calculateQuickStats(allCases);
-    const globalAvgWait = globalStats.avgDaysTotal || 730;
-
-    return { total, activeCount, unclaimed, submitted, protocol, approved, statusCounts, typeStats, typeChartData, statusChartData, globalAvgWait, ghostCount };
-  }, [allCases, statusDistFilter]);
-
-
-  // 1. CSV Export
-  const handleExport = async () => {
-    const cases = await fetchCases();
-    if (cases.length === 0) return;
-
-    const headers = [
-      "Email", "FantasyName", "Country", "Consulate", "CaseType", 
-      "SubmissionDate", "ProtocolDate", "DocsRequestDate", "ApprovalDate", "ClosedDate", 
-      "Status", "ProtocolNumber", "Notes", "LastUpdated"
-    ];
-
-    const csvRows = [
+  const handleExportCSV = () => {
+    const headers = ['id', 'fantasyName', 'country', 'type', 'status', 'submitted', 'protocol', 'approved', 'closed', 'lastUpdated'];
+    const csvContent = [
       headers.join(','),
-      ...cases.map(c => {
-        return [
-          c.email,
-          `"${c.fantasyName}"`,
-          `"${c.countryOfApplication}"`,
-          `"${c.consulate || ''}"`,
-          `"${c.caseType}"`,
-          c.submissionDate || '',
-          c.protocolDate || '',
-          c.docsRequestDate || '',
-          c.approvalDate || '',
-          c.closedDate || '',
-          `"${c.status}"`,
-          c.protocolNumber || '',
-          `"${(c.notes || '').replace(/"/g, '""')}"`,
-          c.lastUpdated || ''
-        ].join(',');
-      })
-    ];
+      ...allCases.map(c => [
+        c.id,
+        `"${c.fantasyName}"`,
+        `"${c.countryOfApplication}"`,
+        c.caseType,
+        c.status,
+        c.submissionDate,
+        c.protocolDate || '',
+        c.approvalDate || '',
+        c.closedDate || '',
+        c.lastUpdated
+      ].join(','))
+    ].join('\n');
 
-    const csvString = csvRows.join('\n');
-    const blob = new Blob([csvString], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `de_citizenship_cases_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-    
-    addAuditLog("Export", "Full case database exported to CSV", email);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `citizenship_cases_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  // 1.5 JSON Backup
-  const handleBackup = async () => {
-    const dump = await getFullDatabaseDump();
-    const jsonString = JSON.stringify(dump, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `TRACKER_BACKUP_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-    
-    // Update Tracking
-    const now = new Date().toISOString();
-    localStorage.setItem('de_tracker_last_backup_ts', now);
-    setLastBackup(now);
-
-    addAuditLog("Backup", "Full Database JSON Backup downloaded", email);
-  };
-
-  // 2. Download Template
-  const handleDownloadTemplate = () => {
-    const headers = [
-        "Email", "FantasyName", "Country", "Consulate", "CaseType", "SubmissionDate", "Status", 
-        "ProtocolDate", "ApprovalDate", "Notes"
-    ];
-    const sampleRow = [
-        "user@example.com", "Blue Eagle", "Argentina", "Buenos Aires", "StAG §5", "23-jul-25", "Aktenzeichen (Protocol)",
-        "01-ago-25", "", "Sample note"
-    ];
-    const csvContent = [headers.join(','), sampleRow.join(',')].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = "import_template.csv";
-    a.click();
-  };
-
-  // 3. Bulk Import (Smart Merge + Batching)
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
-    setImportStatus(null);
     setIsImporting(true);
-    setImportProgress(0);
+    setImportStatus(null);
 
     const reader = new FileReader();
-
-    // Check if JSON (Full Restore)
-    if (file.name.endsWith('.json') || file.type === 'application/json') {
-         reader.onload = async (event) => {
-             try {
-                 const rawText = event.target?.result as string;
-                 const json = JSON.parse(rawText);
-                 await restoreFullDatabaseDump(json);
-                 
-                 setImportStatus({ success: true, msg: "Database successfully restored from JSON backup." });
-                 addAuditLog("Restore", "Full Database restored from JSON", email);
-                 onDataChange();
-                 setAllCases(await fetchCases());
-             } catch (err: any) {
-                 console.error(err);
-                 setImportStatus({ success: false, msg: `Restore Failed: ${err.message}` });
-             } finally {
-                 setIsImporting(false);
-             }
-         };
-         reader.readAsText(file);
-         if (fileInputRef.current) fileInputRef.current.value = '';
-         return;
-    }
-
-    // Default: CSV Processing
-    reader.onload = async (event) => {
+    reader.onload = async (e) => {
       try {
-        const rawText = event.target?.result as string;
-        const text = rawText.replace(/^\uFEFF/, ''); // Remove BOM
-        
-        const rows = text.split('\n').map(row => row.trim()).filter(row => row);
-        if (rows.length < 2) throw new Error("Empty CSV");
+        const text = e.target?.result as string;
+        let count = 0;
 
-        // Determine delimiter
-        const headerRow = rows[0];
-        const delimiter = (headerRow.indexOf(';') > -1 && headerRow.split(';').length > headerRow.split(',').length) ? ';' : ',';
-
-        // Headers normalized
-        const headers = rows[0].split(delimiter).map(h => h.trim().replace(/"/g, '').toLowerCase());
-        
-        // Fetch existing cases to check for duplicates/updates
-        const existingCases = await fetchCases();
-        const nameMap = new Map<string, CitizenshipCase>();
-        existingCases.forEach(c => nameMap.set(c.fantasyName.toLowerCase(), c));
-
-        const processedCases: CitizenshipCase[] = [];
-        let updatedCount = 0;
-        let createdCount = 0;
-
-        for (let i = 1; i < rows.length; i++) {
-            const values = rows[i].split(delimiter).map(v => v.trim().replace(/^"|"$/g, ''));
-            
-            // Skip malformed rows
-            if (values.length < headers.length / 2) continue;
-
-            const rowData: any = {};
-            headers.forEach((h, idx) => rowData[h] = values[idx]);
-
-            let fName = rowData['fantasyname'] || rowData['fantasy_name'];
-            // Generate name if missing
-            if (!fName || fName === '' || fName.toUpperCase() === 'NULL') {
-                fName = await generateFantasyUsername(`User${i}`);
+        if (file.name.endsWith('.json')) {
+            const json = JSON.parse(text);
+            let casesToImport: CitizenshipCase[] = [];
+            if (json.data && Array.isArray(json.data.cases)) {
+                casesToImport = json.data.cases;
+            } else if (Array.isArray(json)) {
+                casesToImport = json;
             }
-
-            // CHECK FOR EXISTING USER (Merge Strategy)
-            const existing = nameMap.get(fName.toLowerCase());
-            
-            // Resolve ID and Email
-            const caseId = existing ? existing.id : crypto.randomUUID();
-            
-            let caseEmail = rowData['email'];
-            // If CSV email is invalid/null, preserve existing email or generate new unclaimed
-            if (!caseEmail || caseEmail.trim() === '' || caseEmail.toUpperCase() === 'NULL') {
-                caseEmail = existing ? existing.email : `unclaimed_${caseId}@tracker.local`;
-            }
-
-            // Dates
-            const subDate = parseFlexibleDate(rowData['submissiondate'] || rowData['submission_date']);
-            if (!subDate) continue; // Skip rows without submission date
-
-            const lastUpdatedCSV = parseFlexibleDate(rowData['lastupdated'] || rowData['last_updated']);
-
-            const newCase: CitizenshipCase = {
-                id: caseId,
-                email: caseEmail,
-                fantasyName: fName,
-                countryOfApplication: rowData['countryofapplication'] || rowData['country'] || (existing?.countryOfApplication || 'Unknown'),
-                consulate: rowData['consulate'] || (existing?.consulate),
-                caseType: (rowData['casetype'] as CaseType) || (existing?.caseType || CaseType.STAG_5),
-                submissionDate: subDate,
-                status: normalizeStatus(rowData['status'] || existing?.status),
-                lastUpdated: lastUpdatedCSV || new Date().toISOString(),
-                protocolDate: parseFlexibleDate(rowData['protocoldate'] || rowData['protocol_date']) || (existing?.protocolDate),
-                approvalDate: parseFlexibleDate(rowData['approvaldate'] || rowData['approval_date']) || (existing?.approvalDate),
-                docsRequestDate: parseFlexibleDate(rowData['docsrequestdate'] || rowData['docs_date']) || (existing?.docsRequestDate),
-                closedDate: parseFlexibleDate(rowData['closeddate'] || rowData['closed_date']) || (existing?.closedDate),
-                protocolNumber: rowData['protocolnumber'] || (existing?.protocolNumber),
-                notes: rowData['notes'] || (existing?.notes),
-                
-                // Preserve notification settings if existing
-                notifySameDateSubmission: existing?.notifySameDateSubmission ?? true,
-                notifySameMonthUrkunde: existing?.notifySameMonthUrkunde ?? true,
-                notifySubmissionCohortUpdates: existing?.notifySubmissionCohortUpdates ?? true,
-                notifyProtocolCohortUpdates: existing?.notifyProtocolCohortUpdates ?? true,
-                documents: existing?.documents || []
-            };
-
-            processedCases.push(newCase);
-            if (existing) updatedCount++; else createdCount++;
+            await importCases(casesToImport);
+            count = casesToImport.length;
+        } else if (file.name.endsWith('.csv')) {
+             count = await parseAndImportCSV(text);
+        } else {
+             throw new Error("Unsupported file format");
         }
 
-        if (processedCases.length === 0) throw new Error("No valid rows parsed.");
-
-        // BATCH UPLOAD LOGIC
-        // Supabase has payload limits, so we split into chunks of 50
-        const BATCH_SIZE = 50;
-        const totalBatches = Math.ceil(processedCases.length / BATCH_SIZE);
-
-        for (let i = 0; i < totalBatches; i++) {
-            const batch = processedCases.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
-            await importCases(batch);
-            setImportProgress(Math.round(((i + 1) / totalBatches) * 100));
-            // Small delay to be nice to the API
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        
-        setImportStatus({ success: true, msg: `Success: ${createdCount} Created, ${updatedCount} Updated.` });
-        addAuditLog("Import", `Imported ${processedCases.length} rows (${updatedCount} merges)`, email);
-        onDataChange();
-        setAllCases(await fetchCases());
-
+        setImportStatus({ success: true, msg: `Successfully imported ${count} cases.` });
+        addAuditLog("Import", `Bulk imported ${count} cases`, email);
+        await refreshAll();
       } catch (err: any) {
-        console.error(err);
-        setImportStatus({ success: false, msg: `${t.errorImport} (${err.message})` });
+        setImportStatus({ success: false, msg: err.message || "Error parsing file." });
       } finally {
         setIsImporting(false);
       }
     };
     reader.readAsText(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // 4. Clear Data
-  const handleClearData = async () => {
-    if (window.confirm("WARNING: This will delete ALL cases from the database. This cannot be undone. Are you sure?")) {
-      await clearAllData();
-      addAuditLog("Reset", "Administrator cleared all database records", email);
-      onDataChange();
-      setAllCases([]);
-      alert("Database cleared.");
-    }
+  const handleRestoreCase = async (id: string) => {
+      await restoreCase(id);
+      addAuditLog("Restore", `Restored case ${id} from Recycle Bin`, email);
+      await refreshAll();
   };
 
-  // 5. Delete Single Case
-  const handleDeleteCase = async (id: string, fantasyName: string) => {
-    if (window.confirm(`Are you sure you want to delete case for "${fantasyName}"?`)) {
-      await deleteCase(id);
-      addAuditLog("Delete Case", `Deleted case: ${fantasyName}`, email);
-      setAllCases(await fetchCases());
-      onDataChange();
-    }
-  };
+  const handleSoftDelete = async (id: string) => {
+      if (confirm("Are you sure you want to move this case to the Recycle Bin?")) {
+          await deleteCase(id);
+          addAuditLog("Soft Delete", `Deleted case ${id}`, email);
+          await refreshAll();
+      }
+  }
 
-  // 6. Edit Single Case
-  const handleEditCase = (c: CitizenshipCase) => {
-    setEditForm({...c}); 
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editForm) return;
-    await upsertCase(editForm);
-    addAuditLog("Edit Case", `Admin edited case: ${editForm.fantasyName}`, email);
-    setAllCases(await fetchCases());
-    onDataChange();
-    setEditForm(null);
-  };
-
-  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-      const { name, value, type } = e.target;
-      if (editForm) {
-          setEditForm({ 
-            ...editForm, 
-            [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value 
-          });
+  const handlePermanentDelete = async (id: string) => {
+      if (confirm("DANGER: This will permanently destroy this record. It cannot be recovered. Continue?")) {
+          await hardDeleteCase(id);
+          addAuditLog("Hard Delete", `Permanently deleted case ${id}`, email);
+          await refreshAll();
       }
   };
 
-  const handleDocToggle = (doc: string) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
+      e.preventDefault();
       if (!editForm) return;
-      const currentDocs = editForm.documents || [];
-      const newDocs = currentDocs.includes(doc) 
-        ? currentDocs.filter(d => d !== doc)
-        : [...currentDocs, doc];
-      setEditForm({ ...editForm, documents: newDocs });
+      
+      const caseToSave = { ...editForm };
+      
+      // ONLY update email if the admin typed something in the "New Email" box
+      if (emailEditValue && emailEditValue.trim() !== '') {
+          caseToSave.email = emailEditValue.trim().toLowerCase();
+      }
+
+      await upsertCase(caseToSave);
+      addAuditLog("Edit", `Admin edited case ${editForm.id}`, email);
+      
+      setEditForm(null);
+      setEmailEditValue('');
+      await refreshAll();
+  }
+
+  const handleSendCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email.toLowerCase() === OWNER_EMAIL) { setAuthState('OTP'); } else { alert("Access Denied"); }
+  };
+  const handleVerifyOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp === SECRET_KEY) { setAuthState('AUTHENTICATED'); } else { alert("Invalid Password"); }
+  };
+  const handleToggleMaintenance = () => {
+    const newState = !maintenanceEnabled; setMaintenanceMode(newState); setMaintenanceEnabled(newState);
+    onDataChange();
+  };
+  
+  const handleSort = (key: string) => {
+      setSortConfig(prev => {
+          if (prev?.key === key) {
+              return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+          }
+          return { key, direction: 'asc' };
+      });
   };
 
-  const filteredCases = allCases.filter(c => 
-    c.fantasyName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.countryOfApplication.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const isDbConnected = useMemo(() => isSupabaseEnabled() && !dbError, [dbError]);
 
-  const inputClass = "w-full rounded border border-gray-300 bg-white p-2 text-sm focus:ring-2 focus:ring-de-gold focus:border-de-gold outline-none";
-  const labelClass = "block text-xs font-bold text-gray-500 uppercase mb-1";
+  const filteredManageCases = useMemo(() => {
+      let filtered = allCases;
+      if (manageSearchTerm) {
+         const term = manageSearchTerm.toLowerCase();
+         filtered = allCases.filter(c => 
+             c.fantasyName.toLowerCase().includes(term) || 
+             c.countryOfApplication.toLowerCase().includes(term) ||
+             c.email.toLowerCase().includes(term)
+         );
+      }
 
+      if (sortConfig) {
+          filtered = [...filtered].sort((a, b) => {
+              let valA = (a as any)[sortConfig.key] || '';
+              let valB = (b as any)[sortConfig.key] || '';
+              
+              if (typeof valA === 'string') valA = valA.toLowerCase();
+              if (typeof valB === 'string') valB = valB.toLowerCase();
+
+              if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+              if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+              return 0;
+          });
+      }
+      return filtered;
+  }, [allCases, manageSearchTerm, sortConfig]);
+
+  // Summary Logic
+  const breakdown = useMemo(() => {
+      const ghosts = allCases.filter(c => isGhostCase(c));
+      const nonGhosts = allCases.filter(c => !isGhostCase(c));
+      
+      const approved = nonGhosts.filter(c => c.status === CaseStatus.APPROVED);
+      const closed = nonGhosts.filter(c => c.status === CaseStatus.CLOSED);
+      const inProgress = nonGhosts.filter(c => c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED);
+      
+      const submitted = inProgress.filter(c => c.status === CaseStatus.SUBMITTED);
+      const protocol = inProgress.filter(c => c.status === CaseStatus.PROTOCOL_RECEIVED);
+      const docs = inProgress.filter(c => c.status === CaseStatus.ADDITIONAL_DOCS);
+
+      const typeData = allCases.reduce((acc, curr) => {
+          acc[curr.caseType] = (acc[curr.caseType] || 0) + 1;
+          return acc;
+      }, {} as Record<string, number>);
+
+      return {
+          total: allCases.length,
+          ghosts,
+          nonGhosts,
+          approved,
+          closed,
+          inProgress,
+          submitted,
+          protocol,
+          docs,
+          typeData: Object.entries(typeData).map(([name, value]) => ({ name, value }))
+      };
+  }, [allCases]);
+
+  // Login Modal
   if (authState !== 'AUTHENTICATED') {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden">
-          <div className="bg-de-black p-4 flex justify-between items-center">
-             <h3 className="text-white font-bold flex items-center gap-2"><Shield size={16} /> {t.adminLogin}</h3>
-             <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
+          <div className="bg-de-black p-4 flex justify-between items-center text-white font-bold">
+             <h3>Admin Access</h3>
+             <button onClick={onClose}><X size={20}/></button>
           </div>
-          
           <div className="p-6">
             {authState === 'EMAIL' ? (
                <form onSubmit={handleSendCode} className="space-y-4">
-                 <div>
-                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Owner Email</label>
-                   <input 
-                     type="email" 
-                     value={email}
-                     onChange={e => setEmail(e.target.value)}
-                     className="w-full p-3 border rounded border-gray-300 focus:ring-2 focus:ring-de-red outline-none"
-                     placeholder="owner@example.com"
-                     autoFocus
-                     required
-                   />
-                 </div>
-                 <button type="submit" className="w-full bg-de-red text-white font-bold py-2 rounded hover:bg-red-700 flex items-center justify-center gap-2">
-                     Next <Send size={14} />
-                 </button>
+                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 border rounded" placeholder="Email" required />
+                 <button type="submit" className="w-full bg-de-red text-white py-2 rounded font-bold">Next</button>
                </form>
             ) : (
                <form onSubmit={handleVerifyOtp} className="space-y-4">
-                 <div className="text-center mb-4">
-                   <p className="text-sm text-gray-600">Verifying</p>
-                   <p className="font-bold text-de-black">{email}</p>
-                 </div>
-                 <div>
-                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Admin Password</label>
-                   <input 
-                     type="password" 
-                     value={otp}
-                     onChange={e => setOtp(e.target.value)}
-                     className="w-full text-center text-lg tracking-widest p-2 border rounded border-de-gold focus:ring-2 focus:ring-de-red outline-none"
-                     placeholder="••••••••"
-                     autoFocus
-                   />
-                 </div>
-                 <button type="submit" className="w-full bg-de-gold text-de-black font-bold py-2 rounded hover:bg-yellow-400">
-                     Login
-                 </button>
-                 <button 
-                   type="button" 
-                   onClick={() => setAuthState('EMAIL')} 
-                   className="w-full text-xs text-gray-400 hover:text-gray-600"
-                 >
-                   Change Email
-                 </button>
+                 <input type="password" value={otp} onChange={e => setOtp(e.target.value)} className="w-full p-2 border rounded" placeholder="Password" required />
+                 <button type="submit" className="w-full bg-de-gold font-bold py-2 rounded">Login</button>
                </form>
             )}
           </div>
@@ -643,6 +344,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     );
   }
 
+  // Admin Dashboard
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in">
       <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full overflow-hidden border-t-8 border-de-gold flex flex-col max-h-[90vh]">
@@ -653,592 +355,572 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
              <button onClick={onClose} className="text-gray-400 hover:text-de-red"><X size={20} /></button>
         </div>
 
-        <div className="flex border-b border-gray-200 flex-shrink-0">
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 flex-shrink-0 overflow-x-auto">
+           {['SUMMARY', 'ACTIONS', 'MANAGE'].map(tab => (
+               <button 
+                key={tab}
+                onClick={() => setActiveTab(tab as AdminTab)} 
+                className={`flex-1 py-3 text-sm font-bold min-w-[100px] ${activeTab === tab ? 'text-de-black border-b-2 border-de-black' : 'text-gray-400 hover:bg-gray-50'}`}
+              >
+                {tab}
+              </button>
+           ))}
            <button 
-            onClick={() => setActiveTab('SUMMARY')} 
-            className={`flex-1 py-3 text-sm font-bold ${activeTab === 'SUMMARY' ? 'text-de-black border-b-2 border-de-black' : 'text-gray-400 hover:bg-gray-50'}`}
-          >
-            <div className="flex items-center justify-center gap-2"><LayoutGrid size={16}/> Dashboard</div>
-          </button>
-          <button 
-            onClick={() => setActiveTab('ACTIONS')} 
-            className={`flex-1 py-3 text-sm font-bold ${activeTab === 'ACTIONS' ? 'text-de-black border-b-2 border-de-black' : 'text-gray-400 hover:bg-gray-50'}`}
-          >
-             <div className="flex items-center justify-center gap-2"><Power size={16}/> Actions</div>
-          </button>
-          <button 
-            onClick={() => setActiveTab('MANAGE')} 
-            className={`flex-1 py-3 text-sm font-bold ${activeTab === 'MANAGE' ? 'text-de-black border-b-2 border-de-black' : 'text-gray-400 hover:bg-gray-50'}`}
-          >
-             <div className="flex items-center justify-center gap-2"><Database size={16}/> Manage</div>
-          </button>
-          <button 
-            onClick={() => setActiveTab('LOGS')} 
-            className={`flex-1 py-3 text-sm font-bold ${activeTab === 'LOGS' ? 'text-de-black border-b-2 border-de-black' : 'text-gray-400 hover:bg-gray-50'}`}
-          >
-             <div className="flex items-center justify-center gap-2"><Activity size={16}/> Logs</div>
-          </button>
+                onClick={() => setActiveTab('RECYCLE')} 
+                className={`flex-1 py-3 text-sm font-bold min-w-[120px] ${activeTab === 'RECYCLE' ? 'text-red-600 border-b-2 border-red-600 bg-red-50' : 'text-gray-400 hover:bg-red-50 hover:text-red-500'}`}
+              >
+                <div className="flex items-center justify-center gap-2"><Recycle size={16}/> Recycle Bin</div>
+           </button>
+           <button 
+                onClick={() => setActiveTab('LOGS')} 
+                className={`flex-1 py-3 text-sm font-bold min-w-[80px] ${activeTab === 'LOGS' ? 'text-de-black border-b-2 border-de-black' : 'text-gray-400 hover:bg-gray-50'}`}
+              >
+                Logs
+           </button>
         </div>
 
         <div className="p-6 overflow-y-auto flex-grow bg-gray-50/50">
-            
-            {activeTab === 'SUMMARY' && summaryStats && (
-                <div className="space-y-6 animate-in slide-in-from-right-4">
-                    {/* DB Status & Safety Policy */}
+            {activeTab === 'SUMMARY' && (
+                <div className="space-y-6">
+                    {/* Monitor in Summary */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className={`p-4 rounded-lg border text-sm flex items-center justify-between shadow-sm transition-colors ${isDbConnected ? 'bg-green-50 border-green-200 text-green-900' : 'bg-red-50 border-red-200 text-red-800'}`}>
                             <div className="flex items-center gap-3">
                                 {isDbConnected ? <Wifi size={20} className="text-green-600" /> : <WifiOff size={20} className="text-red-600" />}
                                 <div>
                                     <span className="font-bold block">Database Connection: {isDbConnected ? "Stable" : "Disconnected"}</span>
-                                    <span className="text-xs opacity-80">{isDbConnected ? "Supabase instance active and reachable." : "Check your internet or Supabase status."}</span>
+                                    <span className="text-xs opacity-80">{isDbConnected ? "Supabase instance active." : "Check configuration."}</span>
                                 </div>
                             </div>
-                            <button 
-                                onClick={handleVerifyConnection} 
-                                disabled={isVerifyingDb}
-                                className="text-xs font-bold bg-white border border-current px-3 py-1.5 rounded flex items-center gap-1 hover:bg-gray-50 transition-colors shadow-sm"
-                            >
-                                {isVerifyingDb ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Verify Stability
+                            <button onClick={handleVerifyConnection} disabled={isVerifyingDb} className="text-xs font-bold bg-white border border-current px-3 py-1.5 rounded flex items-center gap-1 hover:bg-gray-50">
+                                {isVerifyingDb ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Verify
                             </button>
                         </div>
-                        
                         <div className="p-4 rounded-lg border border-blue-200 bg-blue-50 text-blue-900 text-sm flex items-center gap-3 shadow-sm">
                             <ShieldCheck size={28} className="text-blue-600 flex-shrink-0" />
                             <div>
                                 <span className="font-bold block text-base">Auto-Deletion: DISABLED (Safe Mode)</span>
-                                <span className="text-xs text-blue-800 block mt-0.5">Records are never deleted automatically. "Ghost" cases are only hidden from public view.</span>
+                                <span className="text-xs text-blue-800 block mt-0.5">Records are soft-deleted to Recycle Bin.</span>
                             </div>
                         </div>
                     </div>
 
-                    {!isDbConnected && dbError && (
-                        <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100 font-mono">
-                            Error Details: {dbError}
-                        </div>
-                    )}
-
-                    {/* Top KPI Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                            <p className="text-gray-400 text-xs uppercase font-bold mb-1">Total Records</p>
-                            <p className="text-3xl font-extrabold text-gray-900">{summaryStats.total}</p>
-                        </div>
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                            <p className="text-gray-400 text-xs uppercase font-bold mb-1">Active Cases</p>
-                            <p className="text-3xl font-extrabold text-green-600">{summaryStats.activeCount}</p>
-                        </div>
-                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                            <p className="text-gray-400 text-xs uppercase font-bold mb-1">In Process</p>
-                            <p className="text-3xl font-extrabold text-blue-600">{summaryStats.submitted + summaryStats.protocol}</p>
-                        </div>
-                         <div className="bg-gray-100 p-4 rounded-xl shadow-sm border border-gray-200">
-                            <p className="text-gray-400 text-xs uppercase font-bold mb-1">Ghost / Hidden</p>
-                            <p className="text-3xl font-extrabold text-gray-500 flex items-center gap-2">
-                                {summaryStats.ghostCount}
-                                <Ghost size={20} className="text-gray-400" />
-                            </p>
-                        </div>
-                        <div className="bg-yellow-50 text-yellow-800 p-4 rounded-xl shadow-sm border border-yellow-200">
-                            <p className="text-yellow-600 text-xs uppercase font-bold mb-1">Unclaimed</p>
-                            <p className="text-3xl font-extrabold flex items-center gap-2">
-                                {summaryStats.unclaimed}
-                                <AlertTriangle size={20} className="text-yellow-500" />
-                            </p>
-                        </div>
-                    </div>
-                    
-                    {/* Database Integrity Breakdown (Requested Feature) */}
-                    <div className="col-span-full bg-white p-5 rounded-lg border border-gray-200 shadow-sm text-sm">
-                        <h5 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-base">
-                            <Database size={18} className="text-de-gold" /> Database Record Breakdown
-                        </h5>
-                        <div className="flex items-center gap-2 mb-2 bg-gray-50 p-3 rounded border border-gray-100">
-                            <span className="font-mono font-bold text-lg text-gray-900">{summaryStats.total}</span>
-                            <span className="text-gray-500 mx-2">=</span>
-                            <span className="font-mono font-bold text-lg text-green-600">{summaryStats.activeCount}</span>
-                            <span className="text-xs uppercase font-bold text-gray-400 ml-1">(Active)</span>
-                            <span className="text-gray-500 mx-2">+</span>
-                            <span className="font-mono font-bold text-lg text-gray-500">{summaryStats.ghostCount}</span>
-                            <span className="text-xs uppercase font-bold text-gray-400 ml-1">(Hidden/Ghost)</span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2 flex items-center gap-2">
-                            <LockKeyhole size={12} />
-                            <span><strong>Safety Confirmation:</strong> Hidden cases remain in the database indefinitely. They are simply filtered out from the public dashboard to keep stats relevant.</span>
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Breakdown Math */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <h4 className="font-bold text-lg mb-4 text-de-black border-b pb-2">Record Breakdown Formula</h4>
                         
-                        {/* CHART: Status Distribution */}
-                        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col h-80">
-                            <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                                    <PieChartIcon size={16} /> Status Distribution
-                                </h4>
-                                <div className="flex items-center gap-2">
-                                    <Filter size={14} className="text-gray-400" />
-                                    <select 
-                                        value={statusDistFilter}
-                                        onChange={(e) => setStatusDistFilter(e.target.value)}
-                                        className="text-xs border-gray-300 rounded p-1 bg-gray-50 focus:ring-1 focus:ring-de-gold outline-none"
-                                    >
-                                        <option value="All">All Types</option>
-                                        {summaryStats.typeStats.map(s => (
-                                            <option key={s.type} value={s.type}>{s.type}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
+                        <div className="flex flex-col md:flex-row items-center justify-center gap-4 text-center font-mono text-sm md:text-base">
+                             <div className="bg-gray-100 p-3 rounded-lg w-full md:w-auto">
+                                <span className="block text-2xl font-bold">{breakdown.total}</span>
+                                <span className="text-xs uppercase text-gray-500 font-bold">Total Records</span>
+                             </div>
+                             <span className="font-bold text-gray-400 text-xl">=</span>
+                             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 w-full md:w-auto">
+                                <span className="block text-2xl font-bold text-blue-600">{breakdown.inProgress.length}</span>
+                                <span className="text-xs uppercase text-blue-400 font-bold">In Progress</span>
+                             </div>
+                             <span className="font-bold text-gray-400 text-xl">+</span>
+                             <div className="bg-green-50 p-3 rounded-lg border border-green-100 w-full md:w-auto">
+                                <span className="block text-2xl font-bold text-green-600">{breakdown.approved.length + breakdown.closed.length}</span>
+                                <span className="text-xs uppercase text-green-500 font-bold">Finished</span>
+                             </div>
+                             <span className="font-bold text-gray-400 text-xl">+</span>
+                              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 w-full md:w-auto">
+                                <span className="block text-2xl font-bold text-gray-400">{breakdown.ghosts.length}</span>
+                                <span className="text-xs uppercase text-gray-400 font-bold">Ghosts</span>
+                             </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-6 text-xs text-center">
+                             <div className="p-2 bg-gray-50 rounded">
+                                 <span className="block font-bold">{breakdown.submitted.length}</span>
+                                 <span className="text-gray-400">Submitted</span>
+                             </div>
+                             <div className="p-2 bg-blue-50 text-blue-800 rounded">
+                                 <span className="block font-bold">{breakdown.protocol.length}</span>
+                                 <span>Protocol</span>
+                             </div>
+                             <div className="p-2 bg-yellow-50 text-yellow-800 rounded">
+                                 <span className="block font-bold">{breakdown.docs.length}</span>
+                                 <span>Docs Req.</span>
+                             </div>
+                              <div className="p-2 bg-green-50 text-green-800 rounded">
+                                 <span className="block font-bold">{breakdown.approved.length}</span>
+                                 <span>Approved</span>
+                             </div>
+                              <div className="p-2 bg-red-50 text-red-800 rounded">
+                                 <span className="block font-bold">{breakdown.closed.length}</span>
+                                 <span>Closed</span>
+                             </div>
+                             <div className="p-2 bg-gray-50 text-gray-400 rounded border border-dashed border-gray-300">
+                                 <span className="block font-bold">{breakdown.ghosts.length}</span>
+                                 <span>Ghost</span>
+                             </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Type Distribution Chart */}
+                        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm h-80 flex flex-col">
+                            <h4 className="font-bold text-sm mb-2 text-de-black flex items-center gap-2">
+                                <PieChartIcon size={16} /> Case Type Distribution
+                            </h4>
                             <div className="flex-1 w-full min-h-0">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie
-                                            data={summaryStats.statusChartData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={50}
+                                            data={breakdown.typeData}
+                                            innerRadius={60}
                                             outerRadius={80}
                                             paddingAngle={5}
                                             dataKey="value"
                                         >
-                                            {summaryStats.statusChartData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.name as CaseStatus] || COLORS[index % COLORS.length]} />
+                                            {breakdown.typeData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                             ))}
                                         </Pie>
-                                        <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                        <Tooltip />
                                         <Legend verticalAlign="bottom" height={36} iconSize={10}/>
                                     </PieChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
 
-                         {/* CHART: Types Distribution */}
-                         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col h-80">
-                            <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                                    <BarChart3 size={16} /> Cases by Type
-                                </h4>
+                        {/* Additional Stats */}
+                        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center gap-4">
+                            <div className="text-center p-4 bg-gray-50 rounded-lg">
+                                <p className="text-gray-400 text-xs uppercase font-bold mb-1">Total Active (Non-Ghost)</p>
+                                <p className="text-3xl font-extrabold text-de-black">{breakdown.nonGhosts.length}</p>
                             </div>
-                            <div className="flex-1 w-full min-h-0">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={summaryStats.typeChartData} margin={{top: 5, right: 30, left: 20, bottom: 5}}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                        <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
-                                        <YAxis tick={{fontSize: 10}} />
-                                        <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                        <Bar dataKey="value" fill="#DD0000" radius={[4, 4, 0, 0]} name="Cases" />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                            <div className="text-center p-4 bg-red-50 rounded-lg border border-red-100">
+                                <p className="text-red-400 text-xs uppercase font-bold mb-1">Recycle Bin</p>
+                                <p className="text-3xl font-extrabold text-red-600">{deletedCases.length}</p>
                             </div>
-                        </div>
-
-                    </div>
-
-                    {/* Breakdown by Type Table (Detailed) */}
-                    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                        <div className="bg-gray-50 p-3 border-b border-gray-200">
-                             <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                                <Activity size={16} /> Detailed Breakdown
-                             </h4>
-                        </div>
-                        <div className="max-h-64 overflow-y-auto">
-                            <table className="w-full text-sm">
-                                <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-bold sticky top-0 z-10 shadow-sm">
-                                    <tr>
-                                        <th className="p-3 text-left">Type</th>
-                                        <th className="p-3 text-right">Count</th>
-                                        <th className="p-3 text-right">AI Predictor (Avg)</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {summaryStats.typeStats.map((s, idx) => (
-                                        <tr key={s.type} className="hover:bg-gray-50">
-                                            <td className="p-3 font-bold text-gray-900 flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full" style={{backgroundColor: COLORS[idx % COLORS.length]}}></div>
-                                                {s.type}
-                                            </td>
-                                            <td className="p-3 text-right font-bold text-gray-900">{s.count}</td>
-                                            <td className="p-3 text-right font-mono text-xs text-yellow-600 bg-yellow-50/30">
-                                                {formatDuration(s.avgWait, lang)}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
                         </div>
                     </div>
                 </div>
             )}
 
             {activeTab === 'ACTIONS' && (
-              <div className="space-y-6 animate-in slide-in-from-right-4 max-w-2xl mx-auto">
-                
-                {/* Backup Status Indicator */}
-                <div className={`p-4 rounded-xl border flex justify-between items-center ${isBackupOverdue ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
-                    <div className="flex items-center gap-3">
-                         <div className={`p-2 rounded-full ${isBackupOverdue ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                             {isBackupOverdue ? <AlertTriangle size={20} /> : <CheckCircle size={20} />}
-                         </div>
-                         <div>
-                             <h4 className={`font-bold text-sm ${isBackupOverdue ? 'text-red-800' : 'text-green-800'}`}>
-                                 {isBackupOverdue ? t.backupOverdue : t.backupSafe}
-                             </h4>
-                             <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
-                                 <Clock size={10} /> {t.lastBackup} {lastBackup ? new Date(lastBackup).toLocaleString() : 'Never'}
-                             </p>
-                         </div>
-                    </div>
-                    {isBackupOverdue && (
-                        <button 
-                            onClick={handleBackup}
-                            className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded shadow hover:bg-red-700 transition-colors animate-pulse"
-                        >
-                            Back up Now
-                        </button>
-                    )}
-                </div>
-
-                {/* Maintenance Toggle */}
-                <div className={`p-4 rounded-xl border transition-colors ${maintenanceEnabled ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-200 shadow-sm'}`}>
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <h4 className="font-bold text-sm text-gray-800 flex items-center gap-2">
-                                <Power size={16} className={maintenanceEnabled ? 'text-orange-600' : 'text-gray-400'} />
-                                {t.maintenance}
-                            </h4>
-                            <p className="text-xs text-gray-500 mt-1">
-                                {maintenanceEnabled ? "App is paused for users." : "App is active."}
-                            </p>
-                        </div>
-                        <button 
-                            onClick={handleToggleMaintenance}
-                            className={`px-4 py-2 rounded text-sm font-bold shadow-sm transition-all ${
-                                maintenanceEnabled 
-                                ? 'bg-orange-500 text-white hover:bg-orange-600' 
-                                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
-                            }`}
-                        >
-                            {maintenanceEnabled ? "Resume App" : "Pause App"}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Export Section */}
-                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                    <h4 className="font-bold text-sm text-gray-700 mb-3 flex items-center gap-2">
-                        <Download size={16} /> Export Data
-                    </h4>
+                <div className="space-y-6 max-w-2xl mx-auto">
                     
-                    <div className="grid grid-cols-2 gap-4">
-                        <button 
-                            onClick={handleExport}
-                            className="w-full flex items-center justify-center gap-2 bg-de-black text-white py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow"
-                        >
-                            <FileSpreadsheet size={16} /> Export CSV
-                        </button>
-                        <button 
-                            onClick={handleBackup}
-                            className="w-full flex items-center justify-center gap-2 bg-white border border-de-black text-de-black py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium shadow"
-                        >
-                            <FileJson size={16} /> Backup JSON
-                        </button>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2 text-center">
-                        Use <strong>CSV</strong> for Excel analysis, and <strong>JSON</strong> for full database restoration.
-                    </p>
-                </div>
-
-                {/* Import Section */}
-                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                    <h4 className="font-bold text-sm text-gray-700 mb-3 flex items-center gap-2">
-                        <Upload size={16} /> Bulk Import / Restore
-                    </h4>
-
-                    <div className="mb-4 text-xs text-gray-500 bg-blue-50 p-3 rounded border border-blue-100">
-                        <strong>Supports CSV & JSON:</strong>
-                        <ul className="list-disc ml-4 mt-1 space-y-1">
-                            <li><strong>CSV:</strong> Bulk update or add new cases.</li>
-                            <li><strong>JSON:</strong> Full database restore from a previous backup.</li>
-                        </ul>
-                    </div>
-                    
-                    <div className="flex flex-col gap-3">
-                        <button 
-                            onClick={handleDownloadTemplate}
-                            className="flex items-center justify-center gap-2 text-de-red border border-de-red hover:bg-red-50 py-2 px-4 rounded-lg transition-colors text-xs font-bold uppercase tracking-wide"
-                        >
-                            <FileSpreadsheet size={14} /> {t.downloadTemplate}
-                        </button>
-
-                        <div className="relative">
+                    {/* Data Management Section */}
+                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <h4 className="font-bold text-sm text-gray-700 flex items-center gap-2 mb-4">
+                            <Database size={16} /> Data Import / Export
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Import Button */}
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                            >
+                                <Upload className="text-blue-500 mb-2" size={24} />
+                                <span className="font-bold text-sm">Bulk Import</span>
+                                <span className="text-xs text-gray-400">Accepts .JSON or .CSV</span>
+                            </button>
                             <input 
                                 type="file" 
-                                accept=".csv,.json" 
-                                ref={fileInputRef}
-                                onChange={handleFileUpload}
-                                disabled={isImporting}
+                                ref={fileInputRef} 
                                 className="hidden" 
-                                id="csv-upload"
+                                accept=".json,.csv"
+                                onChange={handleFileChange}
                             />
-                            <label 
-                                htmlFor="csv-upload"
-                                className={`w-full flex items-center justify-center gap-2 bg-de-gold text-de-black py-3 px-4 rounded-lg hover:bg-yellow-400 cursor-pointer transition-colors text-sm font-bold shadow-sm ${isImporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            
+                            {/* Export CSV */}
+                            <button 
+                                onClick={handleExportCSV}
+                                className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded hover:bg-gray-50 transition-colors"
                             >
-                                {isImporting ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />} 
-                                {isImporting ? `Processing... ${importProgress}%` : t.importCSV}
-                            </label>
+                                <FileSpreadsheet className="text-green-600 mb-2" size={24} />
+                                <span className="font-bold text-sm">Export CSV</span>
+                                <span className="text-xs text-gray-400">For Spreadsheet Analysis</span>
+                            </button>
+
+                             {/* Export JSON */}
+                             <button 
+                                onClick={handleDownloadJSON}
+                                className="md:col-span-2 flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                            >
+                                <FileJson className="text-yellow-600 mb-2" size={24} />
+                                <span className="font-bold text-sm">Export Full DB (JSON)</span>
+                                <span className="text-xs text-gray-400">Complete Backup for Restore</span>
+                            </button>
                         </div>
+
+                        {importStatus && (
+                            <div className={`mt-4 p-3 rounded text-sm font-bold ${importStatus.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {importStatus.msg}
+                            </div>
+                        )}
+                        {isImporting && <p className="text-center text-xs text-gray-500 mt-2">Processing file... please wait.</p>}
                     </div>
 
-                    {importStatus && (
-                        <div className={`mt-4 p-3 rounded flex items-center gap-2 text-sm ${importStatus.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                            {importStatus.success ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
-                            {importStatus.msg}
+                    {/* Email Backup Action */}
+                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+                        <div>
+                            <h4 className="font-bold text-sm text-gray-700 flex items-center gap-2">
+                                <Mail size={16} /> Email Backup
+                            </h4>
+                            <p className="text-xs text-gray-500 mt-1">Send .JSON dump to owner email.</p>
                         </div>
-                    )}
-                </div>
-
-                {/* Danger Zone */}
-                <div className="bg-red-50 p-5 rounded-xl border border-red-200">
-                    <h4 className="font-bold text-sm text-red-800 mb-3 flex items-center gap-2">
-                        <AlertTriangle size={16} /> Danger Zone
-                    </h4>
-                    <button 
-                        onClick={handleClearData}
-                        className="w-full flex items-center justify-center gap-2 bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition-colors text-sm font-bold shadow-sm"
-                    >
-                        <Trash2 size={16} /> Reset / Clear Database
-                    </button>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'MANAGE' && (
-              editForm ? (
-                  <div className="h-full flex flex-col animate-in slide-in-from-right">
-                      <div className="flex items-center gap-3 mb-6 border-b border-gray-100 pb-4">
-                        <button onClick={() => setEditForm(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                           <ArrowLeft size={20} />
+                        <button onClick={handleEmailBackup} className="px-4 py-2 bg-de-black text-white rounded font-bold text-sm hover:bg-gray-800">
+                            Send Email
                         </button>
-                        <h3 className="font-bold text-de-black text-lg">Edit Case: {editForm.fantasyName}</h3>
-                      </div>
-                      
-                      <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-                          {/* Section 1: Core Info */}
-                          <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                  <label className={labelClass}>Fantasy Name</label>
-                                  <input type="text" name="fantasyName" value={editForm.fantasyName} onChange={handleEditChange} className={inputClass} />
-                              </div>
-                              <div>
-                                  <label className={labelClass}>Email</label>
-                                  <input type="email" name="email" value={editForm.email} onChange={handleEditChange} className={inputClass} />
-                              </div>
-                          </div>
+                    </div>
 
-                          <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                  <label className={labelClass}>Country</label>
-                                  <select name="countryOfApplication" value={editForm.countryOfApplication} onChange={handleEditChange} className={inputClass}>
-                                      {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                  </select>
-                              </div>
-                              <div>
-                                  <label className={labelClass}>Consulate</label>
-                                  <input type="text" name="consulate" value={editForm.consulate || ''} onChange={handleEditChange} className={inputClass} />
-                              </div>
-                          </div>
-
-                           <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                  <label className={labelClass}>Case Type</label>
-                                  <select name="caseType" value={editForm.caseType} onChange={handleEditChange} className={inputClass}>
-                                      {Object.values(CaseType).map(t => <option key={t} value={t}>{t}</option>)}
-                                  </select>
-                              </div>
-                              <div>
-                                  <label className={labelClass}>Status</label>
-                                  <select name="status" value={editForm.status} onChange={handleEditChange} className={inputClass}>
-                                      {Object.values(CaseStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                                  </select>
-                              </div>
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-4 bg-gray-50 p-3 rounded">
-                              <div>
-                                  <label className={labelClass}>Submission Date</label>
-                                  <input type="date" name="submissionDate" value={editForm.submissionDate} onChange={handleEditChange} className={inputClass} />
-                              </div>
-                              <div>
-                                  <label className={labelClass}>Protocol Date</label>
-                                  <input type="date" name="protocolDate" value={editForm.protocolDate || ''} onChange={handleEditChange} className={inputClass} />
-                              </div>
-                               <div>
-                                  <label className={labelClass}>Docs Request</label>
-                                  <input type="date" name="docsRequestDate" value={editForm.docsRequestDate || ''} onChange={handleEditChange} className={inputClass} />
-                              </div>
-                              <div>
-                                  <label className={labelClass}>Approval Date</label>
-                                  <input type="date" name="approvalDate" value={editForm.approvalDate || ''} onChange={handleEditChange} className={inputClass} />
-                              </div>
-                              <div>
-                                  <label className={labelClass}>Closed Date</label>
-                                  <input type="date" name="closedDate" value={editForm.closedDate || ''} onChange={handleEditChange} className={inputClass} />
-                              </div>
-                              <div>
-                                  <label className={labelClass}>Protocol Number</label>
-                                  <input type="text" name="protocolNumber" value={editForm.protocolNumber || ''} onChange={handleEditChange} className={inputClass} placeholder="AZ..." />
-                              </div>
-                          </div>
-                          
-                          <div>
-                               <label className={labelClass}>Notes</label>
-                               <textarea name="notes" value={editForm.notes || ''} onChange={handleEditChange} className={inputClass} rows={3} />
-                          </div>
-
-                          {/* Section 2: Notifications */}
-                          <div className="border-t pt-4">
-                            <h4 className="font-bold text-xs text-gray-500 uppercase mb-2">Notification Preferences</h4>
-                            <div className="grid grid-cols-1 gap-2">
-                                <label className="flex items-center gap-2">
-                                    <input type="checkbox" name="notifySameDateSubmission" checked={editForm.notifySameDateSubmission || false} onChange={handleEditChange} className="rounded text-de-gold focus:ring-de-gold" />
-                                    <span className="text-sm">Notify Same Date Submission</span>
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <input type="checkbox" name="notifySameMonthUrkunde" checked={editForm.notifySameMonthUrkunde || false} onChange={handleEditChange} className="rounded text-de-gold focus:ring-de-gold" />
-                                    <span className="text-sm">Notify Same Month Urkunde</span>
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <input type="checkbox" name="notifySubmissionCohortUpdates" checked={editForm.notifySubmissionCohortUpdates || false} onChange={handleEditChange} className="rounded text-de-gold focus:ring-de-gold" />
-                                    <span className="text-sm">Notify Submission Cohort Updates</span>
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <input type="checkbox" name="notifyProtocolCohortUpdates" checked={editForm.notifyProtocolCohortUpdates || false} onChange={handleEditChange} className="rounded text-de-gold focus:ring-de-gold" />
-                                    <span className="text-sm">Notify Protocol Cohort Updates</span>
-                                </label>
+                    {/* AI Anomaly Scan */}
+                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h4 className="font-bold text-sm text-gray-700 flex items-center gap-2">
+                                    <ScanSearch size={16} /> AI Anomaly Detection
+                                </h4>
+                                <p className="text-xs text-gray-500 mt-1">Scan database for duplicates or logical errors.</p>
                             </div>
-                          </div>
+                            <button 
+                                onClick={handleScanAnomalies} 
+                                disabled={isScanning}
+                                className="px-4 py-2 bg-blue-600 text-white rounded font-bold text-sm hover:bg-blue-700 flex items-center gap-2"
+                            >
+                                {isScanning ? <Loader2 className="animate-spin" size={16}/> : <ScanSearch size={16} />} Scan
+                            </button>
+                        </div>
 
-                          {/* Section 3: Documents */}
-                          <div className="border-t pt-4">
-                            <h4 className="font-bold text-xs text-gray-500 uppercase mb-2">Documents</h4>
-                            <div className="grid grid-cols-2 gap-2">
-                                {(CASE_SPECIFIC_DOCS[editForm.caseType] || COMMON_DOCS).map(doc => (
-                                    <div 
-                                        key={doc} 
-                                        onClick={() => handleDocToggle(doc)}
-                                        className={`flex items-center gap-2 p-2 rounded cursor-pointer border transition-colors ${
-                                            (editForm.documents || []).includes(doc) 
-                                            ? 'bg-green-50 border-green-200 text-green-900' 
-                                            : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-600'
-                                        }`}
-                                    >
-                                        {(editForm.documents || []).includes(doc) 
-                                            ? <CheckSquare size={16} className="text-green-600" /> 
-                                            : <Square size={16} className="text-gray-300" />}
-                                        <span className="text-xs font-medium truncate">{doc}</span>
+                        {anomalies.length > 0 && (
+                            <div className="bg-gray-50 p-4 rounded border border-gray-200 max-h-60 overflow-y-auto">
+                                <h5 className="font-bold text-xs uppercase text-gray-500 mb-2">Issues Found ({anomalies.length})</h5>
+                                {anomalies.map((issue, idx) => (
+                                    <div key={idx} className="text-xs p-2 border-b border-gray-100 last:border-0">
+                                        <span className="font-bold text-red-600">{issue.issueType}: </span>
+                                        <span className="font-bold text-gray-800">{issue.name}</span>
+                                        <p className="text-gray-500">{issue.details}</p>
                                     </div>
                                 ))}
                             </div>
-                          </div>
-                      </div>
-
-                      <div className="pt-4 border-t border-gray-100 mt-4 flex justify-end gap-3">
-                         <button onClick={() => setEditForm(null)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded">Cancel</button>
-                         <button onClick={handleSaveEdit} className="px-4 py-2 bg-de-gold text-de-black font-bold rounded hover:bg-yellow-400 flex items-center gap-2 shadow-sm">
-                             <Save size={16} /> Save Changes
-                         </button>
-                      </div>
-                  </div>
-              ) : (
-                  <div className="h-full flex flex-col animate-in slide-in-from-right-4">
-                      <div className="mb-4">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                            <input 
-                              type="text" 
-                              placeholder="Search fantasy name, email, country..."
-                              value={searchTerm}
-                              onChange={(e) => setSearchTerm(e.target.value)}
-                              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-de-gold outline-none text-sm"
-                            />
-                        </div>
-                      </div>
-                      
-                      {/* ADDED AI Predictor Column (Est. Completion) */}
-                      <div className="space-y-2 overflow-y-auto flex-1 pr-1 bg-white border border-gray-100 rounded-lg p-2">
-                          {filteredCases.length === 0 ? (
-                              <div className="text-center py-8 text-gray-400">No cases found.</div>
-                          ) : (
-                              filteredCases.map(c => (
-                                  <div key={c.id} className="flex items-center justify-between p-3 bg-white border-b border-gray-100 hover:bg-gray-50 transition-colors last:border-0">
-                                      <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2">
-                                              <span className="font-bold text-sm text-de-black truncate">{c.fantasyName}</span>
-                                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.status === CaseStatus.APPROVED ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                                                  {c.status}
-                                              </span>
-                                              {c.email.startsWith('unclaimed_') && (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 font-bold uppercase flex items-center gap-1">
-                                                  <AlertTriangle size={10} /> Unclaimed
-                                                </span>
-                                              )}
-                                          </div>
-                                          <div className="text-xs text-gray-500 truncate flex items-center gap-2">
-                                              <span>{c.email} • {c.countryOfApplication}</span>
-                                              <span className="text-xs text-gray-400">|</span>
-                                              {/* Est. Completion Date Display */}
-                                              <span className="font-mono text-xs text-blue-600 bg-blue-50 px-1 rounded" title="Estimated Completion Date (Math Based)">
-                                                 Est: {getEstCompletion(c, summaryStats ? summaryStats.globalAvgWait : 730)}
-                                              </span>
-                                          </div>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                          <button 
-                                              onClick={() => handleEditCase(c)}
-                                              className="p-2 text-gray-400 hover:text-de-gold hover:bg-yellow-50 rounded transition-colors"
-                                              title="Edit Case"
-                                          >
-                                              <Edit size={16} />
-                                          </button>
-                                          <button 
-                                              onClick={() => handleDeleteCase(c.id, c.fantasyName)}
-                                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                              title="Delete Case"
-                                          >
-                                              <Trash2 size={16} />
-                                          </button>
-                                      </div>
-                                  </div>
-                              ))
-                          )}
-                      </div>
-                  </div>
-              )
-            )}
-
-            {activeTab === 'LOGS' && (
-              <div className="space-y-2 animate-in slide-in-from-right-4 max-w-4xl mx-auto">
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h4 className="font-bold text-gray-900 mb-4 text-sm uppercase">Recent Activity</h4>
-                    {auditLogs.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-4">No logs recorded yet.</p>
-                    )}
-                    {auditLogs.map((log) => (
-                    <div key={log.id} className="text-xs p-3 border-b border-gray-100 flex justify-between items-start hover:bg-gray-50 transition-colors last:border-0">
-                        <div>
-                        <span className="font-bold text-de-black block mb-1">{log.action}</span>
-                        <span className="text-gray-600">{log.details}</span>
-                        {log.user && <span className="text-gray-400 text-[10px] block mt-1 flex items-center gap-1"><Shield size={10} /> {log.user}</span>}
-                        </div>
-                        <span className="text-gray-400 font-mono whitespace-nowrap ml-4 bg-gray-50 px-2 py-1 rounded">{new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        )}
                     </div>
-                    ))}
+                    
+                    {/* Toggle Maintenance */}
+                    <div className={`p-4 rounded-xl border transition-colors ${maintenanceEnabled ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-200 shadow-sm'}`}>
+                         <div className="flex justify-between items-center">
+                             <div className="flex items-center gap-2 font-bold text-sm">
+                                 <Power size={16} /> Maintenance Mode
+                             </div>
+                             <button onClick={handleToggleMaintenance} className={`px-4 py-2 rounded font-bold text-sm ${maintenanceEnabled ? 'bg-orange-500 text-white' : 'border'}`}>
+                                 {maintenanceEnabled ? "Resume App" : "Pause App"}
+                             </button>
+                         </div>
+                    </div>
                 </div>
-              </div>
             )}
 
+            {/* Manage Tab with Table */}
+            {activeTab === 'MANAGE' && (
+                <div className="space-y-4">
+                     {/* Edit Modal (Expanded) */}
+                     {editForm && (
+                         <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+                             <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                                 <div className="bg-de-black text-white p-4 font-bold flex justify-between items-center">
+                                     <h3>Edit Case: {editForm.fantasyName}</h3>
+                                     <button onClick={() => setEditForm(null)}><X size={20}/></button>
+                                 </div>
+                                 <div className="p-6 overflow-y-auto space-y-4">
+                                    <form id="edit-case-form" onSubmit={handleSaveEdit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                             <label className="text-xs font-bold block mb-1">Fantasy Name</label>
+                                             <input 
+                                                value={editForm.fantasyName} 
+                                                onChange={e => setEditForm({...editForm, fantasyName: e.target.value})}
+                                                className="w-full border rounded p-2 text-sm"
+                                             />
+                                        </div>
+                                        <div>
+                                             <label className="text-xs font-bold block mb-1">Email</label>
+                                             <div className="flex items-center gap-2 mb-2 p-2 bg-gray-50 border rounded">
+                                                 <span className="font-mono text-sm text-gray-600">{maskEmail(editForm.email)}</span>
+                                                 <span className="text-[10px] text-gray-400 italic ml-auto">(Hidden)</span>
+                                             </div>
+                                             <input 
+                                                type="text"
+                                                value={emailEditValue} 
+                                                onChange={e => setEmailEditValue(e.target.value)}
+                                                className="w-full border rounded p-2 text-sm"
+                                                placeholder="Enter NEW email to replace (leave empty to keep)"
+                                                autoComplete="off"
+                                             />
+                                        </div>
+                                        <div>
+                                             <label className="text-xs font-bold block mb-1">Case Type</label>
+                                             <select 
+                                                value={editForm.caseType} 
+                                                onChange={e => setEditForm({...editForm, caseType: e.target.value as CaseType})}
+                                                className="w-full border rounded p-2 text-sm"
+                                             >
+                                                 {Object.values(CaseType).map(t => <option key={t} value={t}>{t}</option>)}
+                                             </select>
+                                        </div>
+                                        <div>
+                                             <label className="text-xs font-bold block mb-1">Country</label>
+                                             <select 
+                                                value={editForm.countryOfApplication} 
+                                                onChange={e => setEditForm({...editForm, countryOfApplication: e.target.value})}
+                                                className="w-full border rounded p-2 text-sm"
+                                             >
+                                                 {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                             </select>
+                                        </div>
+                                        <div>
+                                             <label className="text-xs font-bold block mb-1">Status</label>
+                                             <select 
+                                                value={editForm.status} 
+                                                onChange={e => setEditForm({...editForm, status: e.target.value as CaseStatus})}
+                                                className="w-full border rounded p-2 text-sm"
+                                             >
+                                                 {Object.values(CaseStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                                             </select>
+                                        </div>
+                                        
+                                        <div className="md:col-span-2 border-t pt-4 mt-2">
+                                            <h4 className="font-bold text-gray-500 text-xs uppercase mb-3">Timeline</h4>
+                                        </div>
+
+                                        <div>
+                                             <label className="text-xs font-bold block mb-1">Submission Date</label>
+                                             <input 
+                                                type="date"
+                                                value={editForm.submissionDate || ''} 
+                                                onChange={e => setEditForm({...editForm, submissionDate: e.target.value})}
+                                                className="w-full border rounded p-2 text-sm"
+                                             />
+                                        </div>
+                                         <div>
+                                             <label className="text-xs font-bold block mb-1">Protocol Date</label>
+                                             <input 
+                                                type="date"
+                                                value={editForm.protocolDate || ''} 
+                                                onChange={e => setEditForm({...editForm, protocolDate: e.target.value})}
+                                                className="w-full border rounded p-2 text-sm"
+                                             />
+                                        </div>
+                                        <div>
+                                             <label className="text-xs font-bold block mb-1">Docs Request Date</label>
+                                             <input 
+                                                type="date"
+                                                value={editForm.docsRequestDate || ''} 
+                                                onChange={e => setEditForm({...editForm, docsRequestDate: e.target.value})}
+                                                className="w-full border rounded p-2 text-sm bg-yellow-50"
+                                             />
+                                        </div>
+                                         <div>
+                                             <label className="text-xs font-bold block mb-1">Approval Date</label>
+                                             <input 
+                                                type="date"
+                                                value={editForm.approvalDate || ''} 
+                                                onChange={e => setEditForm({...editForm, approvalDate: e.target.value})}
+                                                className="w-full border rounded p-2 text-sm bg-green-50"
+                                             />
+                                        </div>
+                                        <div>
+                                             <label className="text-xs font-bold block mb-1">Closed Date</label>
+                                             <input 
+                                                type="date"
+                                                value={editForm.closedDate || ''} 
+                                                onChange={e => setEditForm({...editForm, closedDate: e.target.value})}
+                                                className="w-full border rounded p-2 text-sm bg-red-50"
+                                             />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                             <label className="text-xs font-bold block mb-1">Notes</label>
+                                             <textarea 
+                                                value={editForm.notes || ''} 
+                                                onChange={e => setEditForm({...editForm, notes: e.target.value})}
+                                                className="w-full border rounded p-2 text-sm h-20"
+                                                placeholder="Admin notes..."
+                                             />
+                                        </div>
+                                    </form>
+                                 </div>
+                                 <div className="p-4 bg-gray-50 border-t flex justify-end gap-2">
+                                     <button onClick={() => setEditForm(null)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-200 rounded">Cancel</button>
+                                     <button type="submit" form="edit-case-form" className="px-6 py-2 bg-blue-600 text-white rounded font-bold shadow-sm hover:bg-blue-700">Save Changes</button>
+                                 </div>
+                             </div>
+                         </div>
+                     )}
+
+                     <div className="flex gap-4 mb-4">
+                         <div className="relative flex-1">
+                             <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                             <input 
+                                type="text" 
+                                placeholder="Search by Name, Country or Email..." 
+                                value={manageSearchTerm}
+                                onChange={e => setManageSearchTerm(e.target.value)}
+                                className="w-full pl-10 p-2 border rounded-lg shadow-sm"
+                             />
+                         </div>
+                         <div className="bg-gray-100 p-2 rounded text-xs font-bold flex items-center">
+                             Visible: {filteredManageCases.length}
+                         </div>
+                     </div>
+
+                     <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
+                         <table className="table-fixed w-full text-sm">
+                             <thead className="bg-gray-50 border-b">
+                                 <tr>
+                                     <th 
+                                        className="w-1/4 p-3 text-left cursor-pointer hover:bg-gray-100" 
+                                        onClick={() => handleSort('fantasyName')}
+                                     >
+                                         <div className="flex items-center gap-1">Name <ArrowUpDown size={12}/></div>
+                                     </th>
+                                     <th className="w-1/4 p-3 text-left">
+                                         <div className="flex items-center gap-1">Email (Censored) <EyeOff size={12}/></div>
+                                     </th>
+                                     <th 
+                                        className="w-32 p-3 text-left cursor-pointer hover:bg-gray-100"
+                                        onClick={() => handleSort('countryOfApplication')}
+                                     >
+                                         <div className="flex items-center gap-1">Country <ArrowUpDown size={12}/></div>
+                                     </th>
+                                     <th 
+                                        className="w-1/6 p-3 text-left cursor-pointer hover:bg-gray-100"
+                                        onClick={() => handleSort('status')}
+                                     >
+                                        <div className="flex items-center gap-1">Status <ArrowUpDown size={12}/></div>
+                                     </th>
+                                     <th className="w-[100px] p-3 text-right">Actions</th>
+                                 </tr>
+                             </thead>
+                             <tbody>
+                                 {filteredManageCases.slice(0, 50).map(c => (
+                                     <tr key={c.id} className="border-b last:border-0 hover:bg-gray-50">
+                                         <td className="p-3 truncate">
+                                             <div className="font-bold text-de-black">{c.fantasyName}</div>
+                                             <div className="text-[10px] text-gray-400 font-mono">{c.id.substring(0,8)}...</div>
+                                         </td>
+                                         <td className="p-3 font-mono text-xs text-gray-500 truncate" title="Email content is hidden">
+                                             {maskEmail(c.email)}
+                                         </td>
+                                         <td className="p-3 truncate">
+                                             <div className="text-xs font-bold">{c.countryOfApplication}</div>
+                                             <div className="text-[10px] text-gray-500">{c.caseType}</div>
+                                         </td>
+                                         <td className="p-3">
+                                             <span className={`text-[10px] px-2 py-1 rounded font-bold whitespace-nowrap ${
+                                                c.status === CaseStatus.APPROVED ? 'bg-green-100 text-green-700' :
+                                                c.status === CaseStatus.CLOSED ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                                             }`}>
+                                                 {STATUS_TRANSLATIONS[lang][c.status] || c.status}
+                                             </span>
+                                         </td>
+                                         <td className="p-3 text-right">
+                                             <div className="flex justify-end gap-2">
+                                                <button onClick={() => { setEditForm(c); setEmailEditValue(''); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Edit Case"><Edit size={16} /></button>
+                                                <button onClick={() => handleSoftDelete(c.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Move to Recycle Bin"><Trash2 size={16} /></button>
+                                             </div>
+                                         </td>
+                                     </tr>
+                                 ))}
+                                 {filteredManageCases.length > 50 && (
+                                     <tr>
+                                         <td colSpan={5} className="p-3 text-center text-gray-400 text-xs italic">
+                                             Showing first 50 results. Use search to find specific cases.
+                                         </td>
+                                     </tr>
+                                 )}
+                             </tbody>
+                         </table>
+                     </div>
+                </div>
+            )}
+
+            {activeTab === 'RECYCLE' && (
+                <div className="space-y-4 max-w-4xl mx-auto animate-in slide-in-from-right-4">
+                    <div className="bg-red-50 border border-red-100 p-4 rounded-lg flex items-center gap-3 text-red-800">
+                        <Recycle size={24} />
+                        <div>
+                            <h4 className="font-bold text-sm">Recycle Bin</h4>
+                            <p className="text-xs">These cases were soft-deleted. You can restore them or permanently destroy them.</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                        {deletedCases.length === 0 ? (
+                            <div className="p-8 text-center text-gray-400 text-sm">Recycle Bin is empty.</div>
+                        ) : (
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase">
+                                    <tr>
+                                        <th className="p-3 text-left">Name / ID</th>
+                                        <th className="p-3 text-left">Deleted At</th>
+                                        <th className="p-3 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {deletedCases.map(c => (
+                                        <tr key={c.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                                            <td className="p-3 font-medium">
+                                                <div className="text-de-black">{c.fantasyName}</div>
+                                                <div className="text-xs text-gray-400 font-mono">{c.id.substring(0,8)}...</div>
+                                            </td>
+                                            <td className="p-3 text-gray-500 text-xs">
+                                                {c.deletedAt ? new Date(c.deletedAt).toLocaleString() : 'Unknown'}
+                                            </td>
+                                            <td className="p-3 text-right flex justify-end gap-2">
+                                                <button 
+                                                    onClick={() => handleRestoreCase(c.id)}
+                                                    className="p-1.5 bg-green-50 text-green-700 rounded hover:bg-green-100 border border-green-200 flex items-center gap-1 text-xs font-bold"
+                                                >
+                                                    <RefreshCcw size={14}/> Restore
+                                                </button>
+                                                <button 
+                                                    onClick={() => handlePermanentDelete(c.id)}
+                                                    className="p-1.5 bg-red-50 text-red-700 rounded hover:bg-red-100 border border-red-200 flex items-center gap-1 text-xs font-bold"
+                                                >
+                                                    <Trash2 size={14}/> Destroy
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                </div>
+            )}
+            
+            {activeTab === 'LOGS' && (
+                <div className="space-y-2 max-w-4xl mx-auto">
+                     {auditLogs.map(log => (
+                         <div key={log.id} className="bg-white p-3 rounded border border-gray-100 text-xs flex justify-between">
+                             <div><span className="font-bold">{log.action}:</span> {log.details}</div>
+                             <div className="text-gray-400">{new Date(log.timestamp).toLocaleString()}</div>
+                         </div>
+                     ))}
+                </div>
+            )}
+
+        </div>
+
+        {/* ADMIN FOOTER MONITOR */}
+        <div className="bg-gray-900 text-gray-400 text-xs p-3 border-t border-gray-800 flex justify-between items-center shrink-0">
+            <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5">
+                    <Server size={12} /> System Status: <span className="text-green-400 font-bold">Operational</span>
+                </span>
+                <span className="hidden sm:inline">|</span>
+                <span className="flex items-center gap-1.5">
+                    <Database size={12} /> Records: <span className="text-white font-mono">{allCases.length + deletedCases.length}</span>
+                </span>
+            </div>
+            <div className="flex items-center gap-2">
+                 <LockKeyhole size={12} /> Logged in as Owner
+            </div>
         </div>
       </div>
     </div>

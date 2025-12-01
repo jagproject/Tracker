@@ -33,13 +33,15 @@ export interface CitizenshipCase {
   approvalDate?: string;
   closedDate?: string;
 
-  protocolNumber?: string; 
   status: CaseStatus;
   notes?: string; // Free text
   lastUpdated: string;
   
   // Feature 2: Document Checklist
   documents?: string[]; 
+
+  // Feature: Soft Delete
+  deletedAt?: string;
 
   // Notifications
   notifySameDateSubmission?: boolean;
