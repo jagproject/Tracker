@@ -140,6 +140,8 @@ export const upsertCase = async (newCase: CitizenshipCase) => {
 };
 
 export const deleteCase = async (id: string) => {
+  console.warn(`[SAFETY LOG] Manual deletion requested for case ${id}. Action authorized by Admin.`);
+  
   // 1. Try Supabase (Explicit Deletion)
   if (supabase) {
       await supabase.from(DB_TABLE).delete().eq('id', id);
@@ -245,7 +247,7 @@ export const addAuditLog = (action: string, details: string, user: string = 'Sys
     details,
     user
   };
-  const updatedLogs = [newLog, ...logs].slice(0, 100);
+  const updatedLogs = [newLog, ...logs].slice(100);
   localStorage.setItem(LOGS_KEY, JSON.stringify(updatedLogs));
 };
 

@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock, Wifi, WifiOff, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock, Wifi, WifiOff, RefreshCw, ShieldCheck, Ghost } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
 import { TRANSLATIONS, COUNTRIES, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
 import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, restoreFullDatabaseDump, getLastFetchError, checkConnection } from '../services/storageService';
 import { generateFantasyUsername } from '../services/geminiService';
-import { calculateQuickStats, formatDuration, formatISODateToLocale } from '../services/statsUtils';
+import { calculateQuickStats, formatDuration, formatISODateToLocale, isGhostCase } from '../services/statsUtils';
 import { isSupabaseEnabled } from '../services/authService';
 
 interface AdminToolsProps {
@@ -213,6 +213,9 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     const protocol = allCases.filter(c => c.status === CaseStatus.PROTOCOL_RECEIVED).length;
     const approved = allCases.filter(c => c.status === CaseStatus.APPROVED).length;
     
+    // Ghost Cases Logic
+    const ghostCount = allCases.filter(c => isGhostCase(c)).length;
+    
     // 1. DYNAMIC TYPE STATS (Fix for discrepancy)
     const typeMap = new Map<string, CitizenshipCase[]>();
     
@@ -268,7 +271,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     const globalStats = calculateQuickStats(allCases);
     const globalAvgWait = globalStats.avgDaysTotal || 730;
 
-    return { total, unclaimed, submitted, protocol, approved, statusCounts, typeStats, typeChartData, statusChartData, globalAvgWait };
+    return { total, unclaimed, submitted, protocol, approved, statusCounts, typeStats, typeChartData, statusChartData, globalAvgWait, ghostCount };
   }, [allCases, statusDistFilter]);
 
 
@@ -704,18 +707,25 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                     )}
 
                     {/* Top KPI Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                             <p className="text-gray-400 text-xs uppercase font-bold mb-1">Total Cases</p>
                             <p className="text-3xl font-extrabold text-gray-900">{summaryStats.total}</p>
                         </div>
-                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                             <p className="text-gray-400 text-xs uppercase font-bold mb-1">Approved</p>
                             <p className="text-3xl font-extrabold text-green-600">{summaryStats.approved}</p>
                         </div>
                          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                             <p className="text-gray-400 text-xs uppercase font-bold mb-1">In Process</p>
                             <p className="text-3xl font-extrabold text-blue-600">{summaryStats.submitted + summaryStats.protocol}</p>
+                        </div>
+                         <div className="bg-gray-100 p-4 rounded-xl shadow-sm border border-gray-200">
+                            <p className="text-gray-400 text-xs uppercase font-bold mb-1">Ghost / Stale</p>
+                            <p className="text-3xl font-extrabold text-gray-500 flex items-center gap-2">
+                                {summaryStats.ghostCount}
+                                <Ghost size={20} className="text-gray-400" />
+                            </p>
                         </div>
                         <div className="bg-yellow-50 text-yellow-800 p-4 rounded-xl shadow-sm border border-yellow-200">
                             <p className="text-yellow-600 text-xs uppercase font-bold mb-1">Unclaimed</p>
@@ -724,6 +734,21 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                                 <AlertTriangle size={20} className="text-yellow-500" />
                             </p>
                         </div>
+                    </div>
+                    
+                    {/* Database Integrity Explanation */}
+                    <div className="col-span-full bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm">
+                        <h5 className="font-bold text-gray-700 mb-2 flex items-center gap-2">
+                            <Database size={16} /> Database Integrity Breakdown
+                        </h5>
+                        <p className="text-gray-600">
+                            Total Records (<strong>{summaryStats.total}</strong>) = 
+                            Active Cases (<strong>{summaryStats.total - summaryStats.ghostCount}</strong>) + 
+                            Ghost/Stale Cases (<strong>{summaryStats.ghostCount}</strong>).
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                            * Ghost cases are hidden from the public dashboard but <strong>never deleted</strong> automatically.
+                        </p>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
