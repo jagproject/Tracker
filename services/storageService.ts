@@ -16,12 +16,14 @@ let lastFetchError: string | null = null;
 export const getLastFetchError = () => lastFetchError;
 
 // ------------------------------------------------------------------
-// DATA SAFETY POLICY (VERIFIED)
+// DATA SAFETY POLICY (VERIFIED & ENFORCED)
 // ------------------------------------------------------------------
-// 1. READ ONLY: fetchCases() only performs SELECT operations.
-// 2. NO AUTO-DELETE: There are NO background jobs or logic that delete records automatically.
-//    "Ghost Cases" are filtered from the UI view in statsUtils.ts, but REMAIN in the database.
-// 3. MANUAL DELETE: Records are only removed via deleteCase() (single) or clearAllData() (admin reset).
+// 1. READ ONLY DEFAULT: fetchCases() only performs SELECT operations.
+// 2. NO AUTO-DELETE: There are NO background jobs, cron jobs, or logic that delete records automatically.
+//    "Ghost Cases" (inactive > 1 year) are filtered from the UI view in statsUtils.ts, 
+//    but they REMAIN safely in the database.
+// 3. MANUAL DELETE ONLY: Records are only removed via deleteCase() (single button click) 
+//    or clearAllData() (admin reset with confirmation).
 // ------------------------------------------------------------------
 
 // --- READ OPERATIONS ---
@@ -71,8 +73,10 @@ export const fetchCases = async (): Promise<CitizenshipCase[]> => {
 export const checkConnection = async (): Promise<boolean> => {
     if (!supabase) return false;
     try {
+        // Simple lightweight query to check health
         const { count, error } = await supabase.from(DB_TABLE).select('*', { count: 'exact', head: true });
         if (error) throw error;
+        console.log(`[Connection Check] Stability Confirmed. Row count accessible: ${count}`);
         return true;
     } catch (e) {
         console.error("Connection Check Failed:", e);
@@ -140,7 +144,8 @@ export const upsertCase = async (newCase: CitizenshipCase) => {
 };
 
 export const deleteCase = async (id: string) => {
-  console.warn(`[SAFETY LOG] Manual deletion requested for case ${id}. Action authorized by Admin.`);
+  // SAFETY LOGGING: Explicitly log this is a manual action
+  console.warn(`[SAFETY LOG] MANUAL DELETION REQUESTED for case ID: ${id}. This is NOT an automatic process.`);
   
   // 1. Try Supabase (Explicit Deletion)
   if (supabase) {
@@ -186,6 +191,7 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
 };
 
 export const clearAllData = async () => {
+    console.warn("[SAFETY LOG] ADMIN REQUESTED FULL DATABASE WIPE.");
     // 1. Try Supabase (Bulk Delete)
     if (supabase) {
         // Security check: Only delete if explicitly requested via Admin Tools
