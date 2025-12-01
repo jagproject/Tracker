@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock, Wifi, WifiOff } from 'lucide-react';
+import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock, Wifi, WifiOff, RefreshCw, ShieldCheck } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
 import { TRANSLATIONS, COUNTRIES, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, restoreFullDatabaseDump, getLastFetchError } from '../services/storageService';
+import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, restoreFullDatabaseDump, getLastFetchError, checkConnection } from '../services/storageService';
 import { generateFantasyUsername } from '../services/geminiService';
 import { calculateQuickStats, formatDuration, formatISODateToLocale } from '../services/statsUtils';
 import { isSupabaseEnabled } from '../services/authService';
@@ -129,6 +129,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   
   const [dbError, setDbError] = useState<string | null>(null);
+  const [isVerifyingDb, setIsVerifyingDb] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -150,6 +151,18 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     };
     initData();
   }, [authState, activeTab]);
+
+  const handleVerifyConnection = async () => {
+      setIsVerifyingDb(true);
+      const isOk = await checkConnection();
+      if (isOk) {
+          setDbError(null);
+          alert("Database Connection Verified: Stable.");
+      } else {
+          setDbError("Verification Failed. Check Console.");
+      }
+      setIsVerifyingDb(false);
+  };
 
   const handleSendCode = (e: React.FormEvent) => {
     e.preventDefault();
@@ -663,12 +676,32 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
             
             {activeTab === 'SUMMARY' && summaryStats && (
                 <div className="space-y-6 animate-in slide-in-from-right-4">
-                    {/* DB Status */}
-                    <div className={`p-3 rounded-lg border text-sm flex items-center gap-3 ${isDbConnected ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
-                        {isDbConnected ? <Wifi size={16} /> : <WifiOff size={16} />}
-                        <span className="font-bold">Database Status: {isDbConnected ? "Connected" : "Disconnected"}</span>
-                        {!isDbConnected && dbError && <span className="text-xs">({dbError})</span>}
+                    {/* DB Status & Safety Policy */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className={`p-3 rounded-lg border text-sm flex items-center justify-between ${isDbConnected ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                            <div className="flex items-center gap-3">
+                                {isDbConnected ? <Wifi size={16} /> : <WifiOff size={16} />}
+                                <span className="font-bold">Database Status: {isDbConnected ? "Connected" : "Disconnected"}</span>
+                            </div>
+                            <button 
+                                onClick={handleVerifyConnection} 
+                                disabled={isVerifyingDb}
+                                className="text-xs bg-white/50 hover:bg-white border border-current px-2 py-1 rounded flex items-center gap-1 transition-colors"
+                            >
+                                {isVerifyingDb ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Test
+                            </button>
+                        </div>
+                        <div className="p-3 rounded-lg border border-blue-200 bg-blue-50 text-blue-800 text-sm flex items-center gap-3">
+                            <ShieldCheck size={16} />
+                            <span className="font-bold">Auto-Deletion: DISABLED (Safe Mode)</span>
+                        </div>
                     </div>
+
+                    {!isDbConnected && dbError && (
+                        <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">
+                            Error Details: {dbError}
+                        </div>
+                    )}
 
                     {/* Top KPI Cards */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

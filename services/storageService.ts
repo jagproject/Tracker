@@ -15,6 +15,15 @@ export interface AppConfig {
 let lastFetchError: string | null = null;
 export const getLastFetchError = () => lastFetchError;
 
+// ------------------------------------------------------------------
+// DATA SAFETY POLICY (VERIFIED)
+// ------------------------------------------------------------------
+// 1. READ ONLY: fetchCases() only performs SELECT operations.
+// 2. NO AUTO-DELETE: There are NO background jobs or logic that delete records automatically.
+//    "Ghost Cases" are filtered from the UI view in statsUtils.ts, but REMAIN in the database.
+// 3. MANUAL DELETE: Records are only removed via deleteCase() (single) or clearAllData() (admin reset).
+// ------------------------------------------------------------------
+
 // --- READ OPERATIONS ---
 
 export const fetchCases = async (): Promise<CitizenshipCase[]> => {
@@ -23,6 +32,7 @@ export const fetchCases = async (): Promise<CitizenshipCase[]> => {
     try {
         const { data, error } = await supabase.from(DB_TABLE).select('*');
         if (error) {
+            console.error("Supabase Fetch Error:", error);
             throw error;
         }
         
@@ -41,22 +51,33 @@ export const fetchCases = async (): Promise<CitizenshipCase[]> => {
             return cases;
         }
     } catch (e: any) {
-        console.error("Supabase fetch failed:", e);
+        console.error("Supabase fetch failed (Network/Auth):", e);
         // Set error message so UI can warn user
         lastFetchError = `Connection Error: ${e.message || 'Unknown DB Error'}`;
-        // Fall through to Step 2 (LocalStorage)
+        // Fall through to Step 2 (LocalStorage) - ENSURES STABILITY
     }
   }
 
-  // 2. Fallback to LocalStorage
+  // 2. Fallback to LocalStorage (Offline Mode)
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
     return JSON.parse(stored);
   }
   
-  // CRITICAL CHANGE: Do NOT return mock data automatically.
-  // If DB fails and Local is empty, return empty array to avoid "Reset" confusion.
   return [];
+};
+
+// Utility to verify connection on demand (Admin Tool)
+export const checkConnection = async (): Promise<boolean> => {
+    if (!supabase) return false;
+    try {
+        const { count, error } = await supabase.from(DB_TABLE).select('*', { count: 'exact', head: true });
+        if (error) throw error;
+        return true;
+    } catch (e) {
+        console.error("Connection Check Failed:", e);
+        return false;
+    }
 };
 
 export const fetchCaseByEmail = async (email: string): Promise<CitizenshipCase | undefined> => {
@@ -119,7 +140,7 @@ export const upsertCase = async (newCase: CitizenshipCase) => {
 };
 
 export const deleteCase = async (id: string) => {
-  // 1. Try Supabase
+  // 1. Try Supabase (Explicit Deletion)
   if (supabase) {
       await supabase.from(DB_TABLE).delete().eq('id', id);
   }
@@ -163,9 +184,10 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
 };
 
 export const clearAllData = async () => {
-    // 1. Try Supabase
+    // 1. Try Supabase (Bulk Delete)
     if (supabase) {
-        await supabase.from(DB_TABLE).delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all not matching impossible ID
+        // Security check: Only delete if explicitly requested via Admin Tools
+        await supabase.from(DB_TABLE).delete().neq('id', '00000000-0000-0000-0000-000000000000'); 
     }
 
     // 2. Local

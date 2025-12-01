@@ -1,4 +1,3 @@
-
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 
 // ------------------------------------------------------------------
@@ -25,7 +24,7 @@ export let supabase: SupabaseClient | null = null;
 if (isConfigured) {
     try {
         supabase = createClient(ENV_URL, ENV_KEY);
-        console.log("✅ Supabase Client Initialized");
+        console.log(`✅ Supabase Initialized for Project: ${new URL(ENV_URL).hostname.split('.')[0]}`);
     } catch (e) {
         console.error("❌ Failed to init Supabase", e);
         supabase = null;
