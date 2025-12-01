@@ -13,8 +13,8 @@ interface WorldMapStatsProps {
 const SkeletonMap = () => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse flex flex-col h-[600px]">
         <div className="h-14 bg-gray-800 shrink-0"></div>
-        <div className="flex flex-1">
-             <div className="w-1/3 md:w-1/4 bg-gray-50 border-r border-gray-200 p-4 space-y-4">
+        <div className="flex flex-col md:flex-row flex-1">
+             <div className="w-full h-40 md:h-auto md:w-1/4 bg-gray-50 border-r border-gray-200 p-4 space-y-4">
                  <div className="h-8 bg-gray-200 rounded"></div>
                  <div className="space-y-2">
                      <div className="h-6 bg-gray-200 rounded w-full"></div>
@@ -68,7 +68,7 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
   // Safety: If no countries, show empty
   if (activeCountries.length === 0) {
       return (
-         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-500 mb-8">
+         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-500 mb-8 mx-0 sm:mx-0">
             <Globe className="mx-auto mb-2 opacity-50" size={48}/>
             {t.noCasesFound}
          </div>
@@ -76,16 +76,16 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in mb-8 flex flex-col h-[600px]">
+    <div className="bg-white rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 overflow-hidden animate-in fade-in mb-8 flex flex-col h-[600px] mx-0 sm:mx-0">
       <div className="p-4 bg-de-black text-white flex justify-between items-center border-b border-gray-700 shrink-0">
         <h2 className="text-lg font-bold text-de-gold flex items-center gap-2">
             <List size={18} /> {t.allCountries}
         </h2>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Column: Country List */}
-        <div className="w-1/3 md:w-1/4 bg-gray-50 border-r border-gray-200 flex flex-col">
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        {/* Left Column: Country List (Stacks on top on mobile with fixed height) */}
+        <div className="w-full h-48 md:h-auto md:w-1/4 bg-gray-50 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col">
             <div className="p-3 border-b border-gray-200 bg-white">
                 <div className="relative">
                     <Search className="absolute left-2 top-2.5 text-gray-400" size={14} />
@@ -123,7 +123,7 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
         </div>
 
         {/* Right Column: Details */}
-        <div className="flex-1 bg-white overflow-y-auto p-6 relative">
+        <div className="flex-1 bg-white overflow-y-auto p-4 md:p-6 relative">
              {!selectedCountry ? (
              <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-8">
                 <Globe size={64} className="mb-4 text-gray-100" />

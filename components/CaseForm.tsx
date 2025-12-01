@@ -354,7 +354,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   }
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-md border border-de-gray/20 relative">
+    <div className="bg-white p-3 sm:p-6 rounded-none sm:rounded-xl shadow-md border-y sm:border border-de-gray/20 relative mx-0 sm:mx-0">
       {showConfetti && <Confetti />}
 
       <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4 relative">

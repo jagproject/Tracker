@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -113,9 +111,9 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
              <div 
                 onDoubleClick={() => onSelect(c)}
                 onClick={() => onSelect(c)}
-                className={`flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none ${isGhost ? 'bg-gray-50/50' : ''}`}
+                className={`flex items-center gap-3 px-3 sm:px-4 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none ${isGhost ? 'bg-gray-50/50' : ''}`}
              >
-                <div className={`w-3 h-3 rounded-full flex-shrink-0 shadow-sm ${
+                <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 shadow-sm ${
                 isGhost ? 'bg-gray-400' :
                 c.status === CaseStatus.APPROVED ? 'bg-green-500' : 
                 c.status === CaseStatus.PROTOCOL_RECEIVED ? 'bg-blue-500' : 
@@ -127,9 +125,9 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
                         {c.fantasyName}
                         {isGhost && <Ghost size={12} className="text-gray-400" title="Ghost Case (Inactive)" />}
                     </span>
-                    <div className="flex items-center gap-4 text-gray-500 text-xs whitespace-nowrap">
-                        <span className="truncate max-w-[120px] hidden sm:inline-block bg-gray-100 px-2 py-1 rounded border border-gray-200">{c.caseType}</span>
-                        <span className="font-mono">{formatISODateToLocale(c.submissionDate, lang)}</span>
+                    <div className="flex items-center gap-2 sm:gap-4 text-gray-500 text-xs whitespace-nowrap">
+                        <span className="truncate max-w-[80px] sm:max-w-[120px] hidden xs:inline-block bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-[10px] sm:text-xs">{c.caseType}</span>
+                        <span className="font-mono text-[10px] sm:text-xs">{formatISODateToLocale(c.submissionDate, lang)}</span>
                     </div>
                 </div>
             </div>
@@ -1038,7 +1036,7 @@ const App: React.FC = () => {
         <div className={`min-h-screen ${bgMode === 'image' ? 'bg-gray-50/70 backdrop-blur-sm' : ''}`}>
         
         <nav className="bg-de-black/95 backdrop-blur text-white shadow-lg sticky top-0 z-50 border-b-4 border-de-red">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16 items-center">
               <div className="flex items-center gap-3">
                 <div className="flex flex-col w-8 h-6 shadow-sm rounded-sm overflow-hidden">
@@ -1080,11 +1078,11 @@ const App: React.FC = () => {
 
         {activeTab === 'dashboard' && <SuccessTicker cases={allCases} lang={lang} />}
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
-          <div className="block md:hidden mb-6"><LanguageSelector lang={lang} setLang={setLang} /></div>
+        <main className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-0 sm:py-8 pb-24">
+          <div className="block md:hidden mb-6 px-3 pt-4"><LanguageSelector lang={lang} setLang={setLang} /></div>
           
           {isMaintenance && (
-              <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded shadow mb-6 flex items-start gap-3 animate-in slide-in-from-top-2">
+              <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded shadow mb-6 mx-0 sm:mx-0 flex items-start gap-3 animate-in slide-in-from-top-2">
                   <Power className="flex-shrink-0 mt-1" size={20} />
                   <div className="pr-6">
                       <p className="font-bold">{t.maintenance}</p>
@@ -1095,7 +1093,7 @@ const App: React.FC = () => {
 
           {/* FETCH ERROR WARNING (OFFLINE MODE) */}
           {fetchError && !isMaintenance && (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded shadow mb-6 flex items-start gap-3 animate-in slide-in-from-top-2">
+            <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded shadow mb-6 mx-0 sm:mx-0 flex items-start gap-3 animate-in slide-in-from-top-2">
               <AlertCircle className="flex-shrink-0 mt-1" size={20} />
               <div className="pr-6">
                   <p className="font-bold">Connection Issue</p>
@@ -1105,7 +1103,7 @@ const App: React.FC = () => {
           )}
 
           {notificationMsg && !isMaintenance && (
-            <div className="bg-de-gold text-de-black p-4 rounded shadow mb-6 flex items-start gap-3 animate-in slide-in-from-top-2 relative">
+            <div className="bg-de-gold text-de-black p-4 rounded shadow mb-6 mx-0 sm:mx-0 flex items-start gap-3 animate-in slide-in-from-top-2 relative">
               <BellRing className="flex-shrink-0 mt-1" />
               <div className="pr-6">
                   <p className="font-bold">{t.attention}</p>
@@ -1127,11 +1125,11 @@ const App: React.FC = () => {
             <TabButton id='faq' label={t.faq} icon={<HelpCircle size={16} />} active={activeTab} onClick={setActiveTab} />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-8 mb-8">
             {activeTab === 'myCase' && (
-              <div className="col-span-1 xl:col-span-3 animate-in slide-in-from-left-4">
+              <div className="col-span-1 xl:col-span-3 animate-in slide-in-from-left-4 px-0 sm:px-0">
                   {/* AI Analysis Banner - Moved here from Dashboard */}
-                  <div className="mb-6">
+                  <div className="mb-6 mx-2 sm:mx-0">
                     <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl border-l-4 border-de-gold p-6 text-white shadow-lg relative overflow-hidden">
                       <div className="flex items-start gap-4 relative z-10">
                         <div className="bg-white/10 p-3 rounded"><Sparkles className="text-de-gold" /></div>
@@ -1161,7 +1159,7 @@ const App: React.FC = () => {
               <div className="col-span-1 xl:col-span-3 space-y-8 animate-in fade-in">
                   
                   {/* GLOBAL DASHBOARD FILTERS */}
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-3 items-center sticky top-20 z-40 bg-opacity-95 backdrop-blur">
+                  <div className="bg-white p-4 mx-0 sm:mx-0 rounded-xl shadow-sm border border-gray-200 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-3 items-center sticky top-20 z-40 bg-opacity-95 backdrop-blur">
                       <div className="flex items-center gap-2 text-de-black font-bold col-span-2 md:col-span-1">
                           <Filter size={18} />
                           <span>{t.filters}</span>
@@ -1231,12 +1229,12 @@ const App: React.FC = () => {
                   {/* Dashboard Components receiving FILTERED cases & Loading state for Skeletons */}
                   <WorldMapStats cases={filteredCases} lang={lang} loading={dataLoading} />
                   <StatsDashboard cases={filteredCases} userCase={userCase} lang={lang} loading={dataLoading} />
-                  <CommunityFeed cases={filteredCases} lang={lang} />
+                  <div className="mx-0 sm:mx-0"><CommunityFeed cases={filteredCases} lang={lang} /></div>
               </div>
             )}
 
             {(activeTab === 'faq' || activeTab === 'ai') && (
-              <div className="xl:col-span-3 col-span-1">
+              <div className="xl:col-span-3 col-span-1 px-2 sm:px-0">
                 {activeTab === 'faq' && <FAQ lang={lang} userEmail={session?.email || ''} />}
                 {/* IMPORTANT: Passing userTypeStats here satisfies the requirement for AI analysis to be by Case Type */}
                 {activeTab === 'ai' && <AIModelTab userCase={userCase} stats={userTypeStats} lang={lang} />}
@@ -1245,7 +1243,7 @@ const App: React.FC = () => {
           </div>
 
           {activeTab === 'dashboard' && (
-              <div className="bg-white p-6 rounded shadow-sm border border-gray-200 mt-8">
+              <div className="bg-white p-4 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 mt-8 -mx-0 sm:mx-0">
                   <div className="flex justify-between items-center mb-4 border-b pb-2">
                     <h3 className="text-lg font-bold text-de-black">{viewGhosts ? t.ghostCases : t.activeCases}</h3>
                     {viewGhosts && (
@@ -1258,7 +1256,7 @@ const App: React.FC = () => {
                     )}
                   </div>
                   
-                  <div className="flex justify-between text-sm mb-4">
+                  <div className="flex flex-col sm:flex-row justify-between text-sm mb-4 gap-2">
                       <span className="text-gray-500">{t.showing} {filteredCases.length}</span>
                       <div className="flex gap-4">
                           <span className="text-de-red font-medium">{t.pausedCases}: {allCases.filter(c => !isGhostCase(c) && c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED).length - filteredCases.length}</span>
@@ -1297,7 +1295,7 @@ const App: React.FC = () => {
               </div>
           )}
 
-          <div className="bg-gray-100/50 backdrop-blur border border-gray-200 rounded p-4 mt-8 flex gap-3 opacity-80 hover:opacity-100 transition-opacity w-full max-w-full">
+          <div className="bg-gray-100/50 backdrop-blur border border-gray-200 rounded p-4 mt-8 flex gap-3 opacity-80 hover:opacity-100 transition-opacity w-full max-w-full mx-0 sm:mx-0">
               <AlertCircle className="text-gray-400 flex-shrink-0" />
               <div><h4 className="font-bold text-sm text-de-black mb-1">{t.legalDisclaimer}</h4><p className="text-xs text-gray-600 leading-relaxed">{t.disclaimer}</p></div>
           </div>

@@ -12,7 +12,7 @@ const FALLBACK_NAMES = [
   "Elbe River", "Danube Swimmer", "Harz Mountain", "Cologne Spire"
 ];
 
-// DATA INJECTED FROM OFFICIAL BVA PDF REPORTS (2021-2025)
+// DATA INJECTED FROM OFFICIAL BVA PDF REPORTS (2021-2025) & COMMUNITY ANALYSIS
 const OFFICIAL_DATA_CONTEXT = `
 OFFICIAL BVA STATISTICS (SOURCE: Internal Report Stand 30.06.2025, specifically for StAG 5):
 1. BACKLOG SURGE: The 'Antragsbestand' (Backlog) for StAG 5 is growing rapidly. 
@@ -28,6 +28,7 @@ OFFICIAL BVA STATISTICS (SOURCE: Internal Report Stand 30.06.2025, specifically 
    - Analysis: The BVA is currently processing StAG 5 cases at nearly DOUBLE the rate of previous years (projected ~4,500 for 2025), but incoming applications still outpace them.
 
 COMMUNITY CONTEXT (r/GermanCitizenship & Forums):
+- **REDDIT ANALYSIS (Source: /r/GermanCitizenship/comments/1cb9zek)**: The BVA received ~40,000 total citizenship applications in 2023, a significant jump from ~28,000 in 2022. This "far more applications" trend confirms that despite efficiency gains (doubling output), the gap between intake and output is widening. Wait times are likely to increase for newer cohorts unless BVA staffing scales linearly.
 - "Task Forces": Users report that straightforward StAG 5 cases are sometimes pulled from the pile and processed in "batches", leading to lucky 9-12 month approvals.
 - "Old Cases": Older Feststellung cases (2022-2023) often seem "stuck" while newer StAG 5 cases move faster.
 - Aktenzeichen: Currently taking 2-4 months to receive after submission.
@@ -102,7 +103,7 @@ export const generateStatisticalInsights = async (stats: StatSummary, cases: Cit
       Analyze the "Internal Tracker Data" in the context of the "External Context".
       Are our community stats matching the official acceleration trend in 2025?
       Provide a concise, 2-sentence insight in ${targetLang}. 
-      Be encouraging but realistic about the backlog. Do not use markdown.
+      Be encouraging but realistic about the backlog (mention the surge in applications). Do not use markdown.
     `;
 
     const response = await ai.models.generateContent({
@@ -197,7 +198,7 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
             1. Use the "date" provided above: "${estimatedDateStr}"
             2. Use the "confidence" provided above: "${translatedConfidence}"
             3. Write a "reasoning" paragraph (approx 100-150 words) in ${targetLang}. 
-               - If the case is StAG 5, explicitly mention the BVA's 2025 acceleration trend (doubling approvals) vs the growing backlog.
+               - If the case is StAG 5, explicitly mention the BVA's 2025 acceleration trend (doubling approvals) but temper it with the Reddit data about the "surge in new applications" (~40k in 2023).
                - If the case is NOT StAG 5, mention that Feststellung/Others are generally slower than StAG 5 based on Reddit reports.
                - Mention that this prediction combines our community tracker data with official trends.
             

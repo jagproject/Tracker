@@ -1,5 +1,3 @@
-
-
 import React, { useMemo, useState } from 'react';
 import { 
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine, LabelList
@@ -31,14 +29,14 @@ const STATUS_COLORS = {
 };
 
 const SkeletonCard = () => (
-    <div className="bg-white p-5 rounded-xl shadow border border-gray-100 animate-pulse">
+    <div className="bg-white p-3 sm:p-5 rounded-xl shadow border border-gray-100 animate-pulse">
         <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
         <div className="h-8 bg-gray-300 rounded w-1/2"></div>
     </div>
 );
 
 const SkeletonChart = () => (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-pulse flex flex-col h-80">
+    <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-gray-200 animate-pulse flex flex-col h-80">
         <div className="h-6 bg-gray-200 rounded w-1/4 mb-6"></div>
         <div className="flex-grow bg-gray-100 rounded"></div>
     </div>
@@ -143,7 +141,7 @@ const WaitTimeDistribution = ({ cases, userCase, t, lang }: { cases: Citizenship
     const xAxisLabel = lang === 'es' ? "Meses de Espera" : "Months Waited";
 
     return (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+        <div className="bg-white p-4 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 mb-8 -mx-0 sm:mx-0">
             <h3 className="text-lg font-bold text-de-black flex items-center gap-2">
                 <TrendingUp size={20} className="text-blue-500" /> {title}
             </h3>
@@ -354,11 +352,11 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
 
   if (loading) {
       return (
-          <div>
+          <div className="mx-0 sm:mx-0">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                   {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
               </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8 animate-pulse h-40"></div>
+              <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-8 animate-pulse h-40"></div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                   <SkeletonChart />
                   <SkeletonChart />
@@ -370,38 +368,38 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
   // Graceful handling of empty data state
   if (!stats || stats.totalCases === 0) {
       return (
-          <div className="p-8 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
+          <div className="p-8 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-300 mx-0 sm:mx-0">
              <p>{t.noCasesFound || "No cases found for the selected filters."}</p>
           </div>
       );
   }
 
   return (
-    <div>
+    <div className="mx-0 sm:mx-0">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white p-5 rounded-xl shadow border-b-4 border-de-black">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 px-2 sm:px-0">
+          <div className="bg-white p-3 sm:p-5 rounded-xl shadow border-b-4 border-de-black">
             <div className="flex items-center gap-2 mb-2">
                 <FileText size={16} className="text-gray-400" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{t.totalCases}</p>
             </div>
-            <p className="text-2xl font-bold text-de-black">{stats.totalCases}</p>
+            <p className="text-xl sm:text-2xl font-bold text-de-black">{stats.totalCases}</p>
           </div>
           
-          <div className="bg-white p-5 rounded-xl shadow border-b-4 border-green-500">
+          <div className="bg-white p-3 sm:p-5 rounded-xl shadow border-b-4 border-green-500">
             <div className="flex items-center gap-2 mb-2">
                 <Award size={16} className="text-green-500" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{statusT[CaseStatus.APPROVED]}</p>
             </div>
-            <p className="text-2xl font-bold text-de-black">{stats.approvedCases}</p>
+            <p className="text-xl sm:text-2xl font-bold text-de-black">{stats.approvedCases}</p>
           </div>
 
-          <div className="bg-white p-5 rounded-xl shadow border-b-4 border-gray-600 relative">
+          <div className="bg-white p-3 sm:p-5 rounded-xl shadow border-b-4 border-gray-600 relative">
              <div className="flex items-center gap-2 mb-2">
                 <CheckCircle size={16} className="text-gray-600" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{t.avgTotal}</p>
             </div>
-            <p className="text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysTotal, lang)}</p>
+            <p className="text-xl sm:text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysTotal, lang)}</p>
             
             {/* Trend Indicator */}
             {stats.trendDirection !== 'Stable' && (
@@ -417,28 +415,28 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
             )}
           </div>
 
-          <div className="bg-white p-5 rounded-xl shadow border-b-4 border-blue-500">
+          <div className="bg-white p-3 sm:p-5 rounded-xl shadow border-b-4 border-blue-500">
             <div className="flex items-center gap-2 mb-2">
                 <Clock size={16} className="text-blue-400" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{t.avgProtocol}</p>
             </div>
             {/* Format in months/years always */}
-            <p className="text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysToProtocol, lang)}</p>
+            <p className="text-xl sm:text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysToProtocol, lang)}</p>
           </div>
-          <div className="bg-white p-5 rounded-xl shadow border-b-4 border-de-gold">
+          <div className="bg-white p-3 sm:p-5 rounded-xl shadow border-b-4 border-de-gold">
              <div className="flex items-center gap-2 mb-2">
                 <CheckCircle size={16} className="text-de-gold" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{t.avgApproval}</p>
             </div>
-            <p className="text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysToApproval, lang)}</p>
+            <p className="text-xl sm:text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysToApproval, lang)}</p>
           </div>
            
-           <div className="bg-white p-5 rounded-xl shadow border-b-4 border-red-500">
+           <div className="bg-white p-3 sm:p-5 rounded-xl shadow border-b-4 border-red-500">
             <div className="flex items-center gap-2 mb-2">
                 <XCircle size={16} className="text-red-500" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{statusT[CaseStatus.CLOSED]}</p>
             </div>
-            <p className="text-2xl font-bold text-de-black">{stats.closedCases}</p>
+            <p className="text-xl sm:text-2xl font-bold text-de-black">{stats.closedCases}</p>
           </div>
       </div>
 
@@ -447,7 +445,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
 
       {/* Waiting Stats */}
       {stats.waitingStats && stats.waitingStats.count > 0 && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+        <div className="bg-white p-4 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 mb-8 -mx-0 sm:mx-0">
             <h3 className="text-lg font-bold text-de-black mb-4 flex items-center gap-2">
                 <Hourglass className="text-de-red" size={20} /> {t.waitTime} ({stats.waitingStats.count})
             </h3>
@@ -474,7 +472,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
 
       {/* Feature 5 (Previous): Compare Me Chart */}
       {userCase && comparisonData.length > 0 && (
-         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+         <div className="bg-white p-4 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 mb-8 -mx-0 sm:mx-0">
              <h3 className="text-lg font-bold text-de-black mb-4 flex items-center gap-2">
                 <BarChart2 className="text-de-gold" size={20} /> {t.compareMe}
              </h3>
@@ -499,17 +497,17 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col">
-          <h3 className="text-lg font-bold text-de-black mb-4">{t.caseType}</h3>
-          <div className="h-64 w-full flex-grow">
+        <div className="bg-white p-2 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 flex flex-col h-auto min-h-[450px] -mx-0 sm:mx-0">
+          <h3 className="text-lg font-bold text-de-black mb-4 px-4 sm:px-0 pt-4 sm:pt-0">{t.caseType}</h3>
+          <div className="h-96 w-full flex-grow">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
+              <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <Pie
                   data={stats.byType}
                   cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
+                  cy="45%"
+                  innerRadius={50}
+                  outerRadius="70%"
                   paddingAngle={5}
                   dataKey="value"
                   onClick={handleTypeClick}
@@ -520,23 +518,22 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Legend verticalAlign="bottom" height={36}/>
+                <Legend verticalAlign="bottom" height={120} wrapperStyle={{ fontSize: '11px', lineHeight: '14px', overflowY: 'auto' }} />
               </PieChart>
             </ResponsiveContainer>
-            <p className="text-center text-xs text-gray-400 mt-2">{t.clickToView}</p>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col">
-          <h3 className="text-lg font-bold text-de-black mb-4">{t.statusDist}</h3>
-          <div className="h-64 w-full flex-grow">
+        <div className="bg-white p-2 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 flex flex-col h-auto min-h-[450px] -mx-0 sm:mx-0">
+          <h3 className="text-lg font-bold text-de-black mb-4 px-4 sm:px-0 pt-4 sm:pt-0">{t.statusDist}</h3>
+          <div className="h-96 w-full flex-grow">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
+              <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <Pie
                   data={stats.byStatus}
                   cx="50%"
-                  cy="50%"
-                  outerRadius={80}
+                  cy="45%"
+                  outerRadius="70%"
                   dataKey="value"
                   label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                   onClick={handleStatusClick}
@@ -547,10 +544,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Legend verticalAlign="bottom" height={36}/>
+                <Legend verticalAlign="bottom" height={120} wrapperStyle={{ fontSize: '11px', lineHeight: '14px', overflowY: 'auto' }} />
               </PieChart>
             </ResponsiveContainer>
-            <p className="text-center text-xs text-gray-400 mt-2">{t.clickToView}</p>
           </div>
         </div>
       </div>
