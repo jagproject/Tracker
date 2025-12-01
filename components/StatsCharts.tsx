@@ -1,17 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { 
-  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine, LabelList
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine, LabelList, Sankey
 } from 'recharts';
 import { CitizenshipCase, Language, CaseStatus } from '../types';
 import { TRANSLATIONS, STATUS_TRANSLATIONS } from '../constants';
 import { calculateAdvancedStats, formatDuration, getDaysDiff, formatISODateToLocale } from '../services/statsUtils';
-import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X, TrendingUp, TrendingDown, Minus, GitMerge } from 'lucide-react';
 
 interface StatsDashboardProps {
   cases: CitizenshipCase[]; // Receiving filtered cases from App.tsx
   userCase?: CitizenshipCase;
   lang: Language;
-  loading?: boolean; // Item 5: Loading State
+  loading?: boolean; 
 }
 
 const COLORS = ['#000000', '#DD0000', '#FFCC00', '#666666', '#A9A9A9', '#8B0000'];
@@ -42,7 +42,7 @@ const SkeletonChart = () => (
     </div>
 );
 
-// Drill Down Modal (Item 6)
+// Drill Down Modal
 const DrillDownModal = ({ title, cases, onClose, statusT, lang, t }: { title: string, cases: CitizenshipCase[], onClose: () => void, statusT: any, lang: Language, t: any }) => (
     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4" onClick={onClose}>
         <div className="bg-white text-gray-900 rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -68,6 +68,97 @@ const DrillDownModal = ({ title, cases, onClose, statusT, lang, t }: { title: st
         </div>
     </div>
 );
+
+// --- Feature: Case Flow (Sankey) Diagram ---
+const CaseFlowDiagram = ({ cases, lang }: { cases: CitizenshipCase[], lang: Language }) => {
+    const t = TRANSLATIONS[lang];
+    
+    // Construct Sankey Data
+    const data = useMemo(() => {
+        const total = cases.length;
+        if (total === 0) return { nodes: [], links: [] };
+
+        const submitted = cases.filter(c => c.status === CaseStatus.SUBMITTED).length;
+        const protocol = cases.filter(c => c.status === CaseStatus.PROTOCOL_RECEIVED).length;
+        const docs = cases.filter(c => c.status === CaseStatus.ADDITIONAL_DOCS).length;
+        const approved = cases.filter(c => c.status === CaseStatus.APPROVED).length;
+        const closed = cases.filter(c => c.status === CaseStatus.CLOSED).length;
+
+        // Colors
+        // Total (Gray), Submitted (Blue), Protocol (Yellow), Approved (Green), Closed (Red)
+        const COLOR_TOTAL = "#9ca3af";
+        const COLOR_SUB = "#3B82F6"; // Blue
+        const COLOR_PROTO = "#F59E0B"; // Yellow/Orange
+        const COLOR_PROC = "#8B5CF6"; // Purple (Intermediate)
+        const COLOR_APP = "#10B981"; // Green
+        const COLOR_CLOSE = "#EF4444"; // Red
+
+        // Count Logic
+        const countWithProtocol = protocol + docs + approved + closed;
+        const countDecided = approved + closed;
+        const countInProcess = protocol + docs;
+
+        const nodes = [
+            { name: t.totalCases || "Total", fill: COLOR_TOTAL },        // 0
+            { name: t.flowSubmitted || "Submitted", fill: COLOR_SUB },   // 1
+            { name: t.flowProtocol || "Protocol", fill: COLOR_PROTO },   // 2
+            { name: t.flowInProcess || "Processing", fill: COLOR_PROC }, // 3
+            { name: t.flowDecision || "Decision", fill: COLOR_PROC },    // 4
+            { name: t.flowApproved || "Approved", fill: COLOR_APP },     // 5
+            { name: t.flowClosed || "Closed", fill: COLOR_CLOSE }        // 6
+        ];
+
+        const links = [];
+        
+        // Total -> Submitted (Blue Link)
+        if (submitted > 0) links.push({ source: 0, target: 1, value: submitted, fill: COLOR_SUB });
+        
+        // Total -> With Protocol (Yellow Link)
+        if (countWithProtocol > 0) links.push({ source: 0, target: 2, value: countWithProtocol, fill: COLOR_PROTO });
+
+        // With Protocol -> In Process (Yellow Link)
+        if (countInProcess > 0) links.push({ source: 2, target: 3, value: countInProcess, fill: COLOR_PROTO });
+        
+        // With Protocol -> Decision (Yellow Link - transition)
+        if (countDecided > 0) links.push({ source: 2, target: 4, value: countDecided, fill: COLOR_PROTO });
+
+        // Decision -> Approved (Green Link)
+        if (approved > 0) links.push({ source: 4, target: 5, value: approved, fill: COLOR_APP });
+        
+        // Decision -> Closed (Red Link)
+        if (closed > 0) links.push({ source: 4, target: 6, value: closed, fill: COLOR_CLOSE });
+
+        return { nodes, links };
+    }, [cases, t]);
+
+    if (data.nodes.length === 0) return null;
+
+    return (
+        <div className="bg-white p-2 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 mb-8 -mx-0 sm:mx-0">
+            <h3 className="text-lg font-bold text-de-black mb-4 px-4 sm:px-0 pt-4 sm:pt-0 flex items-center gap-2">
+                <GitMerge className="text-de-black" size={20} /> {t.caseFlow}
+            </h3>
+            <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <Sankey
+                        data={data}
+                        node={{ stroke: '#000', strokeWidth: 0 }}
+                        nodePadding={50}
+                        margin={{ left: 10, right: 10, top: 10, bottom: 10 }}
+                        link={{ strokeOpacity: 0.4 }}
+                    >
+                        <Tooltip />
+                    </Sankey>
+                </ResponsiveContainer>
+            </div>
+            <p className="text-center text-xs text-gray-400 mt-2">
+                <span className="text-blue-500 font-bold">Blue: Submitted</span> • 
+                <span className="text-yellow-500 font-bold mx-2">Yellow: Protocol</span> • 
+                <span className="text-green-500 font-bold">Green: Urkunde</span>
+            </p>
+        </div>
+    );
+};
 
 // Feature 7: Wait Time Distribution Chart
 const WaitTimeDistribution = ({ cases, userCase, t, lang }: { cases: CitizenshipCase[], userCase?: CitizenshipCase, t: any, lang: Language }) => {
@@ -442,6 +533,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
 
       {/* Feature 7: Wait Time Distribution */}
       <WaitTimeDistribution cases={cases} userCase={userCase} t={t} lang={lang} />
+
+      {/* Feature: Sankey Diagram */}
+      <CaseFlowDiagram cases={cases} lang={lang} />
 
       {/* Waiting Stats */}
       {stats.waitingStats && stats.waitingStats.count > 0 && (

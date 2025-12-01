@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -37,7 +39,8 @@ import {
   ArrowLeftRight,
   Clock,
   Calendar,
-  LogIn
+  LogIn,
+  TableProperties
 } from 'lucide-react';
 import { CitizenshipCase, UserSession, CaseType, CaseStatus, Language } from './types';
 import { generateFantasyUsername, generateStatisticalInsights } from './services/geminiService';
@@ -136,7 +139,70 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
     );
 };
 
-// Detail Modal with Comparison Feature (Suggestion 6)
+// Cohort Comparison Modal (New Feature)
+const CohortModal = ({ userCase, allCases, onClose, lang }: { userCase: CitizenshipCase, allCases: CitizenshipCase[], onClose: () => void, lang: Language }) => {
+    const t = TRANSLATIONS[lang];
+    const statusT = STATUS_TRANSLATIONS[lang];
+    
+    const cohortCases = useMemo(() => {
+        if (!userCase.submissionDate) return [];
+        const userDate = new Date(userCase.submissionDate);
+        return allCases.filter(c => {
+            if (!c.submissionDate) return false;
+            const d = new Date(c.submissionDate);
+            return d.getMonth() === userDate.getMonth() && d.getFullYear() === userDate.getFullYear();
+        });
+    }, [userCase, allCases]);
+
+    const stats = calculateQuickStats(cohortCases);
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
+            <div className="bg-white text-gray-900 rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="bg-de-black p-4 flex justify-between items-center text-white">
+                    <h3 className="font-bold flex items-center gap-2">
+                        <Users size={18} className="text-de-gold" /> {t.cohort} ({cohortCases.length})
+                    </h3>
+                    <button onClick={onClose}><X size={20} className="text-white hover:text-de-gold" /></button>
+                </div>
+                
+                <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between text-xs">
+                     <div className="text-center">
+                         <span className="block font-bold text-gray-500 uppercase">{t.avgWait}</span>
+                         <span className="font-bold text-lg">{formatDuration(stats.avgDaysTotal, lang)}</span>
+                     </div>
+                     <div className="text-center">
+                         <span className="block font-bold text-gray-500 uppercase">{statusT[CaseStatus.APPROVED]}</span>
+                         <span className="font-bold text-lg text-green-600">{stats.approvedCases} / {stats.totalCases}</span>
+                     </div>
+                </div>
+
+                <div className="overflow-y-auto p-4 space-y-2 flex-1">
+                    {cohortCases.map(c => (
+                        <div key={c.id} className={`text-sm p-3 border rounded flex justify-between items-center ${c.id === userCase.id ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-gray-100'}`}>
+                            <div>
+                                <span className={`font-bold block ${c.id === userCase.id ? 'text-de-black' : 'text-gray-700'}`}>
+                                    {c.fantasyName} {c.id === userCase.id && "(You)"}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                    {c.countryOfApplication} • {formatISODateToLocale(c.submissionDate, lang)}
+                                </span>
+                            </div>
+                            <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                c.status === CaseStatus.APPROVED ? 'bg-green-100 text-green-800' : 
+                                c.status === CaseStatus.PROTOCOL_RECEIVED ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                               {statusT[c.status] || c.status}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Detail Modal with Comparison Feature
 const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: CitizenshipCase, userCase?: CitizenshipCase, onClose: () => void, lang: Language }) => {
     const t = TRANSLATIONS[lang];
     const statusT = STATUS_TRANSLATIONS[lang];
@@ -337,16 +403,17 @@ const App: React.FC = () => {
   const [showAdmin, setShowAdmin] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [selectedDetailCase, setSelectedDetailCase] = useState<CitizenshipCase | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null); // New state for fetch errors
+  const [fetchError, setFetchError] = useState<string | null>(null); 
+  const [showCohortModal, setShowCohortModal] = useState(false); // NEW STATE for Cohort Modal
   
-  // Dashboard Filters State (Hoisted from StatsCharts)
-  const [showFilters, setShowFilters] = useState(false); // New state for collapsible filters
+  // Dashboard Filters State
+  const [showFilters, setShowFilters] = useState(false); 
   const [filterCountry, setFilterCountry] = useState<string>('All');
   const [filterMonth, setFilterMonth] = useState<string>('All');
   const [filterYear, setFilterYear] = useState<string>('All');
   const [filterType, setFilterType] = useState<string>('All');
-  const [filterStatus, setFilterStatus] = useState<string>('All'); // New Status Filter
-  const [dashboardSearchTerm, setDashboardSearchTerm] = useState<string>(''); // NEW: Dashboard Search
+  const [filterStatus, setFilterStatus] = useState<string>('All'); 
+  const [dashboardSearchTerm, setDashboardSearchTerm] = useState<string>(''); 
   
   // Ghost Case View Mode
   const [viewGhosts, setViewGhosts] = useState(false);
@@ -440,12 +507,12 @@ const App: React.FC = () => {
 
   const refreshData = async (silent: boolean = false) => {
     if (!silent) setDataLoading(true);
-    // Simulate slight delay for Skeletons (Item 5) ONLY if not silent
+    // Simulate slight delay for Skeletons ONLY if not silent
     if (!silent && !dataLoading) await new Promise(r => setTimeout(r, 600)); 
 
     const loadedCases = await fetchCases();
     setAllCases(loadedCases);
-    setFetchError(getLastFetchError()); // Check if there was an error fetching
+    setFetchError(getLastFetchError()); 
     
     const config = getAppConfig();
     setIsMaintenance(config.maintenanceMode);
@@ -458,15 +525,13 @@ const App: React.FC = () => {
     if (!silent) setDataLoading(false);
   };
 
-  // Compute filtered cases for the Dashboard (affects charts, active list, and community notes)
+  // Compute filtered cases for the Dashboard
   const filteredCases = useMemo(() => {
     let filtered;
 
     if (viewGhosts) {
-        // Show ONLY ghost cases if toggled
         filtered = allCases.filter(c => isGhostCase(c));
     } else {
-        // Normal mode: Show active cases (excludes ghosts via filterActiveCases)
         filtered = filterActiveCases(allCases); 
     }
     
@@ -486,7 +551,6 @@ const App: React.FC = () => {
       });
     }
     
-    // NEW: Text Search Filter
     if (dashboardSearchTerm) {
         const term = dashboardSearchTerm.toLowerCase();
         filtered = filtered.filter(c => 
@@ -498,40 +562,35 @@ const App: React.FC = () => {
     return filtered;
   }, [allCases, filterCountry, filterMonth, filterYear, filterType, filterStatus, viewGhosts, dashboardSearchTerm]);
 
-  // Compute Ghost Count (Total available in DB)
+  // Compute Ghost Count
   const ghostCount = useMemo(() => {
      return allCases.filter(c => isGhostCase(c)).length;
   }, [allCases]);
 
   // Compute Unclaimed Cases for Search
   const unclaimedCases = useMemo(() => {
-      // 1. Get all unclaimed cases
       const unclaimed = allCases.filter(c => isCaseUnclaimed(c));
       
-      // 2. Filter by search term if provided
       if (!claimSearchTerm) return unclaimed;
       
       const lowerTerm = claimSearchTerm.toLowerCase();
       return unclaimed.filter(c => 
           c.fantasyName.toLowerCase().includes(lowerTerm) ||
           c.countryOfApplication.toLowerCase().includes(lowerTerm) ||
-          // SEARCH by Date (Fix for user request)
           (c.submissionDate && c.submissionDate.includes(lowerTerm))
       );
   }, [allCases, claimSearchTerm]);
 
   const handleSessionStart = async (email: string) => {
-    if (isMaintenance) return; // Block login if maintenance
+    if (isMaintenance) return; 
 
     setLoading(true);
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    // TRIM and LOWERCASE EMAIL to ensure robust matching
     const cleanEmail = email.trim().toLowerCase();
     const existingCase = await fetchCaseByEmail(cleanEmail);
     
     if (existingCase) {
-        // Case exists with this email - Log in directly
         setSession({
             email: cleanEmail,
             fantasyName: existingCase.fantasyName,
@@ -540,13 +599,11 @@ const App: React.FC = () => {
         });
         setUserCase(existingCase);
         setLoading(false);
-        setLoginStep('INPUT'); // Reset login step, UI will now show dashboard via session check
+        setLoginStep('INPUT'); 
     } else {
-        // Case not found by email - Go to Onboarding
-        // User MUST choose to Create New OR Claim Existing
         const genName = await generateFantasyUsername(cleanEmail.split('@')[0]);
         setProposedUsername(genName);
-        setOnboardingMode('CREATE'); // Default to create
+        setOnboardingMode('CREATE'); 
         setLoginStep('USERNAME_SELECTION');
         setLoading(false);
     }
@@ -575,7 +632,6 @@ const App: React.FC = () => {
             return;
         }
 
-        // Create New User
         const newSession: UserSession = {
             email: cleanEmail,
             fantasyName: finalName,
@@ -584,9 +640,6 @@ const App: React.FC = () => {
         };
         setSession(newSession);
         
-        // IMPORTANT: We do NOT create the case object here. 
-        // We let the CaseForm handle the "first save" or initialize an empty one.
-        // But for context, we can init a dummy one in state so CaseForm renders correctly.
         setUserCase({
             id: crypto.randomUUID(),
             email: cleanEmail,
@@ -605,7 +658,6 @@ const App: React.FC = () => {
             return;
         }
 
-        // Claim logic
         const claimedCase = await claimCase(selectedClaimCase, cleanEmail);
         setUserCase(claimedCase);
         setSession({
@@ -661,23 +713,18 @@ const App: React.FC = () => {
      return calculateQuickStats(activeCases);
   }, [activeCases]);
 
-  // Calculate Case-Type specific stats for the AI Prediction Tab (as requested by user)
   const userTypeStats = useMemo(() => {
      if (!userCase) return globalStats;
      const typeSpecificCases = activeCases.filter(c => c.caseType === userCase.caseType);
-     // Fallback to global if not enough data
      return typeSpecificCases.length > 2 ? calculateQuickStats(typeSpecificCases) : globalStats;
   }, [userCase, activeCases, globalStats]);
 
-  // AI Insights Effect
   useEffect(() => {
     if (activeCases.length > 0) {
       let targetCases = activeCases;
       
-      // Feature: Filter AI Analysis by User Case Type if available
       if (userCase && userCase.caseType) {
         const specificCases = activeCases.filter(c => c.caseType === userCase.caseType);
-        // Only switch to specific analysis if we have a decent sample size, else fallback to global
         if (specificCases.length >= 3) {
             targetCases = specificCases;
         }
@@ -702,7 +749,7 @@ const App: React.FC = () => {
 
   const enterGuestMode = () => {
       setIsGuest(true);
-      setActiveTab('dashboard'); // Default to dashboard for guests
+      setActiveTab('dashboard'); 
       setUserCase(undefined);
       setSession({
           email: 'guest@tracker.local',
@@ -712,9 +759,7 @@ const App: React.FC = () => {
       });
   };
 
-  // Item 2: Optimistic UI Updates
   const handleUpdateCase = async (updatedCase: CitizenshipCase) => {
-    // 1. Optimistic Update (Immediate)
     setAllCases(prev => {
         const idx = prev.findIndex(c => c.id === updatedCase.id);
         if (idx >= 0) {
@@ -731,10 +776,8 @@ const App: React.FC = () => {
         setSession({ ...session, fantasyName: updatedCase.fantasyName });
     }
 
-    // 2. Commit to Storage (Async)
     await upsertCase(updatedCase);
     
-    // 3. Clear warnings
     setNotificationMsg(null); 
   };
 
@@ -752,7 +795,7 @@ const App: React.FC = () => {
     setOnboardingMode('CREATE');
     setProposedUsername('');
     setSelectedClaimCase(null);
-    setPrivacyAccepted(false); // Reset privacy
+    setPrivacyAccepted(false); 
   };
 
   if (!session && !isGuest) {
@@ -793,7 +836,6 @@ const App: React.FC = () => {
                     <form onSubmit={handleLoginSubmit} className="space-y-6">
                         <div>
                             <label className="block text-xs font-bold text-de-gray uppercase mb-2">{t.loginEmailLabel}</label>
-                            {/* Fake Email Disclaimer */}
                             <div className="mb-2 p-2 bg-blue-50 border border-blue-100 rounded flex items-start gap-2">
                                 <AlertCircle size={14} className="text-blue-500 mt-0.5 flex-shrink-0" />
                                 <p className="text-[10px] text-blue-800 leading-tight">
@@ -810,7 +852,6 @@ const App: React.FC = () => {
                             />
                         </div>
 
-                        {/* Privacy Policy Checkbox */}
                         <div className="flex items-start gap-3 p-3 bg-gray-50 rounded border border-gray-100">
                         <input 
                             type="checkbox"
@@ -840,7 +881,6 @@ const App: React.FC = () => {
                         </button>
                     </form>
                     
-                    {/* Guest Access Button */}
                     <div className="mt-4 pt-4 border-t border-gray-100 text-center">
                         <button 
                             type="button"
@@ -891,7 +931,6 @@ const App: React.FC = () => {
                             <p className="text-sm text-gray-500">{t.newEmailPrompt}</p>
                         </div>
 
-                        {/* Onboarding Tabs */}
                         <div className="flex border-b border-gray-200 mb-4">
                             <button 
                                 onClick={() => setOnboardingMode('CREATE')}
@@ -961,7 +1000,6 @@ const App: React.FC = () => {
                                                 >
                                                     <div>
                                                         <p className="font-bold text-sm text-de-black">{c.fantasyName}</p>
-                                                        {/* FIX: Ensure date format is readable in search list */}
                                                         <p className="text-[10px] text-gray-500">
                                                             {c.caseType} • {c.countryOfApplication} • <span className="font-medium text-gray-700">{formatISODateToLocale(c.submissionDate, lang)}</span>
                                                         </p>
@@ -1026,6 +1064,7 @@ const App: React.FC = () => {
     <>
       {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
       {selectedDetailCase && <CaseDetailsModal caseData={selectedDetailCase} userCase={userCase} onClose={() => setSelectedDetailCase(null)} lang={lang} />}
+      {showCohortModal && userCase && <CohortModal userCase={userCase} allCases={allCases} onClose={() => setShowCohortModal(false)} lang={lang} />}
 
       <div 
           className={`min-h-screen font-sans text-de-black transition-all duration-1000 ${
@@ -1051,7 +1090,6 @@ const App: React.FC = () => {
               <div className="flex items-center gap-4 md:gap-6">
                 <div className="hidden md:block"><LanguageSelector lang={lang} setLang={setLang} /></div>
                 
-                {/* User Info or Guest Info */}
                 {!isGuest ? (
                     <div className="hidden md:flex flex-col items-end border-l border-gray-700 pl-4">
                         <div className="flex flex-col items-end">
@@ -1093,7 +1131,6 @@ const App: React.FC = () => {
               </div>
           )}
 
-          {/* FETCH ERROR WARNING (OFFLINE MODE) */}
           {fetchError && !isMaintenance && (
             <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded shadow mb-6 mx-0 sm:mx-0 flex items-start gap-3 animate-in slide-in-from-top-2">
               <AlertCircle className="flex-shrink-0 mt-1" size={20} />
@@ -1130,7 +1167,6 @@ const App: React.FC = () => {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-8 mb-8">
             {activeTab === 'myCase' && (
               <div className="col-span-1 xl:col-span-3 animate-in slide-in-from-left-4 px-0 sm:px-0">
-                  {/* AI Analysis Banner - Moved here from Dashboard */}
                   <div className="mb-6 mx-2 sm:mx-0">
                     <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl border-l-4 border-de-gold p-6 text-white shadow-lg relative overflow-hidden">
                       <div className="flex items-start gap-4 relative z-10">
@@ -1142,6 +1178,18 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                  
+                  {/* NEW: View My Cohort Button */}
+                  {userCase && (
+                      <div className="mx-2 sm:mx-0 mb-4 flex justify-end">
+                          <button 
+                              onClick={() => setShowCohortModal(true)}
+                              className="bg-white border border-gray-300 hover:bg-gray-50 text-de-black px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
+                          >
+                              <Users size={16} className="text-de-gold" /> {t.viewCohort}
+                          </button>
+                      </div>
+                  )}
 
                   <CaseForm 
                     initialData={userCase} 
@@ -1160,7 +1208,6 @@ const App: React.FC = () => {
             {activeTab === 'dashboard' && (
               <div className="col-span-1 xl:col-span-3 space-y-8 animate-in fade-in">
                   
-                  {/* GLOBAL DASHBOARD FILTERS (COLLAPSIBLE) */}
                   <div className="bg-white p-4 mx-0 sm:mx-0 rounded-xl shadow-sm border border-gray-200 sticky top-20 z-40 bg-opacity-95 backdrop-blur">
                       <div className="flex justify-between items-center gap-3">
                          <button 
@@ -1172,7 +1219,6 @@ const App: React.FC = () => {
                             {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                          </button>
 
-                         {/* Dashboard Search (Always Visible) */}
                          <div className="relative flex-1 max-w-sm">
                             <Search className="absolute left-2 top-2.5 text-gray-400" size={14} />
                             <input 
@@ -1185,10 +1231,8 @@ const App: React.FC = () => {
                          </div>
                       </div>
                       
-                      {/* Collapsible Content */}
                       {showFilters && (
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-gray-100 animate-in slide-in-from-top-2">
-                            {/* NEW: Month Filter */}
                             <select 
                                 value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
                                 className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
@@ -1199,7 +1243,6 @@ const App: React.FC = () => {
                                 ))}
                             </select>
 
-                            {/* NEW: Year Filter */}
                             <select 
                                 value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
                                 className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
@@ -1225,7 +1268,6 @@ const App: React.FC = () => {
                                 {Object.values(CaseType).sort().map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
 
-                            {/* NEW: Status Filter */}
                             <select 
                                 value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
                                 className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
@@ -1239,8 +1281,14 @@ const App: React.FC = () => {
                       )}
                   </div>
 
-                  {/* Dashboard Components receiving FILTERED cases & Loading state for Skeletons */}
-                  <WorldMapStats cases={filteredCases} lang={lang} loading={dataLoading} />
+                  <WorldMapStats 
+                     cases={filteredCases} 
+                     lang={lang} 
+                     loading={dataLoading} 
+                     selectedCountryFilter={filterCountry} 
+                     onSelectCountry={(c) => setFilterCountry(c)}
+                     onSetFilterStatus={setFilterStatus}
+                  />
                   <StatsDashboard cases={filteredCases} userCase={userCase} lang={lang} loading={dataLoading} />
                   <div className="mx-0 sm:mx-0"><CommunityFeed cases={filteredCases} lang={lang} /></div>
               </div>
@@ -1249,7 +1297,6 @@ const App: React.FC = () => {
             {(activeTab === 'faq' || activeTab === 'ai') && (
               <div className="xl:col-span-3 col-span-1 px-2 sm:px-0">
                 {activeTab === 'faq' && <FAQ lang={lang} userEmail={session?.email || ''} />}
-                {/* IMPORTANT: Passing userTypeStats here satisfies the requirement for AI analysis to be by Case Type */}
                 {activeTab === 'ai' && <AIModelTab userCase={userCase} stats={userTypeStats} lang={lang} />}
               </div>
             )}
@@ -1285,7 +1332,6 @@ const App: React.FC = () => {
                       </div>
                   </div>
                   
-                  {/* List without Virtual Scrolling */}
                   <div className="border border-gray-100 rounded">
                       {filteredCases.length > 0 ? (
                           <div className="h-[400px] w-full overflow-y-auto">

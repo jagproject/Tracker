@@ -1,4 +1,5 @@
 
+
 import { CitizenshipCase, AdvancedStats, CaseStatus, StatSummary, Language } from "../types";
 
 const MONTH_NAMES: Record<Language, string[]> = {
@@ -250,8 +251,14 @@ export const calculateQuickStats = (subsetCases: CitizenshipCase[]): StatSummary
      const subToApproval: number[] = [];
      const subToProtocol: number[] = [];
      const protoToApproval: number[] = [];
+     
+     let approvedCount = 0;
+     let closedCount = 0;
 
      subsetCases.forEach(c => {
+        if (c.status === CaseStatus.APPROVED) approvedCount++;
+        if (c.status === CaseStatus.CLOSED) closedCount++;
+
         if (c.submissionDate && c.approvalDate) {
             const d = getDaysDiff(c.submissionDate, c.approvalDate);
             if(d !== null && d > 0) subToApproval.push(d);
@@ -280,6 +287,8 @@ export const calculateQuickStats = (subsetCases: CitizenshipCase[]): StatSummary
         totalCases: subsetCases.length,
         activeCases: subsetCases.length,
         pausedCases: 0,
+        approvedCases: approvedCount,
+        closedCases: closedCount,
         avgDaysToProtocol: calcMean(subToProtocol),
         avgDaysToApproval: calcMean(protoToApproval),
         avgDaysTotal: calcMean(subToApproval),

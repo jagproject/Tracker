@@ -1,27 +1,74 @@
-import React, { useState, useMemo } from 'react';
-import { CitizenshipCase, Language } from '../types';
+
+
+import React, { useState, useMemo, useEffect } from 'react';
+import { CitizenshipCase, Language, CaseStatus } from '../types';
 import { getCountryStats, filterActiveCases, formatDuration } from '../services/statsUtils';
 import { TRANSLATIONS } from '../constants';
-import { Globe, Clock, FileCheck, List, ChevronRight, Search } from 'lucide-react';
+import { Globe, Clock, FileCheck, List, ChevronRight, Search, Gauge, BarChart, X } from 'lucide-react';
 
 interface WorldMapStatsProps {
   cases: CitizenshipCase[];
   lang: Language;
-  loading?: boolean; // Item 5: Loading State
+  loading?: boolean;
+  selectedCountryFilter: string;
+  onSelectCountry: (country: string) => void;
+  onSetFilterStatus: (status: string) => void;
 }
 
-// Simple Helper for Flags (fallback to globe if missing)
+// Expanded Helper for Flags
 const getCountryFlag = (countryName: string) => {
     const map: Record<string, string> = {
-        "Argentina": "🇦🇷", "United States": "🇺🇸", "Germany": "🇩🇪", "Israel": "🇮🇱", "United Kingdom": "🇬🇧",
-        "Brazil": "🇧🇷", "Canada": "🇨🇦", "Australia": "🇦🇺", "France": "🇫🇷", "Spain": "🇪🇸",
-        "Italy": "🇮🇹", "Mexico": "🇲🇽", "South Africa": "🇿🇦", "Chile": "🇨🇱", "Colombia": "🇨🇴",
-        "Venezuela": "🇻🇪", "Uruguay": "🇺🇾", "Peru": "🇵🇪", "Russia": "🇷🇺", "Turkey": "🇹🇷",
-        "Poland": "🇵🇱", "Switzerland": "🇨🇭", "Austria": "🇦🇹", "Netherlands": "🇳🇱", "Belgium": "🇧🇪",
-        "Ireland": "🇮🇪", "New Zealand": "🇳🇿", "Sweden": "🇸🇪", "Norway": "🇳🇴", "Denmark": "🇩🇰",
-        "Portugal": "🇵🇹", "Czech Republic": "🇨🇿", "Ukraine": "🇺🇦", "Philippines": "🇵🇭", "India": "🇮🇳"
+        "Afghanistan": "🇦🇫", "Albania": "🇦🇱", "Algeria": "🇩🇿", "Andorra": "🇦🇩", "Angola": "🇦🇴",
+        "Argentina": "🇦🇷", "Armenia": "🇦🇲", "Australia": "🇦🇺", "Austria": "🇦🇹", "Azerbaijan": "🇦🇿",
+        "Bahamas": "🇧🇸", "Bahrain": "🇧🇭", "Bangladesh": "🇧🇩", "Barbados": "🇧🇧", "Belarus": "🇧🇾",
+        "Belgium": "🇧🇪", "Belize": "🇧🇿", "Benin": "🇧🇯", "Bhutan": "🇧🇹", "Bolivia": "🇧🇴",
+        "Bosnia and Herzegovina": "🇧🇦", "Botswana": "🇧🇼", "Brazil": "🇧🇷", "Brunei": "🇧🇳", "Bulgaria": "🇧🇬",
+        "Burkina Faso": "🇧🇫", "Burundi": "🇧🇮", "Cabo Verde": "🇨🇻", "Cambodia": "🇰🇭", "Cameroon": "🇨🇲",
+        "Canada": "🇨4", "Central African Republic": "🇨🇫", "Chad": "🇹🇩", "Chile": "🇨🇱", "China": "🇨🇳",
+        "Colombia": "🇨🇴", "Comoros": "🇰🇲", "Congo": "🇨🇬", "Costa Rica": "🇨🇷", "Croatia": "🇭🇷",
+        "Cuba": "🇨🇺", "Cyprus": "🇨🇾", "Czech Republic": "🇨🇿", "Denmark": "🇩🇰", "Djibouti": "🇩🇯",
+        "Dominica": "🇩🇲", "Dominican Republic": "🇩🇴", "Ecuador": "🇪🇨", "Egypt": "🇪🇬", "El Salvador": "🇸🇻",
+        "Equatorial Guinea": "🇬🇶", "Eritrea": "🇪🇷", "Estonia": "🇪🇪", "Eswatini": "🇸🇿", "Ethiopia": "🇪🇹",
+        "Fiji": "🇫🇯", "Finland": "🇫🇮", "France": "🇫🇷", "Gabon": "🇬🇦", "Gambia": "🇬🇲",
+        "Georgia": "🇬🇪", "Germany": "🇩🇪", "Ghana": "🇬🇭", "Greece": "🇬🇷", "Grenada": "🇬🇩",
+        "Guatemala": "🇬🇹", "Guinea": "🇬🇳", "Guinea-Bissau": "🇬🇼", "Guyana": "🇬🇾", "Haiti": "🇭🇹",
+        "Honduras": "🇭🇳", "Hungary": "🇭🇺", "Iceland": "🇮🇸", "India": "🇮🇳", "Indonesia": "🇮🇩",
+        "Iran": "🇮🇷", "Iraq": "🇮🇶", "Ireland": "🇮🇪", "Israel": "🇮🇱", "Italy": "🇮🇹",
+        "Jamaica": "🇯🇲", "Japan": "🇯🇵", "Jordan": "🇯🇴", "Kazakhstan": "🇰🇿", "Kenya": "🇰🇪",
+        "Kiribati": "🇰🇮", "Kosovo": "🇽🇰", "Kuwait": "🇰🇼", "Kyrgyzstan": "🇰🇬", "Laos": "🇱1",
+        "Latvia": "🇱🇻", "Lebanon": "🇱🇧", "Lesotho": "🇱🇸", "Liberia": "🇱🇷", "Libya": "🇱🇾",
+        "Liechtenstein": "🇱🇮", "Lithuania": "🇱🇹", "Luxembourg": "🇱🇺", "Madagascar": "🇲🇬", "Malawi": "🇲🇼",
+        "Malaysia": "🇲🇾", "Maldives": "🇲🇻", "Mali": "🇲🇱", "Malta": "🇲🇹", "Marshall Islands": "🇲🇭",
+        "Mauritania": "🇲🇷", "Mauritius": "🇲🇺", "Mexico": "🇲🇽", "Micronesia": "🇫🇲", "Moldova": "🇲🇩",
+        "Monaco": "🇲🇨", "Mongolia": "🇲🇳", "Montenegro": "🇲🇪", "Morocco": "🇲🇦", "Mozambique": "🇲🇿",
+        "Myanmar": "🇲🇲", "Namibia": "🇳🇦", "Nauru": "🇳🇷", "Nepal": "🇳🇵", "Netherlands": "🇳🇱",
+        "New Zealand": "🇳🇿", "Nicaragua": "🇳🇮", "Niger": "🇳🇪", "Nigeria": "🇳🇬", "North Macedonia": "🇲🇰",
+        "Norway": "🇳🇴", "Oman": "🇴🇲", "Pakistan": "🇵🇰", "Palau": "🇵🇼", "Palestine": "🇵🇸",
+        "Panama": "🇵🇦", "Papua New Guinea": "🇵🇬", "Paraguay": "🇵🇾", "Peru": "🇵🇪", "Philippines": "🇵🇭",
+        "Poland": "🇵🇱", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Romania": "🇷🇴", "Russia": "🇷🇺",
+        "Rwanda": "🇷🇼", "Saint Kitts and Nevis": "🇰🇳", "Saint Lucia": "🇱🇨", "Saint Vincent and the Grenadines": "🇻🇨", "Samoa": "🇼🇸",
+        "San Marino": "🇸🇲", "Sao Tome and Principe": "🇸🇹", "Saudi Arabia": "🇸🇦", "Senegal": "🇸🇳", "Serbia": "🇷🇸",
+        "Seychelles": "🇸🇨", "Sierra Leone": "🇸🇱", "Singapore": "🇸🇬", "Slovakia": "🇸🇰", "Slovenia": "🇸🇮",
+        "Solomon Islands": "🇸🇧", "Somalia": "🇸🇴", "South Africa": "🇿🇦", "South Korea": "🇰🇷", "South Sudan": "🇸🇸",
+        "Spain": "🇪🇸", "Sri Lanka": "🇱🇰", "Sudan": "🇸🇩", "Suriname": "🇸🇷", "Sweden": "🇸🇪",
+        "Switzerland": "🇨🇭", "Syria": "🇸🇾", "Taiwan": "🇹🇼", "Tajikistan": "🇹🇯", "Tanzania": "🇹🇿",
+        "Thailand": "🇹🇭", "Timor-Leste": "🇹🇱", "Togo": "🇹🇬", "Tonga": "🇹🇴", "Trinidad and Tobago": "🇹🇹",
+        "Tunisia": "🇹🇳", "Turkey": "🇹🇷", "Turkmenistan": "🇹🇲", "Tuvalu": "🇹🇻", "Uganda": "🇺🇬",
+        "Ukraine": "🇺🇦", "United Arab Emirates": "🇦🇪", "United Kingdom": "🇬🇧", "United States": "🇺🇸", "Uruguay": "🇺🇾",
+        "Uzbekistan": "🇺🇿", "Vanuatu": "🇻🇺", "Vatican City": "🇻🇦", "Venezuela": "🇻🇪", "Vietnam": "🇻🇳",
+        "Yemen": "🇾🇪", "Zambia": "🇿🇲", "Zimbabwe": "🇿🇼"
     };
     return map[countryName] || "🏳️";
+};
+
+// Helper to determine Speed Color
+// Updated Logic: Based on Approval Time (Urkunde), not Protocol
+const getSpeedColor = (avgDays: number) => {
+    // 14 months (~420 days) = Fast
+    // 24 months (~730 days) = Slow
+    if (avgDays < 425) return "text-green-600 border-green-500 bg-green-50"; 
+    if (avgDays < 730) return "text-yellow-600 border-yellow-500 bg-yellow-50";
+    return "text-red-600 border-red-500 bg-red-50"; 
 };
 
 const SkeletonMap = () => (
@@ -53,15 +100,24 @@ const SkeletonMap = () => (
     </div>
 );
 
-export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loading = false }) => {
+export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loading = false, selectedCountryFilter, onSelectCountry, onSetFilterStatus }) => {
   const t = TRANSLATIONS[lang];
-  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'count' | 'speed'>('count');
+  const [localSelected, setLocalSelected] = useState<string | null>(null);
 
-  // Filter cases first, ensuring we have recent data
+  // Sync local state with parent filter, but treat 'All' as null for detail view
+  useEffect(() => {
+      setLocalSelected(selectedCountryFilter === 'All' ? null : selectedCountryFilter);
+  }, [selectedCountryFilter]);
+
+  // Use full list of cases to populate the country list even if filtered
+  // However, the stats inside must reflect the global list. 
+  // We actually need the FULL UNFILTERED list to show the directory, 
+  // but since we receive 'cases' which might already be filtered by dashboard... 
+  // For now, we use the passed 'cases' which is fine as long as we clear filters to see all.
   const activeCases = useMemo(() => filterActiveCases(cases), [cases]);
   
-  // Get list of countries that actually have cases
   const activeCountries = useMemo(() => {
     const unique = new Set(activeCases.map(c => c.countryOfApplication));
     return Array.from(unique).sort();
@@ -75,11 +131,36 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
     return activeCases.filter(c => c.countryOfApplication === country).length;
   };
 
-  const stats = selectedCountry ? getCountryStats(activeCases, selectedCountry) : null;
+  const getCountrySpeed = (country: string) => {
+      const stats = getCountryStats(activeCases, country);
+      // UPDATED: Use Approval Mean (Urkunde), not Protocol
+      return stats.approval.mean; 
+  };
+
+  const handleCountryClick = (country: string) => {
+      if (selectedCountryFilter === country) {
+          onSelectCountry('All'); // Toggle off
+      } else {
+          onSelectCountry(country); // Set Global Filter
+      }
+  };
+
+  const handleSwitchMode = (mode: 'count' | 'speed') => {
+      setViewMode(mode);
+      if (mode === 'speed') {
+          // Automatically set Status Filter to Approved
+          onSetFilterStatus(CaseStatus.APPROVED);
+      } else {
+          // Reset Status Filter to All when switching back to Volume (optional but better UX)
+          onSetFilterStatus('All');
+      }
+  };
+
+  // We compute stats for the selected country based on the *active* subset
+  const stats = localSelected ? getCountryStats(activeCases, localSelected) : null;
 
   if (loading) return <SkeletonMap />;
 
-  // Safety: If no countries, show empty
   if (activeCountries.length === 0) {
       return (
          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-500 mb-8 mx-0 sm:mx-0">
@@ -93,12 +174,31 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
     <div className="bg-white rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 overflow-hidden animate-in fade-in mb-8 flex flex-col h-[600px] mx-0 sm:mx-0">
       <div className="p-4 bg-de-black text-white flex justify-between items-center border-b border-gray-700 shrink-0">
         <h2 className="text-lg font-bold text-de-gold flex items-center gap-2">
-            <List size={18} /> {t.allCountries}
+            {viewMode === 'count' ? <List size={18} /> : <Gauge size={18} />}
+            {viewMode === 'count' ? t.allCountries : t.speedMap}
         </h2>
+        
+        {/* Toggle Switch */}
+        <div className="flex bg-gray-800 rounded p-1">
+             <button 
+                onClick={() => handleSwitchMode('count')}
+                className={`px-3 py-1 rounded text-xs font-bold transition-colors ${viewMode === 'count' ? 'bg-white text-de-black' : 'text-gray-400 hover:text-white'}`}
+                title={t.countMap}
+             >
+                <BarChart size={14} />
+             </button>
+             <button 
+                onClick={() => handleSwitchMode('speed')}
+                className={`px-3 py-1 rounded text-xs font-bold transition-colors ${viewMode === 'speed' ? 'bg-white text-de-black' : 'text-gray-400 hover:text-white'}`}
+                title={t.speedMap}
+             >
+                <Gauge size={14} />
+             </button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-        {/* Left Column: Country List (Stacks on top on mobile with fixed height) */}
+        {/* Left Column: Country List */}
         <div className="w-full h-48 md:h-auto md:w-1/4 bg-gray-50 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col">
             <div className="p-3 border-b border-gray-200 bg-white">
                 <div className="relative">
@@ -113,35 +213,43 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
                 </div>
             </div>
             <div className="overflow-y-auto flex-1">
-                {filteredCountries.map(country => (
-                    <button
-                        key={country}
-                        onClick={() => setSelectedCountry(country)}
-                        className={`w-full text-left px-4 py-3 text-sm border-b border-gray-100 hover:bg-white transition-colors flex justify-between items-center group ${
-                            selectedCountry === country ? 'bg-white border-l-4 border-l-de-gold shadow-sm font-bold text-de-black' : 'text-gray-600 border-l-4 border-l-transparent'
-                        }`}
-                    >
-                        <span className="truncate mr-2 flex items-center gap-2">
-                            <span>{getCountryFlag(country)}</span>
-                            {country}
-                        </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                            <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">{getCountryCaseCount(country)}</span>
-                            {selectedCountry === country && <ChevronRight size={14} className="text-de-gold" />}
-                        </div>
-                    </button>
-                ))}
-                {filteredCountries.length === 0 && (
-                    <div className="p-4 text-center text-xs text-gray-400">
-                        {t.noCasesFound}
-                    </div>
-                )}
+                {filteredCountries.map(country => {
+                    const count = getCountryCaseCount(country);
+                    const speed = getCountrySpeed(country);
+                    const speedColorClass = getSpeedColor(speed);
+                    const isSelected = selectedCountryFilter === country;
+
+                    return (
+                        <button
+                            key={country}
+                            onClick={() => handleCountryClick(country)}
+                            className={`w-full text-left px-4 py-3 text-sm border-b border-gray-100 hover:bg-white transition-colors flex justify-between items-center group ${
+                                isSelected ? 'bg-white border-l-4 border-l-de-gold shadow-sm font-bold text-de-black' : 'text-gray-600 border-l-4 border-l-transparent'
+                            }`}
+                        >
+                            <span className="truncate mr-2 flex items-center gap-2">
+                                <span>{getCountryFlag(country)}</span>
+                                {country}
+                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                                {viewMode === 'count' ? (
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full min-w-[20px] text-center ${isSelected ? 'bg-de-gold text-de-black' : 'bg-gray-200 text-gray-600'}`}>{count}</span>
+                                ) : (
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${speed > 0 ? speedColorClass : 'bg-gray-100 text-gray-400'}`}>
+                                        {speed > 0 ? formatDuration(speed, lang) : '--'}
+                                    </span>
+                                )}
+                                {isSelected && <ChevronRight size={14} className="text-de-gold" />}
+                            </div>
+                        </button>
+                    );
+                })}
             </div>
         </div>
 
         {/* Right Column: Details */}
         <div className="flex-1 bg-white overflow-y-auto p-4 md:p-6 relative">
-             {!selectedCountry ? (
+             {!localSelected ? (
              <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-8">
                 <Globe size={64} className="mb-4 text-gray-100" />
                 <p className="text-de-black font-bold mb-2">{t.country}</p>
@@ -149,14 +257,24 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
              </div>
            ) : (
              <div className="animate-in slide-in-from-right-4 fade-in max-w-2xl mx-auto">
-                <div className="flex items-center gap-4 mb-8 border-b pb-4">
-                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 text-3xl shadow-inner shrink-0">
-                        {getCountryFlag(selectedCountry)}
-                     </div>
-                     <div>
-                        <h3 className="text-3xl font-bold text-de-black leading-tight">{selectedCountry}</h3>
-                        <p className="text-sm text-gray-500">{getCountryCaseCount(selectedCountry)} Cases Tracked</p>
-                     </div>
+                {/* Header with Clear Filter */}
+                <div className="flex justify-between items-start mb-8 border-b pb-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 text-3xl shadow-inner shrink-0">
+                            {getCountryFlag(localSelected)}
+                        </div>
+                        <div>
+                            <h3 className="text-3xl font-bold text-de-black leading-tight">{localSelected}</h3>
+                            <p className="text-sm text-gray-500">{getCountryCaseCount(localSelected)} Cases Tracked</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => onSelectCountry('All')}
+                        className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                        title="Clear Filter"
+                    >
+                        <X size={20} />
+                    </button>
                 </div>
 
                 {stats && (
@@ -175,6 +293,11 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
                       <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                           <div className="bg-blue-500 h-full rounded-full" style={{ width: '40%' }}></div>
                       </div>
+                      {viewMode === 'speed' && (
+                          <div className="mt-2 text-[10px] text-gray-400">
+                             Rating: <span className={getSpeedColor(stats.protocol.mean).split(' ')[0]}>{stats.protocol.mean < 120 ? t.fast : t.slow}</span>
+                          </div>
+                      )}
                     </div>
 
                     {/* Protocol -> Approval */}
@@ -208,6 +331,13 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
                       <div className="text-sm text-yellow-800 bg-yellow-100/50 p-2 rounded inline-block">
                           Based on {stats.approval.count} completed cases.
                       </div>
+                      {viewMode === 'speed' && (
+                          <div className="mt-4 text-xs font-bold">
+                             Global Speed Rating: <span className={`px-2 py-1 rounded border ${getSpeedColor(stats.approval.mean)}`}>
+                                 {stats.approval.mean < 425 ? "FAST ⚡" : stats.approval.mean < 730 ? "MEDIUM 🐢" : "SLOW 🐌"}
+                             </span>
+                          </div>
+                      )}
                     </div>
                   </div>
                 )}

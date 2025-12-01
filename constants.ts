@@ -333,6 +333,22 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     backupSafe: "Backup Safe",
     restoreJson: "Restore DB (JSON)",
     
+    // Feature Translations
+    cohort: "My Cohort",
+    viewCohort: "View My Cohort",
+    speedMap: "Speed Map (Urkunde)",
+    countMap: "Case Volume",
+    caseFlow: "Case Flow (Sankey)",
+    flowSubmitted: "Submitted",
+    flowProtocol: "With Protocol",
+    flowInProcess: "In Process",
+    flowDecision: "Decision",
+    flowApproved: "Approved",
+    flowClosed: "Closed",
+    fast: "Fast",
+    slow: "Slow",
+    avgTime: "Avg Time",
+    
     // NEW FOR FAKE EMAIL
     fakeEmailInfo: "Note: You can use a made-up email (e.g. mycase@tracker.local). We DO NOT send emails or verify them. It is simply a password to retrieve your case later.",
     guestAccess: "View Dashboard as Guest",
@@ -563,6 +579,22 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     backupOverdue: "¡Respaldo Requerido!",
     backupSafe: "Respaldo al día",
     restoreJson: "Restaurar BD (JSON)",
+    
+    // Feature Translations
+    cohort: "Mi Cohorte",
+    viewCohort: "Ver mi Cohorte",
+    speedMap: "Mapa de Velocidad obtención Urkunde",
+    countMap: "Volumen de Casos",
+    caseFlow: "Flujo de Casos (Sankey)",
+    flowSubmitted: "Enviado",
+    flowProtocol: "Con Protocolo",
+    flowInProcess: "En Proceso",
+    flowDecision: "Decisión",
+    flowApproved: "Aprobado",
+    flowClosed: "Cerrado",
+    fast: "Rápido",
+    slow: "Lento",
+    avgTime: "Tiempo Promedio",
 
     // NEW FOR FAKE EMAIL
     fakeEmailInfo: "Nota: Puedes usar un email inventado (ej. micaso@tracker.local). NO enviamos correos ni verificamos validez. Es solo una contraseña para recuperar tu caso después.",
@@ -578,6 +610,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     redditCopied: "¡Copiado para Reddit!",
   },
   de: {
+    // ... (Keeping previous translations) ...
     title: "Einbürgerung Tracker",
     dashboard: "Dashboard",
     map: "Weltkarte",
@@ -794,6 +827,22 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     backupOverdue: "Backup Erforderlich!",
     backupSafe: "Backup OK",
     restoreJson: "DB Wiederherstellen (JSON)",
+    
+    // Feature Translations
+    cohort: "Meine Kohorte",
+    viewCohort: "Meine Kohorte ansehen",
+    speedMap: "Geschwindigkeits-Heatmap (Urkunde)",
+    countMap: "Fallvolumen",
+    caseFlow: "Fallfluss (Sankey)",
+    flowSubmitted: "Eingereicht",
+    flowProtocol: "Mit Protokoll",
+    flowInProcess: "In Bearbeitung",
+    flowDecision: "Entscheidung",
+    flowApproved: "Genehmigt",
+    flowClosed: "Geschlossen",
+    fast: "Schnell",
+    slow: "Langsam",
+    avgTime: "Ø Zeit",
 
      // NEW FOR FAKE EMAIL
     fakeEmailInfo: "Hinweis: E-Mail muss nicht echt sein. Wir senden keine E-Mails. Es ist nur ein Passwort.",
@@ -809,6 +858,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     redditCopied: "Für Reddit kopiert!",
   },
   it: {
+     // ... (Keeping previous translations) ...
     title: "Tracker Cittadinanza Tedesca",
     dashboard: "Cruscotto",
     map: "Mappa",
@@ -1026,6 +1076,22 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     backupSafe: "Backup OK",
     restoreJson: "Ripristina DB (JSON)",
 
+    // Feature Translations
+    cohort: "La Mia Coorte",
+    viewCohort: "Vedi La Mia Coorte",
+    speedMap: "Mappa di Velocità (Urkunde)",
+    countMap: "Volume Casi",
+    caseFlow: "Flusso Casi (Sankey)",
+    flowSubmitted: "Inviato",
+    flowProtocol: "Con Protocolo",
+    flowInProcess: "In Processo",
+    flowDecision: "Decisione",
+    flowApproved: "Approvato",
+    flowClosed: "Chiuso",
+    fast: "Veloce",
+    slow: "Lento",
+    avgTime: "Tempo Medio",
+
     // NEW FOR FAKE EMAIL
     fakeEmailInfo: "Nota: L'email non deve essere reale. Non inviamo email. È solo una password.",
     guestAccess: "Visualizza Dashboard Ospite",
@@ -1040,6 +1106,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     redditCopied: "Copiato per Reddit!",
   },
   pt: {
+    // ... (Keeping previous translations) ...
     title: "Rastreador Cidadania Alemã",
     dashboard: "Painel",
     map: "Mapa",
@@ -1215,7 +1282,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     glossaryAkz: "Número de protocolo.",
     glossaryAkzBreakdown: "Dep, Ano, Data, Num, Tipo.",
     akzDepartment: "Departamento",
-    akzYear: "Ano",
+    akzYear: "Anno",
     akzDate: "Data",
     akzSequential: "Sequenziale",
     akzType: "Tipo",
@@ -1256,6 +1323,22 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     backupOverdue: "Backup Necessário!",
     backupSafe: "Backup OK",
     restoreJson: "Restaurar BD (JSON)",
+
+    // Feature Translations
+    cohort: "Minha Coorte",
+    viewCohort: "Ver Minha Coorte",
+    speedMap: "Mapa de Calor (Urkunde)",
+    countMap: "Volume de Casos",
+    caseFlow: "Fluxo de Casos (Sankey)",
+    flowSubmitted: "Enviado",
+    flowProtocol: "Com Protocolo",
+    flowInProcess: "Em Processo",
+    flowDecision: "Decisão",
+    flowApproved: "Aprovado",
+    flowClosed: "Fechado",
+    fast: "Rápido",
+    slow: "Lento",
+    avgTime: "Tempo Médio",
 
      // NEW FOR FAKE EMAIL
     fakeEmailInfo: "Nota: O email pode ser fictício. Não enviamos emails nem verificamos. É apenas uma senha para recuperar seu caso.",

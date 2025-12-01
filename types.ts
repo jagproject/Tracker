@@ -1,4 +1,5 @@
 
+
 export enum CaseType {
   STAG_5 = "StAG §5",
   FESTSTELLUNG = "Feststellung",
@@ -69,6 +70,8 @@ export interface StatSummary {
   totalCases: number;
   activeCases: number; // Updated < 12 months
   pausedCases: number; // > 12 months no update
+  approvedCases: number;
+  closedCases: number;
   avgDaysToProtocol: number;
   avgDaysToApproval: number;
   avgDaysTotal: number; // Added for progress bar calc
