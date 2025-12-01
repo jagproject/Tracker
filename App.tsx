@@ -22,6 +22,7 @@ import {
   User,
   Power,
   ChevronDown,
+  ChevronUp,
   Filter,
   Search,
   UserPlus,
@@ -339,6 +340,7 @@ const App: React.FC = () => {
   const [fetchError, setFetchError] = useState<string | null>(null); // New state for fetch errors
   
   // Dashboard Filters State (Hoisted from StatsCharts)
+  const [showFilters, setShowFilters] = useState(false); // New state for collapsible filters
   const [filterCountry, setFilterCountry] = useState<string>('All');
   const [filterMonth, setFilterMonth] = useState<string>('All');
   const [filterYear, setFilterYear] = useState<string>('All');
@@ -1158,72 +1160,83 @@ const App: React.FC = () => {
             {activeTab === 'dashboard' && (
               <div className="col-span-1 xl:col-span-3 space-y-8 animate-in fade-in">
                   
-                  {/* GLOBAL DASHBOARD FILTERS */}
-                  <div className="bg-white p-4 mx-0 sm:mx-0 rounded-xl shadow-sm border border-gray-200 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-3 items-center sticky top-20 z-40 bg-opacity-95 backdrop-blur">
-                      <div className="flex items-center gap-2 text-de-black font-bold col-span-2 md:col-span-1">
-                          <Filter size={18} />
-                          <span>{t.filters}</span>
+                  {/* GLOBAL DASHBOARD FILTERS (COLLAPSIBLE) */}
+                  <div className="bg-white p-4 mx-0 sm:mx-0 rounded-xl shadow-sm border border-gray-200 sticky top-20 z-40 bg-opacity-95 backdrop-blur">
+                      <div className="flex justify-between items-center gap-3">
+                         <button 
+                            onClick={() => setShowFilters(!showFilters)}
+                            className="flex items-center gap-2 text-de-black font-bold text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded transition-colors"
+                         >
+                            <Filter size={16} />
+                            <span>{t.filters}</span>
+                            {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                         </button>
+
+                         {/* Dashboard Search (Always Visible) */}
+                         <div className="relative flex-1 max-w-sm">
+                            <Search className="absolute left-2 top-2.5 text-gray-400" size={14} />
+                            <input 
+                                type="text"
+                                placeholder={t.searchDashboard}
+                                value={dashboardSearchTerm}
+                                onChange={(e) => setDashboardSearchTerm(e.target.value)}
+                                className="w-full pl-8 pr-2 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-de-gold outline-none"
+                            />
+                         </div>
                       </div>
                       
-                      {/* Dashboard Search */}
-                      <div className="relative col-span-2 lg:col-span-2">
-                        <Search className="absolute left-2 top-2.5 text-gray-400" size={14} />
-                        <input 
-                            type="text"
-                            placeholder={t.searchDashboard}
-                            value={dashboardSearchTerm}
-                            onChange={(e) => setDashboardSearchTerm(e.target.value)}
-                            className="w-full pl-8 pr-2 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-de-gold outline-none"
-                        />
-                      </div>
+                      {/* Collapsible Content */}
+                      {showFilters && (
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-gray-100 animate-in slide-in-from-top-2">
+                            {/* NEW: Month Filter */}
+                            <select 
+                                value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
+                                className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                            >
+                                <option value="All">{t.allMonths}</option>
+                                {Array.from({length: 12}, (_, i) => (
+                                    <option key={i} value={(i+1).toString()}>{getMonthName(i)}</option>
+                                ))}
+                            </select>
 
-                      {/* NEW: Month Filter */}
-                      <select 
-                          value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
-                          className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                      >
-                          <option value="All">{t.allMonths}</option>
-                          {Array.from({length: 12}, (_, i) => (
-                              <option key={i} value={(i+1).toString()}>{getMonthName(i)}</option>
-                          ))}
-                      </select>
+                            {/* NEW: Year Filter */}
+                            <select 
+                                value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
+                                className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                            >
+                                <option value="All">{t.allYears}</option>
+                                {Array.from({length: new Date().getFullYear() - 2020 + 2}, (_, i) => (2020 + i).toString()).map(y => (
+                                    <option key={y} value={y}>{y}</option>
+                                ))}
+                            </select>
 
-                      {/* NEW: Year Filter */}
-                      <select 
-                          value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
-                          className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                      >
-                          <option value="All">{t.allYears}</option>
-                          {Array.from({length: new Date().getFullYear() - 2020 + 2}, (_, i) => (2020 + i).toString()).map(y => (
-                               <option key={y} value={y}>{y}</option>
-                          ))}
-                      </select>
+                            <select 
+                                value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}
+                                className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                            >
+                                <option value="All">{t.allCountries}</option>
+                                {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <select 
+                                value={filterType} onChange={(e) => setFilterType(e.target.value)}
+                                className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                            >
+                                <option value="All">{t.allTypes}</option>
+                                {Object.values(CaseType).sort().map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
 
-                      <select 
-                          value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}
-                          className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                      >
-                          <option value="All">{t.allCountries}</option>
-                          {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                      <select 
-                          value={filterType} onChange={(e) => setFilterType(e.target.value)}
-                          className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                      >
-                          <option value="All">{t.allTypes}</option>
-                          {Object.values(CaseType).sort().map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-
-                      {/* NEW: Status Filter */}
-                      <select 
-                          value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-                          className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                      >
-                          <option value="All">{t.allStatuses}</option>
-                          {Object.values(CaseStatus).map(s => (
-                              <option key={s} value={s}>{STATUS_TRANSLATIONS[lang][s] || s}</option>
-                          ))}
-                      </select>
+                            {/* NEW: Status Filter */}
+                            <select 
+                                value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+                                className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
+                            >
+                                <option value="All">{t.allStatuses}</option>
+                                {Object.values(CaseStatus).map(s => (
+                                    <option key={s} value={s}>{STATUS_TRANSLATIONS[lang][s] || s}</option>
+                                ))}
+                            </select>
+                        </div>
+                      )}
                   </div>
 
                   {/* Dashboard Components receiving FILTERED cases & Loading state for Skeletons */}

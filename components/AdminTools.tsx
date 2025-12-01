@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -7,7 +5,7 @@ import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '
 import { TRANSLATIONS, COUNTRIES, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
 import { importCases, fetchCases, addAuditLog, getAuditLogs, clearAllData, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, restoreFullDatabaseDump } from '../services/storageService';
 import { generateFantasyUsername } from '../services/geminiService';
-import { calculateQuickStats, formatDuration } from '../services/statsUtils';
+import { calculateQuickStats, formatDuration, formatISODateToLocale } from '../services/statsUtils';
 
 interface AdminToolsProps {
   lang: Language;
@@ -94,6 +92,22 @@ const normalizeStatus = (rawStatus: string): CaseStatus => {
     
     // Default fallback
     return CaseStatus.SUBMITTED;
+};
+
+// Helper to calculate simple Estimated Completion Date
+const getEstCompletion = (c: CitizenshipCase, avgWaitDays: number): string => {
+    if (c.status === CaseStatus.APPROVED && c.approvalDate) return formatISODateToLocale(c.approvalDate, 'en');
+    if (c.status === CaseStatus.CLOSED && c.closedDate) return "Closed";
+    
+    if (c.submissionDate) {
+        const subDate = new Date(c.submissionDate);
+        if (isNaN(subDate.getTime())) return '--';
+        
+        // Add avg wait time
+        const estDate = new Date(subDate.getTime() + (avgWaitDays * 24 * 60 * 60 * 1000));
+        return formatISODateToLocale(estDate.toISOString(), 'en');
+    }
+    return '--';
 };
 
 export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataChange }) => {
@@ -229,7 +243,11 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
         value: value
     })).filter(d => d.value > 0);
 
-    return { total, unclaimed, submitted, protocol, approved, statusCounts, typeStats, typeChartData, statusChartData };
+    // Calculate Global Avg Wait for "Est. Completion" column fallback
+    const globalStats = calculateQuickStats(allCases);
+    const globalAvgWait = globalStats.avgDaysTotal || 730;
+
+    return { total, unclaimed, submitted, protocol, approved, statusCounts, typeStats, typeChartData, statusChartData, globalAvgWait };
   }, [allCases, statusDistFilter]);
 
 
@@ -1058,6 +1076,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                         </div>
                       </div>
                       
+                      {/* ADDED AI Predictor Column (Est. Completion) */}
                       <div className="space-y-2 overflow-y-auto flex-1 pr-1 bg-white border border-gray-100 rounded-lg p-2">
                           {filteredCases.length === 0 ? (
                               <div className="text-center py-8 text-gray-400">No cases found.</div>
@@ -1076,8 +1095,13 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                                                 </span>
                                               )}
                                           </div>
-                                          <div className="text-xs text-gray-500 truncate">
-                                              {c.email} • {c.countryOfApplication}
+                                          <div className="text-xs text-gray-500 truncate flex items-center gap-2">
+                                              <span>{c.email} • {c.countryOfApplication}</span>
+                                              <span className="text-xs text-gray-400">|</span>
+                                              {/* Est. Completion Date Display */}
+                                              <span className="font-mono text-xs text-blue-600 bg-blue-50 px-1 rounded" title="Estimated Completion Date (Math Based)">
+                                                 Est: {getEstCompletion(c, summaryStats ? summaryStats.globalAvgWait : 730)}
+                                              </span>
                                           </div>
                                       </div>
                                       <div className="flex items-center gap-1">

@@ -10,6 +10,20 @@ interface WorldMapStatsProps {
   loading?: boolean; // Item 5: Loading State
 }
 
+// Simple Helper for Flags (fallback to globe if missing)
+const getCountryFlag = (countryName: string) => {
+    const map: Record<string, string> = {
+        "Argentina": "🇦🇷", "United States": "🇺🇸", "Germany": "🇩🇪", "Israel": "🇮🇱", "United Kingdom": "🇬🇧",
+        "Brazil": "🇧🇷", "Canada": "🇨🇦", "Australia": "🇦🇺", "France": "🇫🇷", "Spain": "🇪🇸",
+        "Italy": "🇮🇹", "Mexico": "🇲🇽", "South Africa": "🇿🇦", "Chile": "🇨🇱", "Colombia": "🇨🇴",
+        "Venezuela": "🇻🇪", "Uruguay": "🇺🇾", "Peru": "🇵🇪", "Russia": "🇷🇺", "Turkey": "🇹🇷",
+        "Poland": "🇵🇱", "Switzerland": "🇨🇭", "Austria": "🇦🇹", "Netherlands": "🇳🇱", "Belgium": "🇧🇪",
+        "Ireland": "🇮🇪", "New Zealand": "🇳🇿", "Sweden": "🇸🇪", "Norway": "🇳🇴", "Denmark": "🇩🇰",
+        "Portugal": "🇵🇹", "Czech Republic": "🇨🇿", "Ukraine": "🇺🇦", "Philippines": "🇵🇭", "India": "🇮🇳"
+    };
+    return map[countryName] || "🏳️";
+};
+
 const SkeletonMap = () => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse flex flex-col h-[600px]">
         <div className="h-14 bg-gray-800 shrink-0"></div>
@@ -107,7 +121,10 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
                             selectedCountry === country ? 'bg-white border-l-4 border-l-de-gold shadow-sm font-bold text-de-black' : 'text-gray-600 border-l-4 border-l-transparent'
                         }`}
                     >
-                        <span className="truncate mr-2">{country}</span>
+                        <span className="truncate mr-2 flex items-center gap-2">
+                            <span>{getCountryFlag(country)}</span>
+                            {country}
+                        </span>
                         <div className="flex items-center gap-1 shrink-0">
                             <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">{getCountryCaseCount(country)}</span>
                             {selectedCountry === country && <ChevronRight size={14} className="text-de-gold" />}
@@ -133,8 +150,8 @@ export const WorldMapStats: React.FC<WorldMapStatsProps> = ({ cases, lang, loadi
            ) : (
              <div className="animate-in slide-in-from-right-4 fade-in max-w-2xl mx-auto">
                 <div className="flex items-center gap-4 mb-8 border-b pb-4">
-                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 text-2xl shadow-inner shrink-0">
-                        {selectedCountry.substring(0,2).toUpperCase()}
+                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 text-3xl shadow-inner shrink-0">
+                        {getCountryFlag(selectedCountry)}
                      </div>
                      <div>
                         <h3 className="text-3xl font-bold text-de-black leading-tight">{selectedCountry}</h3>

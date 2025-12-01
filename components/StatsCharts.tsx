@@ -497,17 +497,17 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white p-2 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 flex flex-col h-auto min-h-[450px] -mx-0 sm:mx-0">
+        <div className="bg-white p-2 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 flex flex-col h-auto min-h-[350px] -mx-0 sm:mx-0">
           <h3 className="text-lg font-bold text-de-black mb-4 px-4 sm:px-0 pt-4 sm:pt-0">{t.caseType}</h3>
-          <div className="h-96 w-full flex-grow">
+          <div className="h-64 w-full flex-grow">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <Pie
                   data={stats.byType}
                   cx="50%"
-                  cy="45%"
+                  cy="50%"
                   innerRadius={50}
-                  outerRadius="70%"
+                  outerRadius="75%"
                   paddingAngle={5}
                   dataKey="value"
                   onClick={handleTypeClick}
@@ -518,22 +518,22 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Legend verticalAlign="bottom" height={120} wrapperStyle={{ fontSize: '11px', lineHeight: '14px', overflowY: 'auto' }} />
+                <Legend verticalAlign="bottom" height={60} wrapperStyle={{ fontSize: '11px', lineHeight: '14px', overflowY: 'auto' }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-white p-2 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 flex flex-col h-auto min-h-[450px] -mx-0 sm:mx-0">
+        <div className="bg-white p-2 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 flex flex-col h-auto min-h-[350px] -mx-0 sm:mx-0">
           <h3 className="text-lg font-bold text-de-black mb-4 px-4 sm:px-0 pt-4 sm:pt-0">{t.statusDist}</h3>
-          <div className="h-96 w-full flex-grow">
+          <div className="h-64 w-full flex-grow">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <Pie
                   data={stats.byStatus}
                   cx="50%"
-                  cy="45%"
-                  outerRadius="70%"
+                  cy="50%"
+                  outerRadius="75%"
                   dataKey="value"
                   label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                   onClick={handleStatusClick}
@@ -544,7 +544,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Legend verticalAlign="bottom" height={120} wrapperStyle={{ fontSize: '11px', lineHeight: '14px', overflowY: 'auto' }} />
+                <Legend verticalAlign="bottom" height={60} wrapperStyle={{ fontSize: '11px', lineHeight: '14px', overflowY: 'auto' }} />
               </PieChart>
             </ResponsiveContainer>
           </div>

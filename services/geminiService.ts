@@ -103,6 +103,7 @@ export const generateStatisticalInsights = async (stats: StatSummary, cases: Cit
       Analyze the "Internal Tracker Data" in the context of the "External Context".
       Are our community stats matching the official acceleration trend in 2025?
       Provide a concise, 2-sentence insight in ${targetLang}. 
+      CRITICAL: The output MUST be entirely in ${targetLang}. Do not use English unless the target language is English.
       Be encouraging but realistic about the backlog (mention the surge in applications). Do not use markdown.
     `;
 
@@ -198,6 +199,7 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
             1. Use the "date" provided above: "${estimatedDateStr}"
             2. Use the "confidence" provided above: "${translatedConfidence}"
             3. Write a "reasoning" paragraph (approx 100-150 words) in ${targetLang}. 
+               - CRITICAL: The reasoning text MUST be entirely in ${targetLang}.
                - If the case is StAG 5, explicitly mention the BVA's 2025 acceleration trend (doubling approvals) but temper it with the Reddit data about the "surge in new applications" (~40k in 2023).
                - If the case is NOT StAG 5, mention that Feststellung/Others are generally slower than StAG 5 based on Reddit reports.
                - Mention that this prediction combines our community tracker data with official trends.
