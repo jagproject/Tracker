@@ -163,18 +163,18 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
         }
 
         // Color coding for duration/speed
-        let myClass = "text-gray-700";
-        let theirClass = "text-gray-700";
+        let myClass = "text-gray-900"; // Enforce Dark Text
+        let theirClass = "text-gray-900"; // Enforce Dark Text
         
         if (isDuration && myVal && theirVal) {
-             if (myVal < theirVal) { myClass = "text-green-600 font-bold"; theirClass = "text-red-400"; }
-             else if (myVal > theirVal) { myClass = "text-red-400"; theirClass = "text-green-600 font-bold"; }
+             if (myVal < theirVal) { myClass = "text-green-600 font-bold"; theirClass = "text-red-500"; }
+             else if (myVal > theirVal) { myClass = "text-red-500"; theirClass = "text-green-600 font-bold"; }
         }
 
         return (
             <div className="grid grid-cols-3 gap-2 text-xs border-b border-gray-100 py-2">
                  <div className={`text-center font-mono ${myClass}`}>{displayMy}</div>
-                 <div className="text-center font-bold text-gray-400 uppercase tracking-tighter text-[10px] self-center">{label}</div>
+                 <div className="text-center font-bold text-gray-500 uppercase tracking-tighter text-[10px] self-center">{label}</div>
                  <div className={`text-center font-mono ${theirClass}`}>{displayTheir}</div>
             </div>
         );
@@ -182,13 +182,13 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
 
     return (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-white text-gray-900 rounded-xl shadow-2xl max-w-md w-full overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="bg-de-black p-4 flex justify-between items-center text-white">
-                    <h3 className="font-bold flex items-center gap-2">
+                    <h3 className="font-bold flex items-center gap-2 text-white">
                         {compareMode ? <ArrowLeftRight size={18} className="text-de-gold" /> : <User size={18} />}
                         {compareMode ? "Compare Cases" : caseData.fantasyName}
                     </h3>
-                    <button onClick={onClose}><X size={20} className="hover:text-de-gold" /></button>
+                    <button onClick={onClose}><X size={20} className="text-white hover:text-de-gold" /></button>
                 </div>
                 
                 <div className="p-6 space-y-4">
@@ -196,8 +196,8 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
                         <div className="animate-in slide-in-from-right-4">
                             <div className="grid grid-cols-3 gap-2 mb-4 text-center pb-2 border-b-2 border-gray-100">
                                 <div className="font-bold text-de-gold truncate">{userCase.fantasyName}</div>
-                                <div className="text-gray-300 text-xs self-center">VS</div>
-                                <div className="font-bold text-gray-700 truncate">{caseData.fantasyName}</div>
+                                <div className="text-gray-400 text-xs self-center">VS</div>
+                                <div className="font-bold text-gray-900 truncate">{caseData.fantasyName}</div>
                             </div>
                             
                             <div className="space-y-1">
@@ -210,7 +210,7 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
 
                             <button 
                                 onClick={() => setCompareMode(false)}
-                                className="mt-6 w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold rounded uppercase transition-colors"
+                                className="mt-6 w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded uppercase transition-colors"
                             >
                                 Back to Details
                             </button>
@@ -218,42 +218,42 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
                      ) : (
                         <>
                              {isGhost && (
-                                <div className="bg-gray-100 p-3 rounded border border-gray-200 text-xs text-gray-500 flex items-start gap-2">
+                                <div className="bg-gray-100 p-3 rounded border border-gray-200 text-xs text-gray-600 flex items-start gap-2">
                                     <Ghost size={16} className="shrink-0 mt-0.5" />
                                     <span>This case is categorized as a "Ghost Case" due to long inactivity.</span>
                                 </div>
                              )}
-                             <div className="grid grid-cols-2 gap-4 text-sm">
+                             <div className="grid grid-cols-2 gap-4 text-sm text-gray-900">
                                  <div>
                                      <span className="text-xs text-gray-500 font-bold uppercase block">{t.country}</span>
-                                     <span className="font-medium">{caseData.countryOfApplication}</span>
+                                     <span className="font-medium text-gray-900">{caseData.countryOfApplication}</span>
                                  </div>
                                  <div>
                                      <span className="text-xs text-gray-500 font-bold uppercase block">{t.caseType}</span>
-                                     <span className="font-medium">{caseData.caseType}</span>
+                                     <span className="font-medium text-gray-900">{caseData.caseType}</span>
                                  </div>
                              </div>
                              <div className="border-t border-gray-100 pt-3 space-y-2">
                                  <div className="flex justify-between">
                                     <span className="text-xs text-gray-500 font-bold uppercase">{t.submissionDate}</span>
-                                    <span className="text-sm font-mono">{formatISODateToLocale(caseData.submissionDate, lang)}</span>
+                                    <span className="text-sm font-mono text-gray-900">{formatISODateToLocale(caseData.submissionDate, lang)}</span>
                                  </div>
                                  {caseData.protocolDate && (
                                      <div className="flex justify-between">
                                         <span className="text-xs text-gray-500 font-bold uppercase">{t.protocolDate}</span>
-                                        <span className="text-sm font-mono text-blue-600">{formatISODateToLocale(caseData.protocolDate, lang)}</span>
+                                        <span className="text-sm font-mono text-blue-700">{formatISODateToLocale(caseData.protocolDate, lang)}</span>
                                      </div>
                                  )}
                                  {caseData.approvalDate && (
                                      <div className="flex justify-between bg-green-50 p-1 rounded">
-                                        <span className="text-xs text-green-700 font-bold uppercase">{t.approvalDate}</span>
-                                        <span className="text-sm font-mono text-green-700 font-bold">{formatISODateToLocale(caseData.approvalDate, lang)}</span>
+                                        <span className="text-xs text-green-800 font-bold uppercase">{t.approvalDate}</span>
+                                        <span className="text-sm font-mono text-green-800 font-bold">{formatISODateToLocale(caseData.approvalDate, lang)}</span>
                                      </div>
                                  )}
                                  {caseData.closedDate && (
                                      <div className="flex justify-between bg-red-50 p-1 rounded">
-                                        <span className="text-xs text-red-700 font-bold uppercase">{t.closedDate}</span>
-                                        <span className="text-sm font-mono text-red-700 font-bold">{formatISODateToLocale(caseData.closedDate, lang)}</span>
+                                        <span className="text-xs text-red-800 font-bold uppercase">{t.closedDate}</span>
+                                        <span className="text-sm font-mono text-red-800 font-bold">{formatISODateToLocale(caseData.closedDate, lang)}</span>
                                      </div>
                                  )}
                              </div>
@@ -261,7 +261,7 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
                                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
                                     caseData.status === CaseStatus.APPROVED ? 'bg-green-100 text-green-800' :
                                     caseData.status === CaseStatus.CLOSED ? 'bg-red-100 text-red-800' :
-                                    'bg-gray-100 text-gray-600'
+                                    'bg-gray-100 text-gray-700'
                                  }`}>
                                      {statusT[caseData.status] || caseData.status}
                                  </span>
@@ -270,7 +270,7 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
                              {userCase && userCase.id !== caseData.id && (
                                 <button 
                                     onClick={() => setCompareMode(true)}
-                                    className="w-full mt-4 bg-de-gold/10 hover:bg-de-gold/20 text-de-black/80 font-bold py-2 rounded text-sm flex items-center justify-center gap-2 border border-de-gold/30 transition-colors"
+                                    className="w-full mt-4 bg-de-gold/10 hover:bg-de-gold/20 text-de-black/90 font-bold py-2 rounded text-sm flex items-center justify-center gap-2 border border-de-gold/30 transition-colors"
                                 >
                                     <ArrowLeftRight size={16} /> {lang === 'es' ? 'Comparar conmigo' : 'Compare with My Case'}
                                 </button>

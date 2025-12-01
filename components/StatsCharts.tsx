@@ -45,21 +45,21 @@ const SkeletonChart = () => (
 // Drill Down Modal (Item 6)
 const DrillDownModal = ({ title, cases, onClose, statusT, lang, t }: { title: string, cases: CitizenshipCase[], onClose: () => void, statusT: any, lang: Language, t: any }) => (
     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-        <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="bg-white text-gray-900 rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
                 <h3 className="font-bold text-de-black">{t.details || 'Details'}: {title} ({cases.length})</h3>
                 <button onClick={onClose}><X size={20} className="text-gray-400 hover:text-red-500" /></button>
             </div>
             <div className="overflow-y-auto p-4 space-y-2">
                 {cases.map(c => (
-                    <div key={c.id} className="text-sm p-3 border rounded hover:bg-gray-50 flex justify-between items-center">
+                    <div key={c.id} className="text-sm p-3 border rounded hover:bg-gray-50 flex justify-between items-center text-gray-900">
                         <div>
-                            <span className="font-bold block">{c.fantasyName}</span>
+                            <span className="font-bold block text-de-black">{c.fantasyName}</span>
                             <span className="text-xs text-gray-500">
                                 {c.countryOfApplication} • {formatISODateToLocale(c.submissionDate, lang)}
                             </span>
                         </div>
-                        <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">
+                        <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-700">
                            {statusT[c.status] || c.status}
                         </span>
                     </div>
