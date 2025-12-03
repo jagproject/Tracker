@@ -75,7 +75,7 @@ export const updateGlobalConfig = async (config: AppConfig) => {
             notes: JSON.stringify(config) // STORE CONFIG HERE
         };
 
-        const { error } = await supabase.from(DB_TABLE).upsert(configRecord);
+        const { error } = await supabase.from(DB_TABLE).upsert(configRecord, { onConflict: 'id' });
         if (error) console.error("Failed to push global config:", error);
     }
 };
@@ -217,7 +217,7 @@ export const upsertCase = async (newCase: CitizenshipCase) => {
   const caseToSave = { ...newCase, email: normalizedNewEmail };
 
   if (supabase) {
-      const { error } = await supabase.from(DB_TABLE).upsert(caseToSave);
+      const { error } = await supabase.from(DB_TABLE).upsert(caseToSave, { onConflict: 'id' });
       if (error) {
           console.error("Supabase Upsert Error:", error);
           lastFetchError = `Save Failed: ${error.message}`;
@@ -286,19 +286,57 @@ export const hardDeleteCase = async (id: string) => {
 };
 
 export const importCases = async (newCases: CitizenshipCase[]) => {
+  // 1. RECONCILIATION: Check for existing emails to avoid "Unique Constraint" violation
+  if (supabase) {
+      const emailsToCheck = newCases
+          .map(c => c.email ? c.email.trim().toLowerCase() : null)
+          .filter(e => e && !e.startsWith('imported_') && !e.startsWith('unclaimed_')) as string[];
+      
+      if (emailsToCheck.length > 0) {
+          // Chunk checking to avoid URL length issues
+          const uniqueEmails = Array.from(new Set(emailsToCheck));
+          const BATCH_CHECK = 100;
+          const emailToIdMap = new Map<string, string>();
+
+          for(let i=0; i<uniqueEmails.length; i+=BATCH_CHECK) {
+               const batch = uniqueEmails.slice(i, i+BATCH_CHECK);
+               const { data } = await supabase
+                  .from(DB_TABLE)
+                  .select('id, email')
+                  .in('email', batch);
+               
+               if (data) {
+                   data.forEach((row: any) => emailToIdMap.set(row.email, row.id));
+               }
+          }
+
+          // Assign existing IDs to the new cases. 
+          // This forces Supabase to UPDATE the existing row instead of trying to INSERT a new ID with a duplicate email.
+          newCases.forEach(c => {
+              const cleanEmail = c.email ? c.email.trim().toLowerCase() : '';
+              if (cleanEmail && emailToIdMap.has(cleanEmail)) {
+                  c.id = emailToIdMap.get(cleanEmail)!;
+              }
+          });
+      }
+  }
+
+  // 2. Prepare Payload
   const processedCases = newCases.map(c => ({
       ...c,
-      id: c.id || crypto.randomUUID(),
+      id: c.id || crypto.randomUUID(), // If we found an ID above, use it. Otherwise generate new.
       lastUpdated: c.lastUpdated || new Date().toISOString(),
       email: c.email ? c.email.trim().toLowerCase() : `imported_${crypto.randomUUID()}@tracker.local`
   }));
 
+  // 3. Upsert to Supabase
   if (supabase) {
       // Chunking to avoid payload limits (Batch size 50)
       const BATCH_SIZE = 50;
       for (let i = 0; i < processedCases.length; i += BATCH_SIZE) {
           const batch = processedCases.slice(i, i + BATCH_SIZE);
-          const { error } = await supabase.from(DB_TABLE).upsert(batch);
+          // Explicitly state onConflict id to ensure UPSERT behavior
+          const { error } = await supabase.from(DB_TABLE).upsert(batch, { onConflict: 'id' });
           if (error) {
               console.error(`Bulk Import Batch ${i} Error:`, error);
               throw error; // Stop if a batch fails to avoid partial state confusion
@@ -306,10 +344,22 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
       }
   }
   
-  // Update local cache
+  // 4. Update local cache (Merge Smartly)
   const stored = localStorage.getItem(STORAGE_KEY);
   let current = stored ? JSON.parse(stored) : [];
-  current = [...current, ...processedCases];
+  
+  const processedMap = new Map(processedCases.map(c => [c.id, c]));
+  
+  // Replace existing in local
+  current = current.map((c: CitizenshipCase) => processedMap.has(c.id) ? processedMap.get(c.id) : c);
+  
+  // Add new ones to local
+  processedCases.forEach(c => {
+      if (!current.some((existing: CitizenshipCase) => existing.id === c.id)) {
+          current.push(c);
+      }
+  });
+
   localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
 };
 
@@ -355,7 +405,7 @@ export const parseAndImportCSV = async (csvText: string) => {
         const subDate = subDateIdx > -1 ? formatDate(cols[subDateIdx]) : new Date().toISOString().split('T')[0];
 
         const c: CitizenshipCase = {
-            id: crypto.randomUUID(),
+            id: '', // Empty ID initially, importCases will reconcile or generate
             fantasyName: name,
             email: emailIdx > -1 && cols[emailIdx] ? cols[emailIdx] : `imported_${crypto.randomUUID()}@tracker.local`,
             countryOfApplication: countryIdx > -1 && cols[countryIdx] ? cols[countryIdx] : 'Unknown',
