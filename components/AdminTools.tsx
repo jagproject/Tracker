@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock, Wifi, WifiOff, RefreshCw, ShieldCheck, Ghost, LockKeyhole, Mail, Recycle, RefreshCcw, ScanSearch, Server, FileText, ArrowUpDown, ChevronUp, ChevronDown, Check, EyeOff } from 'lucide-react';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
 import { TRANSLATIONS, STATUS_TRANSLATIONS, COUNTRIES } from '../constants';
-import { importCases, fetchCases, fetchDeletedCases, restoreCase, hardDeleteCase, addAuditLog, getAuditLogs, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, getLastFetchError, checkConnection, parseAndImportCSV } from '../services/storageService';
+import { importCases, fetchCases, fetchDeletedCases, restoreCase, hardDeleteCase, addAuditLog, getAuditLogs, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, getLastFetchError, checkConnection, parseAndImportCSV, fetchGlobalConfig } from '../services/storageService';
 import { detectAnomalies } from '../services/geminiService';
 import { calculateQuickStats, formatDuration, isGhostCase, formatISODateToLocale } from '../services/statsUtils';
 import { isSupabaseEnabled } from '../services/authService';
@@ -38,7 +38,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
-  const [lastBackup, setLastBackup] = useState<string | null>(null);
+  const [isUpdatingMaint, setIsUpdatingMaint] = useState(false);
   
   const [dbError, setDbError] = useState<string | null>(null);
   const [isVerifyingDb, setIsVerifyingDb] = useState(false);
@@ -58,8 +58,11 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
             setAuditLogs(getAuditLogs());
             setAllCases(await fetchCases()); // Fetch Active
             setDeletedCases(await fetchDeletedCases()); // Fetch Deleted (Recycle Bin)
-            setMaintenanceEnabled(getAppConfig().maintenanceMode);
-            setLastBackup(localStorage.getItem('de_tracker_last_backup_ts'));
+            
+            // Async fetch for global config
+            const config = await fetchGlobalConfig();
+            setMaintenanceEnabled(config.maintenanceMode);
+
             setDbError(getLastFetchError());
         }
     };
@@ -69,6 +72,8 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   const refreshAll = async () => {
        setAllCases(await fetchCases());
        setDeletedCases(await fetchDeletedCases());
+       const config = await fetchGlobalConfig();
+       setMaintenanceEnabled(config.maintenanceMode);
        onDataChange();
   };
 
@@ -106,7 +111,6 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
 
   const handleEmailBackup = async () => {
       const dump = await getFullDatabaseDump();
-      const jsonString = JSON.stringify(dump, null, 2);
       
       const mailtoLink = `mailto:${OWNER_EMAIL}?subject=TRACKER_BACKUP_${new Date().toISOString()}&body=Please find the database backup attached.`;
       window.open(mailtoLink);
@@ -242,8 +246,13 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     e.preventDefault();
     if (otp === SECRET_KEY) { setAuthState('AUTHENTICATED'); } else { alert("Invalid Password"); }
   };
-  const handleToggleMaintenance = () => {
-    const newState = !maintenanceEnabled; setMaintenanceMode(newState); setMaintenanceEnabled(newState);
+  
+  const handleToggleMaintenance = async () => {
+    setIsUpdatingMaint(true);
+    const newState = !maintenanceEnabled; 
+    await setMaintenanceMode(newState); 
+    setMaintenanceEnabled(newState);
+    setIsUpdatingMaint(false);
     onDataChange();
   };
   
@@ -609,10 +618,20 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                              <div className="flex items-center gap-2 font-bold text-sm">
                                  <Power size={16} /> Maintenance Mode
                              </div>
-                             <button onClick={handleToggleMaintenance} className={`px-4 py-2 rounded font-bold text-sm ${maintenanceEnabled ? 'bg-orange-500 text-white' : 'border'}`}>
+                             <button 
+                                onClick={handleToggleMaintenance} 
+                                disabled={isUpdatingMaint}
+                                className={`px-4 py-2 rounded font-bold text-sm flex items-center gap-2 ${maintenanceEnabled ? 'bg-orange-500 text-white hover:bg-orange-600' : 'border hover:bg-gray-50'}`}
+                             >
+                                 {isUpdatingMaint ? <Loader2 size={14} className="animate-spin" /> : null}
                                  {maintenanceEnabled ? "Resume App" : "Pause App"}
                              </button>
                          </div>
+                         <p className="text-xs text-gray-500 mt-2 ml-6">
+                             {maintenanceEnabled 
+                                ? "Application is currently offline for users." 
+                                : "Application is running normally."}
+                         </p>
                     </div>
                 </div>
             )}

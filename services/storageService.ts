@@ -7,6 +7,9 @@ const LOGS_KEY = 'de_citizenship_audit_logs';
 const CONFIG_KEY = 'de_citizenship_config';
 const DB_TABLE = 'cases';
 
+// Special ID for storing global app configuration in the main table
+const GLOBAL_CONFIG_ID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+
 export interface AppConfig {
     maintenanceMode: boolean;
 }
@@ -20,9 +23,69 @@ export const getLastFetchError = () => lastFetchError;
 // ------------------------------------------------------------------
 // 1. READ ONLY DEFAULT: fetchCases() only performs SELECT operations.
 // 2. SOFT DELETE IMPLEMENTED: deleteCase() now sets a 'deletedAt' timestamp.
-//    Records are NOT removed from DB, only hidden.
-// 3. RECYCLE BIN: Admin can restore soft-deleted cases.
+// 3. GLOBAL CONFIG: Maintenance mode is now synced via DB.
 // ------------------------------------------------------------------
+
+// --- GLOBAL CONFIGURATION ---
+
+export const fetchGlobalConfig = async (): Promise<AppConfig> => {
+    // Default config
+    const localConfig = getLocalConfig();
+
+    if (supabase) {
+        try {
+            const { data, error } = await supabase
+                .from(DB_TABLE)
+                .select('notes')
+                .eq('id', GLOBAL_CONFIG_ID)
+                .maybeSingle();
+
+            if (!error && data && data.notes) {
+                try {
+                    const remoteConfig = JSON.parse(data.notes);
+                    // Update local cache to match remote
+                    localStorage.setItem(CONFIG_KEY, JSON.stringify(remoteConfig));
+                    return remoteConfig;
+                } catch (e) {
+                    console.error("Error parsing remote config JSON");
+                }
+            }
+        } catch (e) {
+            console.warn("Could not fetch global config, using local.");
+        }
+    }
+    return localConfig;
+};
+
+export const updateGlobalConfig = async (config: AppConfig) => {
+    // 1. Update Local
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+
+    // 2. Update Remote
+    if (supabase) {
+        const configRecord = {
+            id: GLOBAL_CONFIG_ID,
+            fantasyName: 'SYSTEM_CONFIG',
+            email: 'system@tracker.config',
+            countryOfApplication: 'Germany',
+            caseType: CaseType.STAG_5, // Dummy value
+            status: CaseStatus.SUBMITTED, // Dummy value
+            submissionDate: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+            notes: JSON.stringify(config) // STORE CONFIG HERE
+        };
+
+        const { error } = await supabase.from(DB_TABLE).upsert(configRecord);
+        if (error) console.error("Failed to push global config:", error);
+    }
+};
+
+const getLocalConfig = (): AppConfig => {
+    const stored = localStorage.getItem(CONFIG_KEY);
+    return stored ? JSON.parse(stored) : { maintenanceMode: false };
+};
+
+export const getAppConfig = getLocalConfig; // Legacy export for sync usage
 
 // --- READ OPERATIONS ---
 
@@ -43,7 +106,7 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
             if (error.code === '42703' || error.message?.includes("deletedAt")) {
                  console.warn("[SoftDelete] 'deletedAt' column missing in DB. Fetching all records (Legacy Mode).");
                  const retry = await supabase.from(DB_TABLE).select('*');
-                 if (retry.data) return retry.data as CitizenshipCase[];
+                 if (retry.data) return filterSystemRecords(retry.data as CitizenshipCase[]);
             }
             console.error("Supabase Fetch Error:", error);
             throw error;
@@ -52,7 +115,7 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
         lastFetchError = null; // Clear error on success
 
         if (data) {
-            const cases = data as CitizenshipCase[];
+            const cases = filterSystemRecords(data as CitizenshipCase[]);
             // Cache active
             if (!includeDeleted) {
                 try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cases)); } catch (e) {}
@@ -78,18 +141,20 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
   return [];
 };
 
+// Helper to remove the system config row from the main list
+const filterSystemRecords = (cases: CitizenshipCase[]) => {
+    return cases.filter(c => c.id !== GLOBAL_CONFIG_ID);
+};
+
 export const fetchDeletedCases = async (): Promise<CitizenshipCase[]> => {
     if (supabase) {
         const { data, error } = await supabase.from(DB_TABLE).select('*').not('deletedAt', 'is', null);
         
         if (error) {
-            if (error.code === '42703' || error.message?.includes("deletedAt")) {
-                return [];
-            }
-            console.error("Fetch Deleted Error:", error);
+            return [];
         }
 
-        if (data) return data as CitizenshipCase[];
+        if (data) return filterSystemRecords(data as CitizenshipCase[]);
     }
     // Fallback Local
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -229,14 +294,22 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
   }));
 
   if (supabase) {
-      const { error } = await supabase.from(DB_TABLE).upsert(processedCases);
-      if (error) console.error("Bulk Import Error:", error);
+      // Chunking to avoid payload limits (Batch size 50)
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < processedCases.length; i += BATCH_SIZE) {
+          const batch = processedCases.slice(i, i + BATCH_SIZE);
+          const { error } = await supabase.from(DB_TABLE).upsert(batch);
+          if (error) {
+              console.error(`Bulk Import Batch ${i} Error:`, error);
+              throw error; // Stop if a batch fails to avoid partial state confusion
+          }
+      }
   }
   
   // Update local cache
   const stored = localStorage.getItem(STORAGE_KEY);
   let current = stored ? JSON.parse(stored) : [];
-  current = [...current, ...processedCases]; // Simplified local merge
+  current = [...current, ...processedCases];
   localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
 };
 
@@ -262,14 +335,24 @@ export const parseAndImportCSV = async (csvText: string) => {
 
     const newCases: CitizenshipCase[] = [];
 
+    // Helper to safely format date for DB (YYYY-MM-DD)
+    const formatDate = (dateStr: string): string | undefined => {
+        if (!dateStr || dateStr.trim() === '') return undefined;
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return undefined;
+            return d.toISOString().split('T')[0];
+        } catch { return undefined; }
+    };
+
     for (let i = 1; i < lines.length; i++) {
-        // Simple CSV split (doesn't handle commas inside quotes well, but sufficient for basic import)
         const cols = lines[i].split(',').map(c => c.trim().replace(/"/g, ''));
-        
         if (cols.length < headers.length) continue;
 
         const name = cols[nameIdx];
         if (!name) continue;
+
+        const subDate = subDateIdx > -1 ? formatDate(cols[subDateIdx]) : new Date().toISOString().split('T')[0];
 
         const c: CitizenshipCase = {
             id: crypto.randomUUID(),
@@ -278,12 +361,18 @@ export const parseAndImportCSV = async (csvText: string) => {
             countryOfApplication: countryIdx > -1 && cols[countryIdx] ? cols[countryIdx] : 'Unknown',
             caseType: typeIdx > -1 && cols[typeIdx] ? (cols[typeIdx] as CaseType) : CaseType.STAG_5,
             status: statusIdx > -1 && cols[statusIdx] ? (cols[statusIdx] as CaseStatus) : CaseStatus.SUBMITTED,
-            submissionDate: subDateIdx > -1 && cols[subDateIdx] ? new Date(cols[subDateIdx]).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            submissionDate: subDate as string,
             lastUpdated: new Date().toISOString()
         };
 
-        if (protoDateIdx > -1 && cols[protoDateIdx]) c.protocolDate = new Date(cols[protoDateIdx]).toISOString().split('T')[0];
-        if (appDateIdx > -1 && cols[appDateIdx]) c.approvalDate = new Date(cols[appDateIdx]).toISOString().split('T')[0];
+        if (protoDateIdx > -1) {
+             const pDate = formatDate(cols[protoDateIdx]);
+             if (pDate) c.protocolDate = pDate;
+        }
+        if (appDateIdx > -1) {
+            const aDate = formatDate(cols[appDateIdx]);
+            if (aDate) c.approvalDate = aDate;
+        }
 
         newCases.push(c);
     }
@@ -345,15 +434,8 @@ export const addAuditLog = (action: string, details: string, user: string = 'Sys
   localStorage.setItem(LOGS_KEY, JSON.stringify(updatedLogs));
 };
 
-export const getAppConfig = (): AppConfig => {
-    const stored = localStorage.getItem(CONFIG_KEY);
-    return stored ? JSON.parse(stored) : { maintenanceMode: false };
-};
-
-export const setMaintenanceMode = (enabled: boolean) => {
-    const config = getAppConfig();
-    config.maintenanceMode = enabled;
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+export const setMaintenanceMode = async (enabled: boolean) => {
+    await updateGlobalConfig({ maintenanceMode: enabled });
 };
 
 // --- BACKUP UTILS ---
@@ -365,7 +447,7 @@ export const getFullDatabaseDump = async () => {
 
     return {
         timestamp: new Date().toISOString(),
-        version: "1.1",
+        version: "1.2",
         stats: {
             cases: cases.length,
             logs: logs.length

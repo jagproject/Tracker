@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import { CitizenshipCase, UserSession, CaseType, CaseStatus, Language } from './types';
 import { generateFantasyUsername, generateStatisticalInsights } from './services/geminiService';
-import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig, subscribeToCases, getLastFetchError } from './services/storageService';
+import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig, subscribeToCases, getLastFetchError, fetchGlobalConfig } from './services/storageService';
 import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickStats, formatISODateToLocale, isGhostCase, formatDuration } from './services/statsUtils';
 import { logoutUser, subscribeToAuthChanges, isSupabaseEnabled } from './services/authService';
 import { StatsDashboard } from './components/StatsCharts';
@@ -328,7 +328,7 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
                                     caseData.status === CaseStatus.CLOSED ? 'bg-red-100 text-red-800' :
                                     'bg-gray-100 text-gray-700'
                                  }`}>
-                                     {statusT[caseData.status] || caseData.status}
+                                     {STATUS_TRANSLATIONS[lang][caseData.status] || caseData.status}
                                  </span>
                              </div>
 
@@ -512,7 +512,8 @@ const App: React.FC = () => {
     setAllCases(loadedCases);
     setFetchError(getLastFetchError()); 
     
-    const config = getAppConfig();
+    // FETCH GLOBAL CONFIG NOW
+    const config = await fetchGlobalConfig();
     setIsMaintenance(config.maintenanceMode);
 
     if (session) {
