@@ -517,9 +517,18 @@ const App: React.FC = () => {
     setIsMaintenance(config.maintenanceMode);
 
     if (session) {
-       // Re-find user case using normalized email
-       const mine = loadedCases.find(c => c.email.trim().toLowerCase() === session.email.trim().toLowerCase());
-       setUserCase(mine);
+        // Fetch full details for the logged-in user explicitly since public fetchCases excludes PII
+       const mine = await fetchCaseByEmail(session.email);
+       if (mine) {
+           // Ensure the user's full data is used for "My Case"
+           setUserCase(mine);
+           
+           // Optionally update the entry in allCases to reflect full data locally (if needed)
+           // But allCases usually drives the charts which don't need email.
+       } else {
+           // Fallback if not found (e.g. fresh session but case deleted?)
+           setUserCase(undefined);
+       }
     }
     if (!silent) setDataLoading(false);
   };

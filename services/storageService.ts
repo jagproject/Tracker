@@ -10,6 +10,15 @@ const DB_TABLE = 'cases';
 // Special ID for storing global app configuration in the main table
 const GLOBAL_CONFIG_ID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 
+// Define public columns to fetch for general stats (EXCLUDING EMAIL for privacy)
+const PUBLIC_COLUMNS = [
+    'id', 'fantasyName', 'countryOfApplication', 'consulate', 'caseType', 
+    'status', 'submissionDate', 'protocolDate', 'docsRequestDate', 
+    'approvalDate', 'closedDate', 'lastUpdated', 'notes', 
+    'deletedAt', 'notifySameDateSubmission', 'notifySameMonthUrkunde', 
+    'notifySubmissionCohortUpdates', 'notifyProtocolCohortUpdates'
+].join(',');
+
 export interface AppConfig {
     maintenanceMode: boolean;
 }
@@ -93,7 +102,8 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
   // 1. Try Supabase
   if (supabase) {
     try {
-        let query = supabase.from(DB_TABLE).select('*');
+        // Use specific columns to avoid pulling PII (email) in public feed
+        let query = supabase.from(DB_TABLE).select(PUBLIC_COLUMNS);
         
         // Soft Delete Filtering
         if (!includeDeleted) {
@@ -105,8 +115,8 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
         if (error) {
             if (error.code === '42703' || error.message?.includes("deletedAt")) {
                  console.warn("[SoftDelete] 'deletedAt' column missing in DB. Fetching all records (Legacy Mode).");
-                 const retry = await supabase.from(DB_TABLE).select('*');
-                 if (retry.data) return filterSystemRecords(retry.data as CitizenshipCase[]);
+                 const retry = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS);
+                 if (retry.data) return filterSystemRecords(mapToCases(retry.data));
             }
             console.error("Supabase Fetch Error:", error);
             throw error;
@@ -115,7 +125,7 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
         lastFetchError = null; // Clear error on success
 
         if (data) {
-            const cases = filterSystemRecords(data as CitizenshipCase[]);
+            const cases = filterSystemRecords(mapToCases(data));
             // Cache active
             if (!includeDeleted) {
                 try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cases)); } catch (e) {}
@@ -141,6 +151,14 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
   return [];
 };
 
+// Helper to map DB result (missing email) to CitizenshipCase type
+const mapToCases = (data: any[]): CitizenshipCase[] => {
+    return data.map(c => ({
+        ...c,
+        email: c.email || '' // Default empty email for public data
+    })) as CitizenshipCase[];
+};
+
 // Helper to remove the system config row from the main list
 const filterSystemRecords = (cases: CitizenshipCase[]) => {
     return cases.filter(c => c.id !== GLOBAL_CONFIG_ID);
@@ -148,13 +166,14 @@ const filterSystemRecords = (cases: CitizenshipCase[]) => {
 
 export const fetchDeletedCases = async (): Promise<CitizenshipCase[]> => {
     if (supabase) {
-        const { data, error } = await supabase.from(DB_TABLE).select('*').not('deletedAt', 'is', null);
+        // Admin function: Try to fetch everything including emails if possible, but minimal cols is safer
+        const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).not('deletedAt', 'is', null);
         
         if (error) {
             return [];
         }
 
-        if (data) return filterSystemRecords(data as CitizenshipCase[]);
+        if (data) return filterSystemRecords(mapToCases(data));
     }
     // Fallback Local
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -184,6 +203,8 @@ export const fetchCaseByEmail = async (email: string): Promise<CitizenshipCase |
     
     if (supabase) {
         try {
+            // Select '*' here because the user needs their own email/full data. 
+            // RLS should allow this for the owner.
             const { data, error } = await supabase.from(DB_TABLE).select('*').eq('email', searchEmail).is('deletedAt', null).maybeSingle();
             if (!error && data) return data as CitizenshipCase;
         } catch (e) {}
@@ -201,8 +222,9 @@ export const fetchCaseByFantasyName = async (name: string): Promise<CitizenshipC
 
     if (supabase) {
         try {
-             const { data, error } = await supabase.from(DB_TABLE).select('*').ilike('fantasyName', searchName).is('deletedAt', null).maybeSingle();
-             if (!error && data) return data as CitizenshipCase;
+             // Public lookup: Use public columns only
+             const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).ilike('fantasyName', searchName).is('deletedAt', null).maybeSingle();
+             if (!error && data) return { ...data, email: '' } as CitizenshipCase;
         } catch(e) {}
     }
 
@@ -319,12 +341,14 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
 
           for(let i=0; i<uniqueEmails.length; i+=BATCH_CHECK) {
                const batch = uniqueEmails.slice(i, i+BATCH_CHECK);
+               // IMPORTANT: This select requires RLS to allow reading other users' emails OR being admin.
+               // Standard users running import will likely fail here if RLS is strict.
                const { data, error } = await supabase
                   .from(DB_TABLE)
                   .select('id, email')
                   .in('email', batch);
                
-               if (error) console.error("Reconciliation Error:", error);
+               if (error) console.error("Reconciliation Error (RLS might block this):", error);
 
                if (data) {
                    data.forEach((row: any) => {
@@ -360,9 +384,8 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
           const { error } = await supabase.from(DB_TABLE).upsert(batch, { onConflict: 'id' });
           if (error) {
               console.error(`Bulk Import Batch ${i} Error:`, error);
-              // Provide a more helpful error message if it's a unique constraint issue
               if (error.message?.includes('cases_email_key') || error.message?.includes('unique constraint')) {
-                  throw new Error(`Import Error: Duplicate email found in batch. An email in this batch already exists in the database but was not matched correctly. Please check for duplicates.`);
+                  throw new Error(`Import Error: Duplicate email found in batch. Please check for duplicates.`);
               }
               throw error;
           }
@@ -519,7 +542,9 @@ export const setMaintenanceMode = async (enabled: boolean) => {
 // --- BACKUP UTILS ---
 
 export const getFullDatabaseDump = async () => {
-    const cases = await fetchCases(true); // Include deleted for backup
+    // Admin function - tries to get deleted cases too. 
+    // Requires relaxed RLS or admin access for complete dump.
+    const cases = await fetchCases(true); 
     const logs = getAuditLogs();
     const config = getAppConfig();
 
