@@ -286,14 +286,32 @@ export const hardDeleteCase = async (id: string) => {
 };
 
 export const importCases = async (newCases: CitizenshipCase[]) => {
-  // 1. RECONCILIATION: Check for existing emails to avoid "Unique Constraint" violation
+  // 0. Pre-process: Deduplicate input based on email to prevent unique constraint errors within the batch itself.
+  const uniqueInputMap = new Map<string, CitizenshipCase>();
+  const casesWithoutEmail: CitizenshipCase[] = [];
+
+  for (const c of newCases) {
+      if (c.email && !c.email.startsWith('imported_') && !c.email.startsWith('unclaimed_')) {
+          const clean = c.email.trim().toLowerCase();
+          c.email = clean;
+          // Last one wins if there are duplicates in the import file
+          uniqueInputMap.set(clean, c);
+      } else {
+          // If it's a generated ID email or empty, we treat it as unique enough (will generate new UUID email if empty)
+          casesWithoutEmail.push(c);
+      }
+  }
+  
+  // Reconstruct list with unique emails from the input
+  let processedInput = [...Array.from(uniqueInputMap.values()), ...casesWithoutEmail];
+
+  // 1. RECONCILIATION: Check for existing emails in the Database
   if (supabase) {
-      const emailsToCheck = newCases
-          .map(c => c.email ? c.email.trim().toLowerCase() : null)
+      const emailsToCheck = processedInput
+          .map(c => c.email)
           .filter(e => e && !e.startsWith('imported_') && !e.startsWith('unclaimed_')) as string[];
       
       if (emailsToCheck.length > 0) {
-          // Chunk checking to avoid URL length issues
           const uniqueEmails = Array.from(new Set(emailsToCheck));
           const BATCH_CHECK = 100;
           const emailToIdMap = new Map<string, string>();
@@ -310,36 +328,37 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
                }
           }
 
-          // Assign existing IDs to the new cases. 
-          // This forces Supabase to UPDATE the existing row instead of trying to INSERT a new ID with a duplicate email.
-          newCases.forEach(c => {
-              const cleanEmail = c.email ? c.email.trim().toLowerCase() : '';
-              if (cleanEmail && emailToIdMap.has(cleanEmail)) {
-                  c.id = emailToIdMap.get(cleanEmail)!;
+          // Assign existing IDs to the new cases so upsert acts as UPDATE
+          processedInput.forEach(c => {
+              if (c.email && emailToIdMap.has(c.email)) {
+                  c.id = emailToIdMap.get(c.email)!;
               }
           });
       }
   }
 
   // 2. Prepare Payload
-  const processedCases = newCases.map(c => ({
+  const finalPayload = processedInput.map(c => ({
       ...c,
-      id: c.id || crypto.randomUUID(), // If we found an ID above, use it. Otherwise generate new.
+      id: c.id || crypto.randomUUID(), // Use existing ID if found, else new UUID
       lastUpdated: c.lastUpdated || new Date().toISOString(),
       email: c.email ? c.email.trim().toLowerCase() : `imported_${crypto.randomUUID()}@tracker.local`
   }));
 
   // 3. Upsert to Supabase
   if (supabase) {
-      // Chunking to avoid payload limits (Batch size 50)
       const BATCH_SIZE = 50;
-      for (let i = 0; i < processedCases.length; i += BATCH_SIZE) {
-          const batch = processedCases.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < finalPayload.length; i += BATCH_SIZE) {
+          const batch = finalPayload.slice(i, i + BATCH_SIZE);
           // Explicitly state onConflict id to ensure UPSERT behavior
           const { error } = await supabase.from(DB_TABLE).upsert(batch, { onConflict: 'id' });
           if (error) {
               console.error(`Bulk Import Batch ${i} Error:`, error);
-              throw error; // Stop if a batch fails to avoid partial state confusion
+              // Provide a more helpful error message if it's a unique constraint issue
+              if (error.message?.includes('cases_email_key')) {
+                  throw new Error(`Import Error: Duplicate email found in batch. An email in this batch already exists in the database but was not matched correctly. Please check for duplicates.`);
+              }
+              throw error;
           }
       }
   }
@@ -348,13 +367,13 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
   const stored = localStorage.getItem(STORAGE_KEY);
   let current = stored ? JSON.parse(stored) : [];
   
-  const processedMap = new Map(processedCases.map(c => [c.id, c]));
+  const processedMap = new Map(finalPayload.map(c => [c.id, c]));
   
   // Replace existing in local
   current = current.map((c: CitizenshipCase) => processedMap.has(c.id) ? processedMap.get(c.id) : c);
   
   // Add new ones to local
-  processedCases.forEach(c => {
+  finalPayload.forEach(c => {
       if (!current.some((existing: CitizenshipCase) => existing.id === c.id)) {
           current.push(c);
       }
@@ -403,11 +422,14 @@ export const parseAndImportCSV = async (csvText: string) => {
         if (!name) continue;
 
         const subDate = subDateIdx > -1 ? formatDate(cols[subDateIdx]) : new Date().toISOString().split('T')[0];
+        
+        // Handle Email: If empty in CSV, generate placeholder. If present, keep it for de-duplication logic in importCases.
+        const rawEmail = emailIdx > -1 && cols[emailIdx] ? cols[emailIdx].trim() : '';
 
         const c: CitizenshipCase = {
             id: '', // Empty ID initially, importCases will reconcile or generate
             fantasyName: name,
-            email: emailIdx > -1 && cols[emailIdx] ? cols[emailIdx] : `imported_${crypto.randomUUID()}@tracker.local`,
+            email: rawEmail, // Pass empty string if missing, importCases handles generation
             countryOfApplication: countryIdx > -1 && cols[countryIdx] ? cols[countryIdx] : 'Unknown',
             caseType: typeIdx > -1 && cols[typeIdx] ? (cols[typeIdx] as CaseType) : CaseType.STAG_5,
             status: statusIdx > -1 && cols[statusIdx] ? (cols[statusIdx] as CaseStatus) : CaseStatus.SUBMITTED,
