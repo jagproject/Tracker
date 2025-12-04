@@ -11,13 +11,19 @@ const DB_TABLE = 'cases';
 const GLOBAL_CONFIG_ID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 
 // Define public columns to fetch for general stats (EXCLUDING EMAIL for privacy)
-const PUBLIC_COLUMNS = [
+// Base columns that exist in all versions of the schema
+const PUBLIC_COLUMNS_BASE = [
     'id', 'fantasyName', 'countryOfApplication', 'consulate', 'caseType', 
     'status', 'submissionDate', 'protocolDate', 'docsRequestDate', 
     'approvalDate', 'closedDate', 'lastUpdated', 'notes', 
-    'deletedAt', 'notifySameDateSubmission', 'notifySameMonthUrkunde', 
+    'notifySameDateSubmission', 'notifySameMonthUrkunde', 
     'notifySubmissionCohortUpdates', 'notifyProtocolCohortUpdates'
-].join(',');
+];
+
+// Current schema includes soft delete support
+const PUBLIC_COLUMNS = [...PUBLIC_COLUMNS_BASE, 'deletedAt'].join(',');
+// Legacy schema support (fallback)
+const PUBLIC_COLUMNS_LEGACY = PUBLIC_COLUMNS_BASE.join(',');
 
 export interface AppConfig {
     maintenanceMode: boolean;
@@ -113,10 +119,24 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
         const { data, error } = await query;
 
         if (error) {
-            if (error.code === '42703' || error.message?.includes("deletedAt")) {
+            // Handle missing column error (Postgres 42703 or generic message)
+            if (error.code === '42703' || error.message?.includes("deletedAt") || error.message?.includes("does not exist")) {
                  console.warn("[SoftDelete] 'deletedAt' column missing in DB. Fetching all records (Legacy Mode).");
-                 const retry = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS);
-                 if (retry.data) return filterSystemRecords(mapToCases(retry.data));
+                 // Use LEGACY columns list that doesn't include 'deletedAt' to prevent 42703 error on retry
+                 const retry = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS_LEGACY);
+                 
+                 if (retry.error) throw retry.error;
+
+                 if (retry.data) {
+                    lastFetchError = null; // Clear error on success
+                    const cases = filterSystemRecords(mapToCases(retry.data));
+                    
+                    // Cache active
+                    if (!includeDeleted) {
+                        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cases)); } catch (e) {}
+                    }
+                    return cases;
+                 }
             }
             console.error("Supabase Fetch Error:", error);
             throw error;
@@ -166,14 +186,22 @@ const filterSystemRecords = (cases: CitizenshipCase[]) => {
 
 export const fetchDeletedCases = async (): Promise<CitizenshipCase[]> => {
     if (supabase) {
-        // Admin function: Try to fetch everything including emails if possible, but minimal cols is safer
-        const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).not('deletedAt', 'is', null);
-        
-        if (error) {
+        try {
+            // Admin function: Try to fetch everything including emails if possible, but minimal cols is safer
+            const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).not('deletedAt', 'is', null);
+            
+            if (error) {
+                if (error.code === '42703' || error.message?.includes("deletedAt")) {
+                     console.warn("Recycle bin unavailable: 'deletedAt' column missing.");
+                     return [];
+                }
+                return [];
+            }
+
+            if (data) return filterSystemRecords(mapToCases(data));
+        } catch (e) {
             return [];
         }
-
-        if (data) return filterSystemRecords(mapToCases(data));
     }
     // Fallback Local
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -209,6 +237,7 @@ export const fetchCaseByEmail = async (email: string): Promise<CitizenshipCase |
             if (!error && data) return data as CitizenshipCase;
         } catch (e) {}
         
+        // Fallback if deletedAt missing or other error
         const { data } = await supabase.from(DB_TABLE).select('*').eq('email', searchEmail).maybeSingle();
         if (data) return data as CitizenshipCase;
     }
@@ -225,6 +254,12 @@ export const fetchCaseByFantasyName = async (name: string): Promise<CitizenshipC
              // Public lookup: Use public columns only
              const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).ilike('fantasyName', searchName).is('deletedAt', null).maybeSingle();
              if (!error && data) return { ...data, email: '' } as CitizenshipCase;
+             
+             // FALLBACK for Legacy DB (Missing deletedAt)
+             if (error && (error.code === '42703' || error.message?.includes("deletedAt"))) {
+                 const retry = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS_LEGACY).ilike('fantasyName', searchName).maybeSingle();
+                 if (!retry.error && retry.data) return { ...retry.data, email: '' } as CitizenshipCase;
+             }
         } catch(e) {}
     }
 
@@ -264,7 +299,7 @@ export const deleteCase = async (id: string) => {
   if (supabase) {
       const { error } = await supabase.from(DB_TABLE).update({ deletedAt: timestamp }).eq('id', id);
       if (error && (error.code === '42703' || error.message?.includes("deletedAt"))) {
-           alert("⚠️ DB Schema Error: Soft Delete column missing.");
+           alert("⚠️ DB Schema Error: Soft Delete column missing. Action aborted.");
            return;
       }
   }
