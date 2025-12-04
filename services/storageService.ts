@@ -291,7 +291,8 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
   const casesWithoutEmail: CitizenshipCase[] = [];
 
   for (const c of newCases) {
-      if (c.email && !c.email.startsWith('imported_') && !c.email.startsWith('unclaimed_')) {
+      // Validate and clean email
+      if (c.email && !c.email.startsWith('imported_') && !c.email.startsWith('unclaimed_') && c.email.includes('@')) {
           const clean = c.email.trim().toLowerCase();
           c.email = clean;
           // Last one wins if there are duplicates in the import file
@@ -313,24 +314,29 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
       
       if (emailsToCheck.length > 0) {
           const uniqueEmails = Array.from(new Set(emailsToCheck));
-          const BATCH_CHECK = 100;
+          const BATCH_CHECK = 50; // Reduce batch size for safety
           const emailToIdMap = new Map<string, string>();
 
           for(let i=0; i<uniqueEmails.length; i+=BATCH_CHECK) {
                const batch = uniqueEmails.slice(i, i+BATCH_CHECK);
-               const { data } = await supabase
+               const { data, error } = await supabase
                   .from(DB_TABLE)
                   .select('id, email')
                   .in('email', batch);
                
+               if (error) console.error("Reconciliation Error:", error);
+
                if (data) {
-                   data.forEach((row: any) => emailToIdMap.set(row.email, row.id));
+                   data.forEach((row: any) => {
+                       if(row.email) emailToIdMap.set(row.email.trim().toLowerCase(), row.id);
+                   });
                }
           }
 
           // Assign existing IDs to the new cases so upsert acts as UPDATE
           processedInput.forEach(c => {
               if (c.email && emailToIdMap.has(c.email)) {
+                  // Keep the existing ID to force an update instead of insert
                   c.id = emailToIdMap.get(c.email)!;
               }
           });
@@ -355,7 +361,7 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
           if (error) {
               console.error(`Bulk Import Batch ${i} Error:`, error);
               // Provide a more helpful error message if it's a unique constraint issue
-              if (error.message?.includes('cases_email_key')) {
+              if (error.message?.includes('cases_email_key') || error.message?.includes('unique constraint')) {
                   throw new Error(`Import Error: Duplicate email found in batch. An email in this batch already exists in the database but was not matched correctly. Please check for duplicates.`);
               }
               throw error;
