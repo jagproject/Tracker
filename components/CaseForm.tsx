@@ -234,13 +234,78 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
     if (nameError) return t.usernameTaken;
     if (!formData.submissionDate) return t.validationError;
     
+    // Future Date Check for ALL fields
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     
+    const dateFields = [
+        { label: t.submissionDate, val: formData.submissionDate },
+        { label: t.protocolDate, val: formData.protocolDate },
+        { label: t.docsDate, val: formData.docsRequestDate },
+        { label: t.approvalDate, val: formData.approvalDate },
+        { label: t.closedDate, val: formData.closedDate }
+    ];
+
+    for (const f of dateFields) {
+        if (f.val) {
+            const d = new Date(f.val);
+            if (d > today) {
+                return `${f.label}: ${lang === 'es' ? 'No se permiten fechas futuras' : 'Future dates not allowed'}`;
+            }
+        }
+    }
+
+    // --- CHRONOLOGICAL VALIDATION ---
     const subDate = new Date(formData.submissionDate);
-    
-    if (subDate > today) return "Submission Date cannot be in the future.";
-    // ... (Keep existing validation logic)
+
+    // 1. Protocol Date >= Submission Date
+    if (formData.protocolDate) {
+        const protoDate = new Date(formData.protocolDate);
+        if (protoDate < subDate) {
+             return lang === 'es' 
+                ? `${t.protocolDate} no puede ser anterior a ${t.submissionDate}.` 
+                : `${t.protocolDate} cannot be before ${t.submissionDate}.`;
+        }
+    }
+
+    // 2. Docs Request >= Protocol (if exists) OR Submission
+    if (formData.docsRequestDate) {
+        const docsDate = new Date(formData.docsRequestDate);
+        const comparisonDate = formData.protocolDate ? new Date(formData.protocolDate) : subDate;
+        const comparisonLabel = formData.protocolDate ? t.protocolDate : t.submissionDate;
+
+        if (docsDate < comparisonDate) {
+            return lang === 'es'
+                ? `${t.docsDate} no puede ser anterior a ${comparisonLabel}.`
+                : `${t.docsDate} cannot be before ${comparisonLabel}.`;
+        }
+    }
+
+    // 3. Approval/Closed >= Docs OR Protocol OR Submission
+    const endStatusDateStr = formData.status === CaseStatus.APPROVED ? formData.approvalDate : (formData.status === CaseStatus.CLOSED ? formData.closedDate : null);
+    const endLabel = formData.status === CaseStatus.APPROVED ? t.approvalDate : t.closedDate;
+
+    if (endStatusDateStr) {
+        const endDate = new Date(endStatusDateStr);
+        let comparisonDate = subDate;
+        let comparisonLabel = t.submissionDate;
+
+        if (formData.protocolDate) {
+            const p = new Date(formData.protocolDate);
+            if (p > comparisonDate) { comparisonDate = p; comparisonLabel = t.protocolDate; }
+        }
+        if (formData.docsRequestDate) {
+            const d = new Date(formData.docsRequestDate);
+            if (d > comparisonDate) { comparisonDate = d; comparisonLabel = t.docsDate; }
+        }
+
+        if (endDate < comparisonDate) {
+            return lang === 'es'
+                ? `${endLabel} no puede ser anterior a ${comparisonLabel}.`
+                : `${endLabel} cannot be before ${comparisonLabel}.`;
+        }
+    }
+
     return null;
   };
 

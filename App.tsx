@@ -514,7 +514,13 @@ const App: React.FC = () => {
     
     // FETCH GLOBAL CONFIG NOW
     const config = await fetchGlobalConfig();
-    setIsMaintenance(config.maintenanceMode);
+    
+    // AUTO-MAINTENANCE: Safety mechanism
+    if (loadedCases.length < 790) {
+        setIsMaintenance(true);
+    } else {
+        setIsMaintenance(config.maintenanceMode);
+    }
 
     if (session) {
         // Fetch full details for the logged-in user explicitly since public fetchCases excludes PII

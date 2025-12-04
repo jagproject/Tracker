@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock, Wifi, WifiOff, RefreshCw, ShieldCheck, Ghost, LockKeyhole, Mail, Recycle, RefreshCcw, ScanSearch, Server, FileText, ArrowUpDown, ChevronUp, ChevronDown, Check, EyeOff } from 'lucide-react';
+import { Download, Upload, FileSpreadsheet, Lock, Unlock, CheckCircle, AlertTriangle, X, Send, Shield, Activity, Trash2, Search, Database, Edit, Save, ArrowLeft, Power, CheckSquare, Square, Loader2, BarChart3, PieChart as PieChartIcon, Filter, LayoutGrid, FileJson, Clock, Wifi, WifiOff, RefreshCw, ShieldCheck, Ghost, LockKeyhole, Mail, Recycle, RefreshCcw, ScanSearch, Server, FileText, ArrowUpDown, ChevronUp, ChevronDown, Check, EyeOff, AlertOctagon } from 'lucide-react';
 import { CitizenshipCase, Language, CaseType, CaseStatus, AuditLogEntry } from '../types';
 import { TRANSLATIONS, STATUS_TRANSLATIONS, COUNTRIES } from '../constants';
-import { importCases, fetchCases, fetchDeletedCases, restoreCase, hardDeleteCase, addAuditLog, getAuditLogs, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, getLastFetchError, checkConnection, parseAndImportCSV, fetchGlobalConfig } from '../services/storageService';
+import { importCases, fetchCases, fetchDeletedCases, restoreCase, hardDeleteCase, addAuditLog, getAuditLogs, deleteCase, upsertCase, getAppConfig, setMaintenanceMode, getFullDatabaseDump, getLastFetchError, checkConnection, parseAndImportCSV, fetchGlobalConfig, deleteAllCases } from '../services/storageService';
 import { detectAnomalies } from '../services/geminiService';
 import { calculateQuickStats, formatDuration, isGhostCase, formatISODateToLocale } from '../services/statsUtils';
 import { isSupabaseEnabled } from '../services/authService';
@@ -46,6 +46,11 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
   // Anomaly Detection State
   const [anomalies, setAnomalies] = useState<any[]>([]);
   const [isScanning, setIsScanning] = useState(false);
+
+  // Nuclear Option State
+  const [showNukeModal, setShowNukeModal] = useState(false);
+  const [nukePin, setNukePin] = useState('');
+  const [isNuking, setIsNuking] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -154,6 +159,7 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,6 +222,27 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
           await hardDeleteCase(id);
           addAuditLog("Hard Delete", `Permanently deleted case ${id}`, email);
           await refreshAll();
+      }
+  };
+  
+  const handleNukeDatabase = async () => {
+      if (nukePin !== SECRET_KEY) {
+          alert("INCORRECT PASSWORD.");
+          return;
+      }
+      
+      setIsNuking(true);
+      try {
+          await deleteAllCases();
+          addAuditLog("NUCLEAR", "DELETED ALL DATABASE RECORDS", email);
+          alert("Database has been wiped.");
+          setShowNukeModal(false);
+          setNukePin('');
+          await refreshAll();
+      } catch(e: any) {
+          alert("Error deleting database: " + e.message);
+      } finally {
+          setIsNuking(false);
       }
   };
 
@@ -632,6 +659,62 @@ export const AdminTools: React.FC<AdminToolsProps> = ({ lang, onClose, onDataCha
                                 ? "Application is currently offline for users." 
                                 : "Application is running normally."}
                          </p>
+                    </div>
+
+                    {/* Nuclear Option - Delete All */}
+                    <div className="bg-red-50 p-5 rounded-xl border border-red-200 shadow-sm mt-8">
+                        <div className="flex justify-between items-center">
+                             <div className="flex items-start gap-3">
+                                 <AlertOctagon size={24} className="text-red-600 mt-1" />
+                                 <div>
+                                     <h4 className="font-bold text-sm text-red-700">Danger Zone</h4>
+                                     <p className="text-xs text-red-600 mt-1 max-w-xs">Permanently delete ALL records in the database. This action cannot be undone.</p>
+                                 </div>
+                             </div>
+                             <button 
+                                 onClick={() => setShowNukeModal(true)}
+                                 className="px-4 py-2 bg-red-600 text-white font-bold text-sm rounded hover:bg-red-700 shadow-md"
+                             >
+                                 DELETE ALL DATABASE
+                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* Modal for Nuke Confirmation */}
+            {showNukeModal && (
+                <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white rounded-lg shadow-2xl max-w-sm w-full p-6 text-center border-t-8 border-red-600">
+                        <AlertTriangle size={48} className="text-red-600 mx-auto mb-4" />
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Confirm Database Wipe</h3>
+                        <p className="text-sm text-gray-500 mb-6">Enter the administrator password to confirm. This will delete every case record permanently.</p>
+                        
+                        <input 
+                            type="password"
+                            value={nukePin}
+                            onChange={(e) => setNukePin(e.target.value)}
+                            placeholder="Enter Password"
+                            className="w-full p-3 border rounded mb-4 text-center font-mono"
+                            autoFocus
+                        />
+                        
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => { setShowNukeModal(false); setNukePin(''); }}
+                                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 rounded"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleNukeDatabase}
+                                disabled={isNuking}
+                                className="flex-1 py-3 bg-red-600 hover:bg-red-700 font-bold text-white rounded flex items-center justify-center gap-2"
+                            >
+                                {isNuking && <Loader2 size={16} className="animate-spin" />}
+                                DELETE ALL
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

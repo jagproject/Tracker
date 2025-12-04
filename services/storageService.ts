@@ -342,6 +342,23 @@ export const hardDeleteCase = async (id: string) => {
     }
 };
 
+export const deleteAllCases = async () => {
+    console.warn("[SAFETY LOG] EXECUTION OF MASS DELETE.");
+    
+    if (supabase) {
+        // We exclude the System Config to avoid breaking app settings completely, though prompt asked for "delete database"
+        const { error } = await supabase.from(DB_TABLE).delete().neq('id', GLOBAL_CONFIG_ID);
+        if (error) {
+             console.error("Failed to wipe DB", error);
+             throw error;
+        }
+    }
+    
+    // Wipe local storage
+    localStorage.setItem(STORAGE_KEY, '[]');
+    localStorage.setItem(LOGS_KEY, '[]');
+};
+
 export const importCases = async (newCases: CitizenshipCase[]) => {
   // 0. Pre-process: Deduplicate input based on email to prevent unique constraint errors within the batch itself.
   const uniqueInputMap = new Map<string, CitizenshipCase>();
