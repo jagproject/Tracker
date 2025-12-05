@@ -33,6 +33,45 @@ export interface AppConfig {
 let lastFetchError: string | null = null;
 export const getLastFetchError = () => lastFetchError;
 
+// Helper to extract readable error message
+const getErrorMessage = (error: any): string => {
+    if (!error) return 'Unknown Error';
+    
+    // Handle standard Error objects (e.g. TypeError: Failed to fetch)
+    if (error instanceof Error) return error.message;
+    
+    // Handle string errors
+    if (typeof error === 'string') return error;
+
+    // Handle Supabase/Postgrest error objects
+    if (typeof error === 'object') {
+        // PostgrestError usually has a 'message' property
+        if (error.message) return String(error.message);
+        if (error.error_description) return String(error.error_description);
+        if (error.msg) return String(error.msg);
+        
+        // Try to stringify if no known message property
+        try {
+            const json = JSON.stringify(error);
+            // Avoid returning empty object string if possible
+            if (json !== '{}') return json;
+        } catch {
+            return 'Object Error (Non-serializable)';
+        }
+    }
+    
+    // Fallback
+    const str = String(error);
+    if (str === '[object Object]') {
+        try {
+            return JSON.stringify(error);
+        } catch {
+            return 'Unknown Object Error';
+        }
+    }
+    return str;
+};
+
 // ------------------------------------------------------------------
 // DATA SAFETY POLICY (VERIFIED & ENFORCED)
 // ------------------------------------------------------------------
@@ -91,7 +130,7 @@ export const updateGlobalConfig = async (config: AppConfig) => {
         };
 
         const { error } = await supabase.from(DB_TABLE).upsert(configRecord, { onConflict: 'id' });
-        if (error) console.error("Failed to push global config:", error);
+        if (error) console.error("Failed to push global config:", getErrorMessage(error));
     }
 };
 
@@ -119,32 +158,32 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
         const { data, error } = await query;
 
         if (error) {
-            // Handle missing column error (Postgres 42703 or generic message)
-            if (error.code === '42703' || error.message?.includes("deletedAt") || error.message?.includes("does not exist")) {
+            const errorMsg = getErrorMessage(error);
+            
+            // Handle specific schema error (missing deletedAt column) gracefully
+            if (error.code === '42703' || errorMsg.includes("deletedAt") || errorMsg.includes("does not exist")) {
                  console.warn("[SoftDelete] 'deletedAt' column missing in DB. Fetching all records (Legacy Mode).");
-                 // Use LEGACY columns list that doesn't include 'deletedAt' to prevent 42703 error on retry
                  const retry = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS_LEGACY);
                  
-                 if (retry.error) throw retry.error;
-
-                 if (retry.data) {
-                    lastFetchError = null; // Clear error on success
+                 if (retry.error) {
+                     console.warn("Supabase Legacy Fetch Warning:", getErrorMessage(retry.error));
+                     lastFetchError = `API Error: ${getErrorMessage(retry.error)}`;
+                 } else if (retry.data) {
+                    lastFetchError = null; 
                     const cases = filterSystemRecords(mapToCases(retry.data));
-                    
                     // Cache active
                     if (!includeDeleted) {
                         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cases)); } catch (e) {}
                     }
                     return cases;
                  }
+            } else {
+                 console.warn(`Supabase API Error: ${errorMsg}`);
+                 lastFetchError = `API Error: ${errorMsg}`;
+                 // Do not throw here, let it fall through to local storage
             }
-            console.error("Supabase Fetch Error:", error);
-            throw error;
-        }
-        
-        lastFetchError = null; // Clear error on success
-
-        if (data) {
+        } else if (data) {
+            lastFetchError = null; // Clear error on success
             const cases = filterSystemRecords(mapToCases(data));
             // Cache active
             if (!includeDeleted) {
@@ -153,19 +192,25 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
             return cases;
         }
     } catch (e: any) {
-        console.error("Supabase fetch failed (Network/Auth):", e);
-        lastFetchError = `Connection Error: ${e.message || 'Unknown DB Error'}`;
+        const msg = getErrorMessage(e);
+        // Only log network errors as warnings to avoid cluttering console in offline mode
+        console.warn(`Supabase Network Error: ${msg}`);
+        lastFetchError = `Connection Error: ${msg}`;
     }
   }
 
-  // 2. Fallback to LocalStorage (Offline Mode)
+  // 2. Fallback to LocalStorage (Offline Mode or API Error)
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
-    const localCases: CitizenshipCase[] = JSON.parse(stored);
-    if (!includeDeleted) {
-        return localCases.filter(c => !c.deletedAt);
+    try {
+        const localCases: CitizenshipCase[] = JSON.parse(stored);
+        if (!includeDeleted) {
+            return localCases.filter(c => !c.deletedAt);
+        }
+        return localCases;
+    } catch(err) {
+        console.error("Error parsing local cases", err);
     }
-    return localCases;
   }
   
   return [];
@@ -191,7 +236,8 @@ export const fetchDeletedCases = async (): Promise<CitizenshipCase[]> => {
             const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).not('deletedAt', 'is', null);
             
             if (error) {
-                if (error.code === '42703' || error.message?.includes("deletedAt")) {
+                const errorMsg = getErrorMessage(error);
+                if (error.code === '42703' || errorMsg.includes("deletedAt")) {
                      console.warn("Recycle bin unavailable: 'deletedAt' column missing.");
                      return [];
                 }
@@ -206,8 +252,10 @@ export const fetchDeletedCases = async (): Promise<CitizenshipCase[]> => {
     // Fallback Local
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-        const localCases: CitizenshipCase[] = JSON.parse(stored);
-        return localCases.filter(c => !!c.deletedAt);
+        try {
+            const localCases: CitizenshipCase[] = JSON.parse(stored);
+            return localCases.filter(c => !!c.deletedAt);
+        } catch(e) { return []; }
     }
     return [];
 };
@@ -221,7 +269,7 @@ export const checkConnection = async (): Promise<boolean> => {
         console.log(`[Connection Check] Stability Confirmed. Row count accessible: ${count}`);
         return true;
     } catch (e) {
-        console.error("Connection Check Failed:", e);
+        console.error("Connection Check Failed:", getErrorMessage(e));
         return false;
     }
 };
@@ -256,9 +304,12 @@ export const fetchCaseByFantasyName = async (name: string): Promise<CitizenshipC
              if (!error && data) return { ...data, email: '' } as CitizenshipCase;
              
              // FALLBACK for Legacy DB (Missing deletedAt)
-             if (error && (error.code === '42703' || error.message?.includes("deletedAt"))) {
-                 const retry = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS_LEGACY).ilike('fantasyName', searchName).maybeSingle();
-                 if (!retry.error && retry.data) return { ...retry.data, email: '' } as CitizenshipCase;
+             if (error) {
+                 const errorMsg = getErrorMessage(error);
+                 if (error.code === '42703' || errorMsg.includes("deletedAt")) {
+                     const retry = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS_LEGACY).ilike('fantasyName', searchName).maybeSingle();
+                     if (!retry.error && retry.data) return { ...retry.data, email: '' } as CitizenshipCase;
+                 }
              }
         } catch(e) {}
     }
@@ -276,8 +327,9 @@ export const upsertCase = async (newCase: CitizenshipCase) => {
   if (supabase) {
       const { error } = await supabase.from(DB_TABLE).upsert(caseToSave, { onConflict: 'id' });
       if (error) {
-          console.error("Supabase Upsert Error:", error);
-          lastFetchError = `Save Failed: ${error.message}`;
+          const errorMsg = getErrorMessage(error);
+          console.error("Supabase Upsert Error:", errorMsg);
+          lastFetchError = `Save Failed: ${errorMsg}`;
       }
   }
 
@@ -298,9 +350,12 @@ export const deleteCase = async (id: string) => {
 
   if (supabase) {
       const { error } = await supabase.from(DB_TABLE).update({ deletedAt: timestamp }).eq('id', id);
-      if (error && (error.code === '42703' || error.message?.includes("deletedAt"))) {
-           alert("⚠️ DB Schema Error: Soft Delete column missing. Action aborted.");
-           return;
+      if (error) {
+           const errorMsg = getErrorMessage(error);
+           if (error.code === '42703' || errorMsg.includes("deletedAt")) {
+               alert("⚠️ DB Schema Error: Soft Delete column missing. Action aborted.");
+               return;
+           }
       }
   }
 
@@ -349,7 +404,8 @@ export const deleteAllCases = async () => {
         // We exclude the System Config to avoid breaking app settings completely, though prompt asked for "delete database"
         const { error } = await supabase.from(DB_TABLE).delete().neq('id', GLOBAL_CONFIG_ID);
         if (error) {
-             console.error("Failed to wipe DB", error);
+             const errorMsg = getErrorMessage(error);
+             console.error("Failed to wipe DB", errorMsg);
              throw error;
         }
     }
@@ -400,7 +456,7 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
                   .select('id, email')
                   .in('email', batch);
                
-               if (error) console.error("Reconciliation Error (RLS might block this):", error);
+               if (error) console.error("Reconciliation Error (RLS might block this):", getErrorMessage(error));
 
                if (data) {
                    data.forEach((row: any) => {
@@ -435,8 +491,9 @@ export const importCases = async (newCases: CitizenshipCase[]) => {
           // Explicitly state onConflict id to ensure UPSERT behavior
           const { error } = await supabase.from(DB_TABLE).upsert(batch, { onConflict: 'id' });
           if (error) {
-              console.error(`Bulk Import Batch ${i} Error:`, error);
-              if (error.message?.includes('cases_email_key') || error.message?.includes('unique constraint')) {
+              const errorMsg = getErrorMessage(error);
+              console.error(`Bulk Import Batch ${i} Error:`, errorMsg);
+              if (errorMsg.includes('cases_email_key') || errorMsg.includes('unique constraint')) {
                   throw new Error(`Import Error: Duplicate email found in batch. Please check for duplicates.`);
               }
               throw error;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CitizenshipCase, CaseType, CaseStatus, Language } from '../types';
 import { COUNTRIES, TRANSLATIONS, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
-import { Save, Loader2, AlertTriangle, Edit2, ChevronDown, Mail, Power, Clock, CheckCircle2, FileText, Send, UserCircle, CalendarCheck, Check, Lock, Ghost, Zap } from 'lucide-react';
+import { Save, Loader2, AlertTriangle, Edit2, ChevronDown, Mail, Power, Clock, CheckCircle2, FileText, Send, UserCircle, CalendarCheck, Check, Lock, Ghost, Zap, CheckSquare, Square } from 'lucide-react';
 import { getDaysDiff, formatDateTimeToLocale, formatDuration, formatISODateToLocale, isGhostCase } from '../services/statsUtils';
 import { Confetti } from './Confetti';
 
@@ -45,8 +45,6 @@ const CustomDateInput: React.FC<CustomDateInputProps> = ({ label, name, value, o
     </div>
 );
 
-// ... VisualGapTimeline ... (Keep existing implementation logic in mind, I will include it below fully to avoid cutting)
-
 const VisualGapTimeline: React.FC<{ status: CaseStatus, dates: { sub?: string, proto?: string, dec?: string }, lang: Language }> = ({ status, dates, lang }) => {
   const t = TRANSLATIONS[lang];
   const today = new Date().toISOString().split('T')[0];
@@ -78,7 +76,7 @@ const VisualGapTimeline: React.FC<{ status: CaseStatus, dates: { sub?: string, p
   return (
     <div className="w-full py-8 mb-6 px-2 overflow-x-auto">
         <div className="flex items-center w-full min-w-[300px]">
-            {/* Steps Rendering Code (Same as before) */}
+            {/* Steps Rendering Code */}
             <div className="flex flex-col items-center relative z-10">
                 <div className={`w-10 h-10 rounded-full border-4 flex items-center justify-center transition-colors shadow-sm ${getStepColor(true, !!dates.sub)}`}>
                     <Send size={16} className={dates.sub ? "ml-0.5" : ""} />
@@ -176,8 +174,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   const [showConfetti, setShowConfetti] = useState(false);
   const [checkInSuccess, setCheckInSuccess] = useState(false);
 
-  const isPendingEmail = userEmail.startsWith('unclaimed_');
-
   // Feature 5: Check if Ghost
   const isGhost = useMemo(() => initialData ? isGhostCase(initialData) : false, [initialData]);
 
@@ -212,6 +208,11 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
      return diff !== null ? diff : 0;
   }, [initialData?.lastUpdated]);
 
+  const availableDocs = useMemo(() => {
+    const type = (formData.caseType as CaseType) || CaseType.STAG_5;
+    return CASE_SPECIFIC_DOCS[type] || COMMON_DOCS;
+  }, [formData.caseType]);
+
   const needsCheckIn = daysSinceUpdate >= 30;
   const showCheckIn = initialData && formData.status !== CaseStatus.APPROVED && formData.status !== CaseStatus.CLOSED;
 
@@ -223,7 +224,8 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
         docsRequestDate: initialData.docsRequestDate || undefined,
         approvalDate: initialData.approvalDate || undefined,
         closedDate: initialData.closedDate || undefined,
-        status: initialData.status || CaseStatus.SUBMITTED
+        status: initialData.status || CaseStatus.SUBMITTED,
+        documents: initialData.documents || []
       });
     } else {
        setFormData(prev => ({...prev, fantasyName}));
@@ -392,6 +394,18 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
       else setNameError(null);
   };
 
+  const handleDocToggle = (doc: string) => {
+    if (isLocked || isMaintenanceMode) return;
+    setFormData(prev => {
+        const current = prev.documents || [];
+        if (current.includes(doc)) {
+            return { ...prev, documents: current.filter(d => d !== doc) };
+        } else {
+            return { ...prev, documents: [...current, doc] };
+        }
+    });
+  };
+
   const showProtocol = formData.status !== CaseStatus.SUBMITTED || !!formData.protocolDate;
   const showDocs = formData.status === CaseStatus.ADDITIONAL_DOCS || !!formData.docsRequestDate || formData.status === CaseStatus.APPROVED || formData.status === CaseStatus.CLOSED;
   const safeShowApproved = (formData.status === CaseStatus.APPROVED || !!formData.approvalDate) && formData.status !== CaseStatus.CLOSED;
@@ -400,7 +414,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   const inputClass = "w-full rounded border border-gray-300 bg-white p-2.5 text-sm focus:ring-2 focus:ring-de-gold focus:border-de-gold transition-colors";
   const labelClass = "block text-xs font-bold text-de-gray uppercase mb-1";
 
-  // Guest view... (omitted for brevity, keep existing)
   if (isGuest) {
       return (
           <div className="bg-white p-8 rounded-xl shadow-md border border-de-gray/20 text-center flex flex-col items-center justify-center min-h-[400px]">
@@ -465,7 +478,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
                 {t.lastUpdatedLabel} {lastUpdateText}
             </span>
 
-            {/* User Menu Popup (omitted for brevity, assume existing) */}
+            {/* User Menu Popup */}
             {showUserMenu && (
                  <div className="absolute top-full right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-50 animate-in fade-in zoom-in-95">
                     <div className="p-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
@@ -598,8 +611,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
               ))}
             </select>
           </div>
-          {/* ... Rest of form inputs (Country, Consulate, etc) - Keep exact existing structure ... */}
-          {/* I'm abbreviating slightly for XML size but in real app keep all fields */}
            <div className="space-y-2">
              <div>
                 <label className={labelClass}>{t.country} <span className="text-de-red">*</span></label>
@@ -702,6 +713,28 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
             )}
         </div>
 
+        {/* DOCUMENTS CHECKLIST FEATURE */}
+        <div className="mt-4">
+            <label className={labelClass}>{t.docsChecklist}</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50 p-3 rounded border border-gray-200">
+                {availableDocs.map(doc => (
+                    <label key={doc} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-white rounded transition-colors border border-transparent hover:border-gray-100">
+                        <div className="relative flex items-center">
+                            <input 
+                                type="checkbox"
+                                checked={formData.documents?.includes(doc) || false}
+                                onChange={() => handleDocToggle(doc)}
+                                disabled={isLocked || isMaintenanceMode}
+                                className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-gray-300 shadow-sm focus:ring-1 focus:ring-de-gold checked:bg-de-gold checked:border-de-gold"
+                            />
+                            <Check className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100" size={10} strokeWidth={4} />
+                        </div>
+                        <span className={`text-sm ${formData.documents?.includes(doc) ? 'text-gray-900 font-bold' : 'text-gray-500'}`}>{doc}</span>
+                    </label>
+                ))}
+            </div>
+        </div>
+
         <div>
            <label className={labelClass}>{t.comments}</label>
            <textarea 
@@ -713,8 +746,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
               disabled={isMaintenanceMode || isLocked}
            />
         </div>
-
-        {/* Notifications checkbox section omitted for XML brevity, include same logic */}
         
         {!isLocked && (
             <div className="pt-4">
