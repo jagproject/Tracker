@@ -15,7 +15,9 @@
     "@faker-js/faker": "^10.1.0",
     "lucide-react": "^0.554.0",
     "recharts": "^3.4.1",
-    "@supabase/supabase-js": "2.45.1"
+    "@supabase/supabase-js": "2.45.1",
+    "react-window": "1.8.10",
+    "react-virtualized-auto-sizer": "1.0.24"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

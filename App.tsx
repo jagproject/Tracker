@@ -40,6 +40,8 @@ import {
   LogIn,
   TableProperties
 } from 'lucide-react';
+import { FixedSizeList as List } from 'react-window';
+import AutoSizer from 'react-virtualized-auto-sizer';
 import { CitizenshipCase, UserSession, CaseType, CaseStatus, Language } from './types';
 import { generateFantasyUsername, generateStatisticalInsights } from './services/geminiService';
 import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig, subscribeToCases, getLastFetchError, fetchGlobalConfig } from './services/storageService';
@@ -125,7 +127,7 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
              <div 
                 onDoubleClick={() => onSelect(c)}
                 onClick={() => onSelect(c)}
-                className={`flex items-center gap-3 px-3 sm:px-4 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none ${isGhost ? 'bg-gray-50/50' : ''}`}
+                className={`flex items-center gap-3 px-3 sm:px-4 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none h-full ${isGhost ? 'bg-gray-50/50' : ''}`}
              >
                 <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 shadow-sm ${
                 isGhost ? 'bg-gray-400' :
@@ -1372,20 +1374,23 @@ const App: React.FC = () => {
                       </div>
                   </div>
                   
-                  <div className="border border-gray-100 rounded">
+                  <div className="border border-gray-100 rounded h-[400px] w-full bg-white">
                       {filteredCases.length > 0 ? (
-                          <div className="h-[400px] w-full overflow-y-auto">
-                              {filteredCases.map((c, index) => (
-                                  <CaseRow 
-                                      key={c.id || index} 
-                                      index={index} 
-                                      style={{}} 
-                                      data={{ cases: filteredCases, lang, onSelect: setSelectedDetailCase }} 
-                                  />
-                              ))}
-                          </div>
+                          <AutoSizer>
+                            {({ height, width }) => (
+                                <List
+                                    height={height}
+                                    width={width}
+                                    itemCount={filteredCases.length}
+                                    itemSize={72}
+                                    itemData={{ cases: filteredCases, lang, onSelect: setSelectedDetailCase }}
+                                >
+                                    {CaseRow}
+                                </List>
+                            )}
+                          </AutoSizer>
                       ) : (
-                          <div className="flex flex-col items-center justify-center p-8 text-gray-400">
+                          <div className="flex flex-col items-center justify-center p-8 text-gray-400 h-full">
                             <p className="italic text-sm mb-2">{t.noCasesFound}</p>
                             {viewGhosts && <p className="text-xs">No ghost cases match your current filters.</p>}
                           </div>
