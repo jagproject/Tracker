@@ -176,7 +176,9 @@ const mergeWithLocalEmails = (remoteCases: CitizenshipCase[]): CitizenshipCase[]
 export const fetchCases = async (includeDeleted: boolean = false): Promise<CitizenshipCase[]> => {
   if (supabase) {
     try {
-        let query = supabase.from(DB_TABLE).select(PUBLIC_COLUMNS);
+        // Explicitly set range to fetch all records (bypass default 100/1000 limit)
+        let query = supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).range(0, 9999);
+        
         if (!includeDeleted) {
             query = query.is('deletedAt', null);
         }
@@ -186,7 +188,7 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
             const errorMsg = getErrorMessage(error);
             if (error.code === '42703' || errorMsg.includes("deletedAt") || errorMsg.includes("does not exist")) {
                  console.warn("[SoftDelete] Schema mismatch. Fetching legacy.");
-                 const retry = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS_LEGACY);
+                 const retry = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS_LEGACY).range(0, 9999);
                  if (retry.data) {
                     lastFetchError = null; 
                     const cases = mergeWithLocalEmails(filterSystemRecords(mapToCases(retry.data)));
@@ -230,7 +232,7 @@ const filterSystemRecords = (cases: CitizenshipCase[]) => {
 export const fetchDeletedCases = async (): Promise<CitizenshipCase[]> => {
     if (supabase) {
         try {
-            const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).not('deletedAt', 'is', null);
+            const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).not('deletedAt', 'is', null).range(0, 9999);
             if (data && !error) return filterSystemRecords(mapToCases(data));
         } catch (e) {}
     }

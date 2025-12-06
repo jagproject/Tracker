@@ -39,7 +39,9 @@ import {
   Calendar,
   LogIn,
   TableProperties,
-  Info
+  Info,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
@@ -102,17 +104,17 @@ const ToastContainer = () => {
 const LanguageSelector = () => {
   const { lang, setLang } = useAppStore();
   return (
-    <div className="flex items-center gap-2 text-xs font-medium border border-gray-700 rounded px-2 py-1 bg-white/90 backdrop-blur-sm shadow-sm">
-        <Globe size={14} className="text-gray-500" />
-        <button onClick={() => setLang('en')} className={`hover:text-de-gold transition-colors ${lang === 'en' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>EN</button>
+    <div className="flex items-center gap-2 text-xs font-medium border border-gray-700 rounded px-2 py-1 bg-white/90 dark:bg-black/50 backdrop-blur-sm shadow-sm">
+        <Globe size={14} className="text-gray-500 dark:text-gray-300" />
+        <button onClick={() => setLang('en')} className={`hover:text-de-gold transition-colors ${lang === 'en' ? 'text-de-gold font-bold' : 'text-gray-500 dark:text-gray-400'}`}>EN</button>
         <span className="text-gray-300">|</span>
-        <button onClick={() => setLang('es')} className={`hover:text-de-gold transition-colors ${lang === 'es' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>ES</button>
+        <button onClick={() => setLang('es')} className={`hover:text-de-gold transition-colors ${lang === 'es' ? 'text-de-gold font-bold' : 'text-gray-500 dark:text-gray-400'}`}>ES</button>
         <span className="text-gray-300">|</span>
-        <button onClick={() => setLang('it')} className={`hover:text-de-gold transition-colors ${lang === 'it' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>IT</button>
+        <button onClick={() => setLang('it')} className={`hover:text-de-gold transition-colors ${lang === 'it' ? 'text-de-gold font-bold' : 'text-gray-500 dark:text-gray-400'}`}>IT</button>
         <span className="text-gray-300">|</span>
-        <button onClick={() => setLang('pt')} className={`hover:text-de-gold transition-colors ${lang === 'pt' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>PT</button>
+        <button onClick={() => setLang('pt')} className={`hover:text-de-gold transition-colors ${lang === 'pt' ? 'text-de-gold font-bold' : 'text-gray-500 dark:text-gray-400'}`}>PT</button>
         <span className="text-gray-300">|</span>
-        <button onClick={() => setLang('de')} className={`hover:text-de-gold transition-colors ${lang === 'de' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>DE</button>
+        <button onClick={() => setLang('de')} className={`hover:text-de-gold transition-colors ${lang === 'de' ? 'text-de-gold font-bold' : 'text-gray-500 dark:text-gray-400'}`}>DE</button>
     </div>
   );
 };
@@ -126,24 +128,66 @@ const LoadingSpinner = () => (
   </div>
 );
 
+// Card View for Mobile Case List
+const MobileCaseCard = ({ c, lang, onSelect }: { c: CitizenshipCase, lang: Language, onSelect: (c: CitizenshipCase) => void }) => {
+    const isGhost = isGhostCase(c);
+    return (
+        <div 
+            onClick={() => onSelect(c)}
+            className={`p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer ${isGhost ? 'opacity-60 bg-gray-50' : 'bg-white dark:bg-gray-900'}`}
+        >
+            <div className="flex justify-between items-start mb-2">
+                <span className="font-bold text-de-black dark:text-white flex items-center gap-2">
+                    {c.fantasyName}
+                    {isGhost && <Ghost size={14} className="text-gray-400" />}
+                </span>
+                <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${
+                    c.status === CaseStatus.APPROVED ? 'bg-green-100 text-green-800' : 
+                    c.status === CaseStatus.CLOSED ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-600'
+                }`}>
+                    {c.status}
+                </span>
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 flex justify-between items-center">
+                <span>{c.countryOfApplication}</span>
+                <span className="font-mono">{formatISODateToLocale(c.submissionDate, lang)}</span>
+            </div>
+            <div className="mt-2 w-full h-1 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                    className={`h-full ${c.status === CaseStatus.APPROVED ? 'bg-green-500' : 'bg-blue-500'}`} 
+                    style={{ width: c.status === CaseStatus.APPROVED ? '100%' : c.protocolDate ? '60%' : '20%' }}
+                ></div>
+            </div>
+        </div>
+    );
+};
+
 interface CaseRowData {
     cases: CitizenshipCase[];
     lang: Language;
     onSelect: (c: CitizenshipCase) => void;
+    isMobile: boolean;
 }
 
 const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseRowData }> = ({ index, style, data }) => {
-    const { cases, lang, onSelect } = data;
+    const { cases, lang, onSelect, isMobile } = data;
     const c = cases[index];
     if (!c) return null;
-    const isGhost = isGhostCase(c);
 
+    // Mobile View Render
+    if (isMobile) {
+        return <div style={style}><MobileCaseCard c={c} lang={lang} onSelect={onSelect} /></div>;
+    }
+
+    // Desktop View Render
+    const isGhost = isGhostCase(c);
     return (
         <div style={style} className="px-0">
              <div 
                 onDoubleClick={() => onSelect(c)}
                 onClick={() => onSelect(c)}
-                className={`flex items-center gap-3 px-3 sm:px-4 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer select-none h-full ${isGhost ? 'bg-gray-50/50' : ''}`}
+                className={`flex items-center gap-3 px-3 sm:px-4 py-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 cursor-pointer select-none h-full ${isGhost ? 'bg-gray-50/50 dark:bg-gray-800/50' : ''}`}
              >
                 <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 shadow-sm ${
                 isGhost ? 'bg-gray-400' :
@@ -153,12 +197,12 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
                 c.status === CaseStatus.CLOSED ? 'bg-red-500' : 'bg-orange-400'
                 }`} />
                 <div className="flex-1 min-w-0 flex items-center justify-between">
-                    <span className={`font-bold text-sm truncate mr-2 flex items-center gap-2 ${isGhost ? 'text-gray-500' : 'text-de-black'}`}>
+                    <span className={`font-bold text-sm truncate mr-2 flex items-center gap-2 ${isGhost ? 'text-gray-500' : 'text-de-black dark:text-gray-200'}`}>
                         {c.fantasyName}
                         {isGhost && <Ghost size={12} className="text-gray-400" title="Ghost Case (Inactive)" />}
                     </span>
                     <div className="flex items-center gap-2 sm:gap-4 text-gray-500 text-xs whitespace-nowrap">
-                        <span className="truncate max-w-[80px] sm:max-w-[120px] hidden xs:inline-block bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-[10px] sm:text-xs">{c.caseType}</span>
+                        <span className="truncate max-w-[80px] sm:max-w-[120px] hidden xs:inline-block bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-600 text-[10px] sm:text-xs">{c.caseType}</span>
                         <span className="font-mono text-[10px] sm:text-xs">{formatISODateToLocale(c.submissionDate, lang)}</span>
                     </div>
                 </div>
@@ -415,21 +459,25 @@ const App: React.FC = () => {
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   
   // Background Image Preloading State
   const [bgLoaded, setBgLoaded] = useState(false);
 
+  // Responsive Check for Mobile Card View
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
   const t = TRANSLATIONS[lang];
 
-  // Helper for month names
-  const getMonthName = (monthIndex: number) => {
-    try {
-        const date = new Date(2023, monthIndex, 1);
-        return date.toLocaleString(lang, { month: 'long' });
-    } catch (e) {
-        return new Date(2023, monthIndex, 1).toLocaleString('en', { month: 'long' });
-    }
+  const getMonthName = (index: number) => {
+    return new Date(2000, index, 1).toLocaleDateString(lang, { month: 'short' });
   };
+
+  useEffect(() => {
+      const handleResize = () => setIsMobile(window.innerWidth < 768);
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Initialization & Background Setup
   useEffect(() => {
@@ -476,6 +524,11 @@ const App: React.FC = () => {
         setBgLoaded(true); // Simple mode is instantly ready
     }
   }, [bgImage, bgMode]);
+
+  useEffect(() => {
+      if (isDarkMode) document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
+  }, [isDarkMode]);
 
   // Compute filtered cases using Store Selector
   const filteredCases = useMemo(() => getFilteredCases(), [allCases, filters]);
@@ -576,32 +629,6 @@ const App: React.FC = () => {
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (session && userCase) {
-      const isStale = getDaysDiff(userCase.lastUpdated, new Date().toISOString())! > 365;
-      const msgs: string[] = [];
-      if (userCase.notifySameDateSubmission && !userCase.protocolDate) {
-        const twin = allCases.find(c => 
-          c.id !== userCase.id && c.submissionDate === userCase.submissionDate && c.status !== CaseStatus.SUBMITTED && c.protocolDate
-        );
-        if (twin) msgs.push(t.notificationTwin.replace('{date}', formatISODateToLocale(userCase.submissionDate, lang)));
-      }
-      if (userCase.notifySameMonthUrkunde && userCase.protocolDate && !userCase.approvalDate) {
-        const myProto = new Date(userCase.protocolDate);
-        if (!isNaN(myProto.getTime())) {
-            const cohort = allCases.find(c => 
-                c.id !== userCase.id && c.protocolDate &&
-                new Date(c.protocolDate).getMonth() === myProto.getMonth() &&
-                new Date(c.protocolDate).getFullYear() === myProto.getFullYear() && c.approvalDate
-            );
-            if (cohort) msgs.push(t.notificationCohort.replace('{date}', `${myProto.getMonth()+1}/${myProto.getFullYear()}`));
-        }
-      }
-      if (isStale) msgs.push(t.staleWarning);
-      if (msgs.length > 0) setNotificationMsg(msgs.join(' | '));
-    }
-  }, [session, userCase, allCases, t]);
-
   const activeCases = useMemo(() => filterActiveCases(allCases), [allCases]);
   const allFantasyNames = useMemo(() => allCases.map(c => c.fantasyName), [allCases]);
   const globalStats = useMemo(() => calculateQuickStats(activeCases), [activeCases]);
@@ -676,7 +703,7 @@ const App: React.FC = () => {
       setBgImage(newImg);
   };
 
-  // Login Screen
+  // Login Screen logic... (keeping existing structure, just changing classes for dark mode in wrapper)
   if (!session && !isGuest) {
     return (
       <div 
@@ -686,6 +713,8 @@ const App: React.FC = () => {
         <ToastContainer />
         <Suspense fallback={null}>{showPrivacyModal && <PrivacyPolicyModal lang={lang} onClose={() => setShowPrivacyModal(false)} />}</Suspense>
         <div className="absolute top-4 right-4 z-20"><LanguageSelector /></div>
+        
+        {/* LOGIN FORM CONTENT UNCHANGED */}
         <div className="max-w-md w-full bg-white rounded shadow-2xl overflow-hidden border-t-8 border-de-black relative z-10 animate-in fade-in zoom-in-95 duration-300">
           <div className="bg-white p-8 text-center flex flex-col items-center relative">
              <div className="flex flex-col w-20 h-14 shadow-md mb-6">
@@ -831,10 +860,10 @@ const App: React.FC = () => {
       {showCohortModal && userCase && <CohortModal userCase={userCase} allCases={allCases} onClose={() => setShowCohortModal(false)} lang={lang} />}
 
       <div 
-          className={`min-h-screen font-sans text-de-black transition-all duration-1000 ${bgMode === 'image' && bgLoaded ? 'bg-fixed bg-cover bg-center' : 'bg-gray-100'}`}
+          className={`min-h-screen font-sans text-de-black dark:text-white transition-all duration-1000 ${bgMode === 'image' && bgLoaded ? 'bg-fixed bg-cover bg-center' : 'bg-gray-100 dark:bg-gray-900'}`}
           style={bgMode === 'image' && bgLoaded ? { backgroundImage: `url('${bgImage}')` } : {}}
       >
-        <div className={`min-h-screen ${bgMode === 'image' ? 'bg-gray-50/70 backdrop-blur-sm' : ''}`}>
+        <div className={`min-h-screen ${bgMode === 'image' ? 'bg-gray-50/70 dark:bg-black/70 backdrop-blur-sm' : ''}`}>
         
         <nav className="bg-de-black/95 backdrop-blur text-white shadow-lg sticky top-0 z-50 border-b-4 border-de-red">
           <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -848,6 +877,11 @@ const App: React.FC = () => {
                 <span className="font-bold text-lg tracking-tight hidden md:block">{t.title}</span>
               </div>
               <div className="flex items-center gap-4 md:gap-6">
+                {/* Dark Mode Toggle */}
+                <button onClick={() => setIsDarkMode(!isDarkMode)} className="text-gray-400 hover:text-white transition-colors">
+                    {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
+
                 <div className="hidden md:block"><LanguageSelector /></div>
                 {!isGuest ? (
                     <div className="hidden md:flex flex-col items-end border-l border-gray-700 pl-4">
@@ -899,7 +933,7 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <div className="hidden md:flex gap-1 mb-6 border-b border-gray-300 overflow-x-auto">
+          <div className="hidden md:flex gap-1 mb-6 border-b border-gray-300 dark:border-gray-700 overflow-x-auto">
             {!isGuest && <TabButton id='myCase' label={t.myCase} icon={<User size={16} />} active={activeTab} onClick={setActiveTab} />}
             <TabButton id='dashboard' label={t.dashboard} icon={<LayoutDashboard size={16} />} active={activeTab} onClick={setActiveTab} />
             {!isGuest && <TabButton id='ai' label={t.aiModel} icon={<Monitor size={16} />} active={activeTab} onClick={setActiveTab} />}
@@ -923,7 +957,7 @@ const App: React.FC = () => {
                   </div>
                   {userCase && (
                       <div className="mx-2 sm:mx-0 mb-4 flex justify-end">
-                          <button onClick={() => setShowCohortModal(true)} className="bg-white border border-gray-300 hover:bg-gray-50 text-de-black px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors">
+                          <button onClick={() => setShowCohortModal(true)} className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-de-black dark:text-gray-200 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors">
                               <Users size={16} className="text-de-gold" /> {t.viewCohort}
                           </button>
                       </div>
@@ -946,35 +980,35 @@ const App: React.FC = () => {
             {activeTab === 'dashboard' && (
               <Suspense fallback={<div className="col-span-1 xl:col-span-3"><LoadingSpinner /></div>}>
               <div className="col-span-1 xl:col-span-3 space-y-8 animate-in fade-in">
-                  <div className="bg-white p-4 mx-0 sm:mx-0 rounded-xl shadow-sm border border-gray-200 sticky top-20 z-40 bg-opacity-95 backdrop-blur">
+                  <div className="bg-white dark:bg-gray-800 p-4 mx-0 sm:mx-0 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 sticky top-20 z-40 bg-opacity-95 backdrop-blur transition-colors">
                       <div className="flex justify-between items-center gap-3">
-                         <button onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2 text-de-black font-bold text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded transition-colors">
+                         <button onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2 text-de-black dark:text-gray-200 font-bold text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 px-3 py-2 rounded transition-colors">
                             <Filter size={16} /> <span>{t.filters}</span> {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                          </button>
                          <div className="relative flex-1 max-w-sm">
                             <Search className="absolute left-2 top-2.5 text-gray-400" size={14} />
-                            <input type="text" placeholder={t.searchDashboard} value={filters.search} onChange={(e) => setFilters({ search: e.target.value })} className="w-full pl-8 pr-2 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-de-gold outline-none" />
+                            <input type="text" placeholder={t.searchDashboard} value={filters.search} onChange={(e) => setFilters({ search: e.target.value })} className="w-full pl-8 pr-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-de-gold outline-none bg-white dark:bg-gray-700 text-de-black dark:text-gray-200 placeholder-gray-400" />
                          </div>
                       </div>
                       {showFilters && (
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-gray-100 animate-in slide-in-from-top-2">
-                            <select value={filters.month} onChange={(e) => setFilters({ month: e.target.value })} className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold">
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 animate-in slide-in-from-top-2">
+                            <select value={filters.month} onChange={(e) => setFilters({ month: e.target.value })} className="border-gray-300 dark:border-gray-600 rounded text-sm p-2 bg-white dark:bg-gray-700 dark:text-gray-200 cursor-pointer focus:ring-de-gold focus:border-de-gold">
                                 <option value="All">{t.allMonths}</option>
                                 {Array.from({length: 12}, (_, i) => (<option key={i} value={(i+1).toString()}>{getMonthName(i)}</option>))}
                             </select>
-                            <select value={filters.year} onChange={(e) => setFilters({ year: e.target.value })} className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold">
+                            <select value={filters.year} onChange={(e) => setFilters({ year: e.target.value })} className="border-gray-300 dark:border-gray-600 rounded text-sm p-2 bg-white dark:bg-gray-700 dark:text-gray-200 cursor-pointer focus:ring-de-gold focus:border-de-gold">
                                 <option value="All">{t.allYears}</option>
                                 {Array.from({length: new Date().getFullYear() - 2020 + 2}, (_, i) => (2020 + i).toString()).map(y => (<option key={y} value={y}>{y}</option>))}
                             </select>
-                            <select value={filters.country} onChange={(e) => setFilters({ country: e.target.value })} className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold">
+                            <select value={filters.country} onChange={(e) => setFilters({ country: e.target.value })} className="border-gray-300 dark:border-gray-600 rounded text-sm p-2 bg-white dark:bg-gray-700 dark:text-gray-200 cursor-pointer focus:ring-de-gold focus:border-de-gold">
                                 <option value="All">{t.allCountries}</option>
                                 {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
-                            <select value={filters.type} onChange={(e) => setFilters({ type: e.target.value })} className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold">
+                            <select value={filters.type} onChange={(e) => setFilters({ type: e.target.value })} className="border-gray-300 dark:border-gray-600 rounded text-sm p-2 bg-white dark:bg-gray-700 dark:text-gray-200 cursor-pointer focus:ring-de-gold focus:border-de-gold">
                                 <option value="All">{t.allTypes}</option>
                                 {Object.values(CaseType).sort().map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
-                            <select value={filters.status} onChange={(e) => setFilters({ status: e.target.value })} className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold">
+                            <select value={filters.status} onChange={(e) => setFilters({ status: e.target.value })} className="border-gray-300 dark:border-gray-600 rounded text-sm p-2 bg-white dark:bg-gray-700 dark:text-gray-200 cursor-pointer focus:ring-de-gold focus:border-de-gold">
                                 <option value="All">{t.allStatuses}</option>
                                 {Object.values(CaseStatus).map(s => (<option key={s} value={s}>{STATUS_TRANSLATIONS[lang][s] || s}</option>))}
                             </select>
@@ -1006,9 +1040,9 @@ const App: React.FC = () => {
           </div>
 
           {activeTab === 'dashboard' && (
-              <div className="bg-white p-4 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 mt-8 -mx-0 sm:mx-0">
-                  <div className="flex justify-between items-center mb-4 border-b pb-2">
-                    <h3 className="text-lg font-bold text-de-black">{filters.viewGhosts ? t.ghostCases : t.activeCases}</h3>
+              <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 dark:border-gray-700 mt-8 -mx-0 sm:mx-0 transition-colors">
+                  <div className="flex justify-between items-center mb-4 border-b dark:border-gray-700 pb-2">
+                    <h3 className="text-lg font-bold text-de-black dark:text-white">{filters.viewGhosts ? t.ghostCases : t.activeCases}</h3>
                     {filters.viewGhosts && (
                       <button onClick={() => setFilters({ viewGhosts: false })} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full flex items-center gap-2 transition-colors">
                         <ArrowRight size={12} /> {t.backToActive}
@@ -1016,7 +1050,7 @@ const App: React.FC = () => {
                     )}
                   </div>
                   <div className="flex flex-col sm:flex-row justify-between text-sm mb-4 gap-2">
-                      <span className="text-gray-500">{t.showing} {filteredCases.length}</span>
+                      <span className="text-gray-500 dark:text-gray-400">{t.showing} {filteredCases.length}</span>
                       <div className="flex gap-4">
                           <span className="text-de-red font-medium">{t.pausedCases}: {allCases.filter(c => !isGhostCase(c) && c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED).length - filteredCases.length}</span>
                           {ghostCount > 0 && (
@@ -1026,28 +1060,36 @@ const App: React.FC = () => {
                           )}
                       </div>
                   </div>
-                  <div className="border border-gray-100 rounded h-[400px] w-full bg-white">
+                  <div className="border border-gray-100 dark:border-gray-700 rounded h-[400px] w-full bg-white dark:bg-gray-800 transition-colors">
                       {filteredCases.length > 0 ? (
                           <AutoSizer>
                             {({ height, width }) => (
-                                <List height={height} width={width} itemCount={filteredCases.length} itemSize={72} itemData={{ cases: filteredCases, lang, onSelect: setSelectedDetailCase }}>
+                                <List height={height} width={width} itemCount={filteredCases.length} itemSize={isMobile ? 120 : 72} itemData={{ cases: filteredCases, lang, onSelect: setSelectedDetailCase, isMobile }}>
                                     {CaseRow}
                                 </List>
                             )}
                           </AutoSizer>
                       ) : (
-                          <div className="flex flex-col items-center justify-center p-8 text-gray-400 h-full"><p className="italic text-sm mb-2">{t.noCasesFound}</p>{filters.viewGhosts && <p className="text-xs">No ghost cases match your current filters.</p>}</div>
+                          // Smart Empty State
+                          <div className="flex flex-col items-center justify-center p-8 text-gray-400 h-full">
+                              <Ghost className="w-12 h-12 mb-2 opacity-50" />
+                              <p className="italic text-sm mb-2">{t.noCasesFound}</p>
+                              {filters.viewGhosts && <p className="text-xs">No ghost cases match your current filters.</p>}
+                              <button onClick={() => setFilters({ country: 'All', status: 'All', type: 'All', search: '' })} className="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold text-gray-700 transition-colors">
+                                  Clear Filters
+                              </button>
+                          </div>
                       )}
                   </div>
               </div>
           )}
 
-          <div className="bg-gray-100/50 backdrop-blur border border-gray-200 rounded p-4 mt-8 flex gap-3 opacity-80 hover:opacity-100 transition-opacity w-full max-w-full mx-0 sm:mx-0">
+          <div className="bg-gray-100/50 dark:bg-gray-800/50 backdrop-blur border border-gray-200 dark:border-gray-700 rounded p-4 mt-8 flex gap-3 opacity-80 hover:opacity-100 transition-opacity w-full max-w-full mx-0 sm:mx-0">
               <AlertCircle className="text-gray-400 flex-shrink-0" />
-              <div><h4 className="font-bold text-sm text-de-black mb-1">{t.legalDisclaimer}</h4><p className="text-xs text-gray-600 leading-relaxed">{t.disclaimer}</p></div>
+              <div><h4 className="font-bold text-sm text-de-black dark:text-gray-200 mb-1">{t.legalDisclaimer}</h4><p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">{t.disclaimer}</p></div>
           </div>
           
-          <div className="mt-8 py-4 flex flex-col items-center justify-center gap-2 text-gray-400 border-t border-gray-200">
+          <div className="mt-8 py-4 flex flex-col items-center justify-center gap-2 text-gray-400 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-3">
                   <button onClick={() => setBgMode(bgMode === 'image' ? 'simple' : 'image')} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
                       {bgMode === 'image' ? <Palette size={12} /> : <ImageIcon size={12} />}
@@ -1073,7 +1115,7 @@ const App: React.FC = () => {
 };
 
 const TabButton = ({id, label, icon, active, onClick}: any) => (
-    <button onClick={() => onClick(id)} className={`px-6 py-3 font-bold text-sm rounded-t-lg transition-all whitespace-nowrap ${active === id ? 'bg-white text-de-red border border-gray-300 border-b-white -mb-px shadow-sm' : 'bg-gray-100/80 text-gray-500 hover:text-gray-700 hover:bg-gray-200/80'}`}>
+    <button onClick={() => onClick(id)} className={`px-6 py-3 font-bold text-sm rounded-t-lg transition-all whitespace-nowrap ${active === id ? 'bg-white dark:bg-gray-800 text-de-red dark:text-de-gold border border-gray-300 dark:border-gray-700 border-b-white dark:border-b-gray-800 -mb-px shadow-sm' : 'bg-gray-100/80 dark:bg-gray-900/50 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200/80 dark:hover:bg-gray-800/80'}`}>
         <span className="flex items-center gap-2">{icon} {label}</span>
     </button>
 );
