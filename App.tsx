@@ -48,6 +48,7 @@ import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCas
 import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickStats, formatISODateToLocale, isGhostCase, formatDuration } from './services/statsUtils';
 import { logoutUser, subscribeToAuthChanges, isSupabaseEnabled } from './services/authService';
 import { TRANSLATIONS, COUNTRIES, STATUS_TRANSLATIONS } from './constants';
+import { useAppStore } from './store/useAppStore';
 
 // Lazy Load Components (Code Splitting)
 const StatsDashboard = React.lazy(() => import('./components/StatsCharts').then(module => ({ default: module.StatsDashboard })));
@@ -60,43 +61,36 @@ const CommunityFeed = React.lazy(() => import('./components/CommunityFeed').then
 const SuccessTicker = React.lazy(() => import('./components/SuccessTicker').then(module => ({ default: module.SuccessTicker })));
 const PrivacyPolicyModal = React.lazy(() => import('./components/PrivacyPolicyModal').then(module => ({ default: module.PrivacyPolicyModal })));
 
-// High-quality, attractive German landscapes (No people, no sad concepts)
+// High-quality, attractive German landscapes
 const BG_IMAGES = [
-  "https://images.unsplash.com/photo-1590059393160-c4d632230491?q=80&w=2670&auto=format&fit=crop", // Neuschwanstein (Fairytale)
-  "https://images.unsplash.com/photo-1534313314376-a7f2c8c5c944?q=80&w=2070&auto=format&fit=crop", // Eibsee Lake
-  "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2670&auto=format&fit=crop", // Bastei Bridge (Saxon Switzerland)
-  "https://images.unsplash.com/photo-1528659576973-2e0f7692120b?q=80&w=2670&auto=format&fit=crop", // Moselle Loop
-  "https://images.unsplash.com/photo-1516212110294-4d834927b58b?q=80&w=2574&auto=format&fit=crop", // Heidelberg
-  "https://images.unsplash.com/photo-1500320821405-8fc1732209ca?q=80&w=2670&auto=format&fit=crop", // Black Forest
-  "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=2670&auto=format&fit=crop", // Green Forest
-  "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=2613&auto=format&fit=crop", // Bavarian Castle
+  "https://images.unsplash.com/photo-1590059393160-c4d632230491?q=80&w=2670&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1534313314376-a7f2c8c5c944?q=80&w=2070&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2670&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1528659576973-2e0f7692120b?q=80&w=2670&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1516212110294-4d834927b58b?q=80&w=2574&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1500320821405-8fc1732209ca?q=80&w=2670&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=2670&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=2613&auto=format&fit=crop", 
 ];
 
-// Item 8: Automatic Translation Detection
-const detectLanguage = (): Language => {
-  const browserLang = navigator.language.split('-')[0];
-  if (['es', 'en', 'de', 'it', 'pt'].includes(browserLang)) {
-    return browserLang as Language;
-  }
-  return 'en';
+const LanguageSelector = () => {
+  const { lang, setLang } = useAppStore();
+  return (
+    <div className="flex items-center gap-2 text-xs font-medium border border-gray-700 rounded px-2 py-1 bg-white/90 backdrop-blur-sm shadow-sm">
+        <Globe size={14} className="text-gray-500" />
+        <button onClick={() => setLang('en')} className={`hover:text-de-gold transition-colors ${lang === 'en' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>EN</button>
+        <span className="text-gray-300">|</span>
+        <button onClick={() => setLang('es')} className={`hover:text-de-gold transition-colors ${lang === 'es' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>ES</button>
+        <span className="text-gray-300">|</span>
+        <button onClick={() => setLang('it')} className={`hover:text-de-gold transition-colors ${lang === 'it' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>IT</button>
+        <span className="text-gray-300">|</span>
+        <button onClick={() => setLang('pt')} className={`hover:text-de-gold transition-colors ${lang === 'pt' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>PT</button>
+        <span className="text-gray-300">|</span>
+        <button onClick={() => setLang('de')} className={`hover:text-de-gold transition-colors ${lang === 'de' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>DE</button>
+    </div>
+  );
 };
 
-const LanguageSelector = ({ lang, setLang }: { lang: Language, setLang: (l: Language) => void }) => (
-  <div className="flex items-center gap-2 text-xs font-medium border border-gray-700 rounded px-2 py-1 bg-white/90 backdrop-blur-sm shadow-sm">
-      <Globe size={14} className="text-gray-500" />
-      <button onClick={() => setLang('en')} className={`hover:text-de-gold transition-colors ${lang === 'en' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>EN</button>
-      <span className="text-gray-300">|</span>
-      <button onClick={() => setLang('es')} className={`hover:text-de-gold transition-colors ${lang === 'es' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>ES</button>
-      <span className="text-gray-300">|</span>
-      <button onClick={() => setLang('it')} className={`hover:text-de-gold transition-colors ${lang === 'it' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>IT</button>
-      <span className="text-gray-300">|</span>
-      <button onClick={() => setLang('pt')} className={`hover:text-de-gold transition-colors ${lang === 'pt' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>PT</button>
-      <span className="text-gray-300">|</span>
-      <button onClick={() => setLang('de')} className={`hover:text-de-gold transition-colors ${lang === 'de' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>DE</button>
-  </div>
-);
-
-// Loading Spinner for Suspense Fallbacks
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center p-12 w-full h-full min-h-[200px]">
     <div className="flex flex-col items-center gap-2">
@@ -106,20 +100,16 @@ const LoadingSpinner = () => (
   </div>
 );
 
-// Define Interface for List Data
 interface CaseRowData {
     cases: CitizenshipCase[];
     lang: Language;
     onSelect: (c: CitizenshipCase) => void;
 }
 
-// Case Row Component - Expanded Version
 const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseRowData }> = ({ index, style, data }) => {
     const { cases, lang, onSelect } = data;
     const c = cases[index];
     if (!c) return null;
-    
-    // Check if ghost
     const isGhost = isGhostCase(c);
 
     return (
@@ -151,7 +141,6 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
     );
 };
 
-// Cohort Comparison Modal (New Feature)
 const CohortModal = ({ userCase, allCases, onClose, lang }: { userCase: CitizenshipCase, allCases: CitizenshipCase[], onClose: () => void, lang: Language }) => {
     const t = TRANSLATIONS[lang];
     const statusT = STATUS_TRANSLATIONS[lang];
@@ -177,7 +166,6 @@ const CohortModal = ({ userCase, allCases, onClose, lang }: { userCase: Citizens
                     </h3>
                     <button onClick={onClose}><X size={20} className="text-white hover:text-de-gold" /></button>
                 </div>
-                
                 <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between text-xs">
                      <div className="text-center">
                          <span className="block font-bold text-gray-500 uppercase">{t.avgWait}</span>
@@ -188,7 +176,6 @@ const CohortModal = ({ userCase, allCases, onClose, lang }: { userCase: Citizens
                          <span className="font-bold text-lg text-green-600">{stats.approvedCases} / {stats.totalCases}</span>
                      </div>
                 </div>
-
                 <div className="overflow-y-auto p-4 space-y-2 flex-1">
                     {cohortCases.map(c => (
                         <div key={c.id} className={`text-sm p-3 border rounded flex justify-between items-center ${c.id === userCase.id ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-gray-100'}`}>
@@ -214,14 +201,12 @@ const CohortModal = ({ userCase, allCases, onClose, lang }: { userCase: Citizens
     );
 };
 
-// Detail Modal with Comparison Feature
 const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: CitizenshipCase, userCase?: CitizenshipCase, onClose: () => void, lang: Language }) => {
     const t = TRANSLATIONS[lang];
     const statusT = STATUS_TRANSLATIONS[lang];
     const isGhost = isGhostCase(caseData);
     const [compareMode, setCompareMode] = useState(false);
 
-    // Helpers for Comparison
     const getDur = (c: CitizenshipCase, endType: 'proto' | 'app') => {
         const start = c.submissionDate;
         const end = endType === 'proto' ? c.protocolDate : c.approvalDate;
@@ -241,9 +226,8 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
             displayTheir = theirVal ? formatDuration(theirVal, lang) : '--';
         }
 
-        // Color coding for duration/speed
-        let myClass = "text-gray-900"; // Enforce Dark Text
-        let theirClass = "text-gray-900"; // Enforce Dark Text
+        let myClass = "text-gray-900"; 
+        let theirClass = "text-gray-900"; 
         
         if (isDuration && myVal && theirVal) {
              if (myVal < theirVal) { myClass = "text-green-600 font-bold"; theirClass = "text-red-500"; }
@@ -269,7 +253,6 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
                     </h3>
                     <button onClick={onClose}><X size={20} className="text-white hover:text-de-gold" /></button>
                 </div>
-                
                 <div className="p-6 space-y-4">
                      {compareMode && userCase ? (
                         <div className="animate-in slide-in-from-right-4">
@@ -278,7 +261,6 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
                                 <div className="text-gray-400 text-xs self-center">VS</div>
                                 <div className="font-bold text-gray-900 truncate">{caseData.fantasyName}</div>
                             </div>
-                            
                             <div className="space-y-1">
                                 <ComparisonRow label={t.submissionDate} myVal={userCase.submissionDate} theirVal={caseData.submissionDate} isDate />
                                 <ComparisonRow label={t.protocolDate} myVal={userCase.protocolDate} theirVal={caseData.protocolDate} isDate />
@@ -286,11 +268,7 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
                                 <ComparisonRow label={t.approvalDate} myVal={userCase.approvalDate} theirVal={caseData.approvalDate} isDate />
                                 <ComparisonRow label="Total Wait" myVal={getDur(userCase, 'app')} theirVal={getDur(caseData, 'app')} isDuration />
                             </div>
-
-                            <button 
-                                onClick={() => setCompareMode(false)}
-                                className="mt-6 w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded uppercase transition-colors"
-                            >
+                            <button onClick={() => setCompareMode(false)} className="mt-6 w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded uppercase transition-colors">
                                 Back to Details
                             </button>
                         </div>
@@ -345,12 +323,8 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
                                      {STATUS_TRANSLATIONS[lang][caseData.status] || caseData.status}
                                  </span>
                              </div>
-
                              {userCase && userCase.id !== caseData.id && (
-                                <button 
-                                    onClick={() => setCompareMode(true)}
-                                    className="w-full mt-4 bg-de-gold/10 hover:bg-de-gold/20 text-de-black/90 font-bold py-2 rounded text-sm flex items-center justify-center gap-2 border border-de-gold/30 transition-colors"
-                                >
+                                <button onClick={() => setCompareMode(true)} className="w-full mt-4 bg-de-gold/10 hover:bg-de-gold/20 text-de-black/90 font-bold py-2 rounded text-sm flex items-center justify-center gap-2 border border-de-gold/30 transition-colors">
                                     <ArrowLeftRight size={16} /> {lang === 'es' ? 'Comparar conmigo' : 'Compare with My Case'}
                                 </button>
                              )}
@@ -362,38 +336,25 @@ const CaseDetailsModal = ({ caseData, userCase, onClose, lang }: { caseData: Cit
     );
 };
 
-// Bottom Navigation for Mobile
 const MobileNavBar = ({ activeTab, setActiveTab, t, isGuest }: { activeTab: string, setActiveTab: (t: 'myCase' | 'dashboard' | 'faq' | 'ai') => void, t: any, isGuest: boolean }) => (
   <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 flex justify-around items-center h-16 pb-safe md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
     {!isGuest && (
-      <button 
-        onClick={() => setActiveTab('myCase')}
-        className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'myCase' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
-      >
+      <button onClick={() => setActiveTab('myCase')} className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'myCase' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}>
         <User size={22} className={activeTab === 'myCase' ? 'fill-current' : ''} strokeWidth={2} />
         <span className="text-[10px] font-bold mt-1">{t.myCase}</span>
       </button>
     )}
-    <button 
-      onClick={() => setActiveTab('dashboard')}
-      className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'dashboard' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
-    >
+    <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'dashboard' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}>
       <LayoutDashboard size={22} className={activeTab === 'dashboard' ? 'fill-current' : ''} strokeWidth={2} />
       <span className="text-[10px] font-bold mt-1">{t.dashboard}</span>
     </button>
     {!isGuest && (
-      <button 
-        onClick={() => setActiveTab('ai')}
-        className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'ai' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
-      >
+      <button onClick={() => setActiveTab('ai')} className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'ai' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}>
         <Sparkles size={22} className={activeTab === 'ai' ? 'fill-current' : ''} strokeWidth={2} />
         <span className="text-[10px] font-bold mt-1">AI</span>
       </button>
     )}
-    <button 
-      onClick={() => setActiveTab('faq')}
-      className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'faq' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}
-    >
+    <button onClick={() => setActiveTab('faq')} className={`flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform ${activeTab === 'faq' ? 'text-de-gold' : 'text-gray-400 hover:text-gray-600'}`}>
       <HelpCircle size={22} className={activeTab === 'faq' ? 'fill-current' : ''} strokeWidth={2} />
       <span className="text-[10px] font-bold mt-1">FAQ</span>
     </button>
@@ -401,64 +362,33 @@ const MobileNavBar = ({ activeTab, setActiveTab, t, isGuest }: { activeTab: stri
 );
 
 const App: React.FC = () => {
-  const [session, setSession] = useState<UserSession | null>(null);
+  // Use Zustand Store
+  const { 
+      allCases, userCase, session, lang, activeTab, showAdmin, bgMode, bgImage, filters, fetchError, isMaintenance, isDataLoading,
+      setLang, setActiveTab, setShowAdmin, setBgMode, setBgImage, setSession, setUserCase, setFilters, refreshData, updateUserCaseInList, getFilteredCases, getGhostCount
+  } = useAppStore();
+
   const [emailInput, setEmailInput] = useState('');
   const [loginStep, setLoginStep] = useState<'INPUT' | 'CONFIRM' | 'USERNAME_SELECTION'>('INPUT');
   const [isMockAuth, setIsMockAuth] = useState(!isSupabaseEnabled());
   const [loading, setLoading] = useState(false);
-  const [dataLoading, setDataLoading] = useState(false); // For skeletons
-  const [allCases, setAllCases] = useState<CitizenshipCase[]>([]);
-  const [userCase, setUserCase] = useState<CitizenshipCase | undefined>(undefined);
   const [aiInsight, setAiInsight] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<'myCase' | 'dashboard' | 'faq' | 'ai'>('myCase');
-  const [lang, setLang] = useState<Language>(detectLanguage); 
-  const [showAdmin, setShowAdmin] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [selectedDetailCase, setSelectedDetailCase] = useState<CitizenshipCase | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null); 
-  const [showCohortModal, setShowCohortModal] = useState(false); // NEW STATE for Cohort Modal
+  const [showCohortModal, setShowCohortModal] = useState(false);
   
-  // Dashboard Filters State
-  const [showFilters, setShowFilters] = useState(false); 
-  const [filterCountry, setFilterCountry] = useState<string>('All');
-  const [filterMonth, setFilterMonth] = useState<string>('All');
-  const [filterYear, setFilterYear] = useState<string>('All');
-  const [filterType, setFilterType] = useState<string>('All');
-  const [filterStatus, setFilterStatus] = useState<string>('All'); 
-  const [dashboardSearchTerm, setDashboardSearchTerm] = useState<string>(''); 
+  // Dashboard Filters UI State (Collapsible)
+  const [showFilters, setShowFilters] = useState(false);
   
-  // Ghost Case View Mode
-  const [viewGhosts, setViewGhosts] = useState(false);
-
-  // Guest Mode
+  // Local UI State
   const [isGuest, setIsGuest] = useState(false);
-
-  // Onboarding / Claiming State
   const [onboardingMode, setOnboardingMode] = useState<'CREATE' | 'CLAIM'>('CREATE');
   const [proposedUsername, setProposedUsername] = useState('');
   const [claimSearchTerm, setClaimSearchTerm] = useState('');
   const [selectedClaimCase, setSelectedClaimCase] = useState<CitizenshipCase | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
-
-  // New state for Maintenance Mode
-  const [isMaintenance, setIsMaintenance] = useState(false);
-
-  // Privacy Policy State
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-
-  // Background Control State
-  const [bgMode, setBgMode] = useState<'image' | 'simple'>('image');
-  const [bgImage, setBgImage] = useState<string>(() => {
-    try {
-      if (BG_IMAGES && BG_IMAGES.length > 0) {
-        return BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)];
-      }
-    } catch (e) {
-      console.error("Error selecting background image", e);
-    }
-    return BG_IMAGES[0];
-  });
 
   const t = TRANSLATIONS[lang];
 
@@ -472,41 +402,23 @@ const App: React.FC = () => {
     }
   };
 
-  // Background Effects
-  useEffect(() => {
-    const savedMode = localStorage.getItem('de_tracker_bg_mode') as 'image' | 'simple';
-    if (savedMode) setBgMode(savedMode);
-  }, []);
-
-  const handleToggleBgMode = () => {
-      const newMode = bgMode === 'image' ? 'simple' : 'image';
-      setBgMode(newMode);
-      localStorage.setItem('de_tracker_bg_mode', newMode);
-  };
-
-  const handleShuffleBg = () => {
-      let newImg = bgImage;
-      while (newImg === bgImage && BG_IMAGES.length > 1) {
-          newImg = BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)];
-      }
-      setBgImage(newImg);
-  };
-
+  // Initialization & Background Setup
   useEffect(() => {
     refreshData();
-    
-    // Subscribe to Auth
+    if (!bgImage) {
+        try {
+            if (BG_IMAGES.length > 0) {
+                setBgImage(BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)]);
+            }
+        } catch (e) {}
+    }
+
     const { unsubscribe } = subscribeToAuthChanges(async (user) => {
         if (user && user.email) {
             await handleSessionStart(user.email);
-        } else if (!isMockAuth) {
-            if (session && !session.email.includes('gmail')) {
-               // Keep session if it was manual entry
-            }
         }
     });
 
-    // Realtime subscription
     const channel = subscribeToCases(() => {
         refreshData(true); // Silent refresh
     });
@@ -515,92 +427,15 @@ const App: React.FC = () => {
         unsubscribe();
         if (channel) channel.unsubscribe();
     };
-  }, [isMockAuth]);
+  }, []);
 
-  const refreshData = async (silent: boolean = false) => {
-    if (!silent) setDataLoading(true);
-    // Simulate slight delay for Skeletons ONLY if not silent
-    if (!silent && !dataLoading) await new Promise(r => setTimeout(r, 600)); 
+  // Compute filtered cases using Store Selector
+  const filteredCases = useMemo(() => getFilteredCases(), [allCases, filters]);
+  const ghostCount = useMemo(() => getGhostCount(), [allCases]);
 
-    const loadedCases = await fetchCases();
-    setAllCases(loadedCases);
-    setFetchError(getLastFetchError()); 
-    
-    // FETCH GLOBAL CONFIG NOW
-    const config = await fetchGlobalConfig();
-    
-    // AUTO-MAINTENANCE: Safety mechanism
-    if (loadedCases.length < 790) {
-        setIsMaintenance(true);
-    } else {
-        setIsMaintenance(config.maintenanceMode);
-    }
-
-    if (session) {
-        // Fetch full details for the logged-in user explicitly since public fetchCases excludes PII
-       const mine = await fetchCaseByEmail(session.email);
-       if (mine) {
-           // Ensure the user's full data is used for "My Case"
-           setUserCase(mine);
-           
-           // Optionally update the entry in allCases to reflect full data locally (if needed)
-           // But allCases usually drives the charts which don't need email.
-       } else {
-           // Fallback if not found (e.g. fresh session but case deleted?)
-           setUserCase(undefined);
-       }
-    }
-    if (!silent) setDataLoading(false);
-  };
-
-  // Compute filtered cases for the Dashboard
-  const filteredCases = useMemo(() => {
-    let filtered;
-
-    if (viewGhosts) {
-        filtered = allCases.filter(c => isGhostCase(c));
-    } else {
-        filtered = filterActiveCases(allCases); 
-    }
-    
-    if (filterCountry !== 'All') filtered = filtered.filter(c => c.countryOfApplication === filterCountry);
-    if (filterType !== 'All') filtered = filtered.filter(c => c.caseType === filterType);
-    if (filterStatus !== 'All') filtered = filtered.filter(c => c.status === filterStatus);
-    if (filterMonth !== 'All') {
-      filtered = filtered.filter(c => {
-        const d = new Date(c.submissionDate);
-        return (d.getMonth() + 1).toString() === filterMonth;
-      });
-    }
-    if (filterYear !== 'All') {
-      filtered = filtered.filter(c => {
-        const d = new Date(c.submissionDate);
-        return d.getFullYear().toString() === filterYear;
-      });
-    }
-    
-    if (dashboardSearchTerm) {
-        const term = dashboardSearchTerm.toLowerCase();
-        filtered = filtered.filter(c => 
-            c.fantasyName.toLowerCase().includes(term) ||
-            c.countryOfApplication.toLowerCase().includes(term)
-        );
-    }
-
-    return filtered;
-  }, [allCases, filterCountry, filterMonth, filterYear, filterType, filterStatus, viewGhosts, dashboardSearchTerm]);
-
-  // Compute Ghost Count
-  const ghostCount = useMemo(() => {
-     return allCases.filter(c => isGhostCase(c)).length;
-  }, [allCases]);
-
-  // Compute Unclaimed Cases for Search
   const unclaimedCases = useMemo(() => {
       const unclaimed = allCases.filter(c => isCaseUnclaimed(c));
-      
       if (!claimSearchTerm) return unclaimed;
-      
       const lowerTerm = claimSearchTerm.toLowerCase();
       return unclaimed.filter(c => 
           c.fantasyName.toLowerCase().includes(lowerTerm) ||
@@ -611,7 +446,6 @@ const App: React.FC = () => {
 
   const handleSessionStart = async (email: string) => {
     if (isMaintenance) return; 
-
     setLoading(true);
     await new Promise(resolve => setTimeout(resolve, 800));
 
@@ -652,14 +486,12 @@ const App: React.FC = () => {
             setLoading(false);
             return;
         }
-
         const existingCaseByName = await fetchCaseByFantasyName(finalName);
         if (existingCaseByName) {
             setUsernameError(t.usernameTaken);
             setLoading(false);
             return;
         }
-
         const newSession: UserSession = {
             email: cleanEmail,
             fantasyName: finalName,
@@ -667,7 +499,6 @@ const App: React.FC = () => {
             language: 'en'
         };
         setSession(newSession);
-        
         setUserCase({
             id: crypto.randomUUID(),
             email: cleanEmail,
@@ -678,14 +509,12 @@ const App: React.FC = () => {
             submissionDate: new Date().toISOString().split('T')[0],
             lastUpdated: new Date().toISOString()
         });
-
     } else if (onboardingMode === 'CLAIM') {
         if (!selectedClaimCase) {
             setUsernameError(t.selectCase);
             setLoading(false);
             return;
         }
-
         const claimedCase = await claimCase(selectedClaimCase, cleanEmail);
         setUserCase(claimedCase);
         setSession({
@@ -695,7 +524,6 @@ const App: React.FC = () => {
             language: 'en'
         });
     }
-
     setLoginStep('INPUT');
     setLoading(false);
   };
@@ -704,31 +532,23 @@ const App: React.FC = () => {
     if (session && userCase) {
       const isStale = getDaysDiff(userCase.lastUpdated, new Date().toISOString())! > 365;
       const msgs: string[] = [];
-      
       if (userCase.notifySameDateSubmission && !userCase.protocolDate) {
         const twin = allCases.find(c => 
-          c.id !== userCase.id && 
-          c.submissionDate === userCase.submissionDate && 
-          c.status !== CaseStatus.SUBMITTED &&
-          c.protocolDate
+          c.id !== userCase.id && c.submissionDate === userCase.submissionDate && c.status !== CaseStatus.SUBMITTED && c.protocolDate
         );
         if (twin) msgs.push(t.notificationTwin.replace('{date}', formatISODateToLocale(userCase.submissionDate, lang)));
       }
-
       if (userCase.notifySameMonthUrkunde && userCase.protocolDate && !userCase.approvalDate) {
         const myProto = new Date(userCase.protocolDate);
         if (!isNaN(myProto.getTime())) {
             const cohort = allCases.find(c => 
-                c.id !== userCase.id &&
-                c.protocolDate &&
+                c.id !== userCase.id && c.protocolDate &&
                 new Date(c.protocolDate).getMonth() === myProto.getMonth() &&
-                new Date(c.protocolDate).getFullYear() === myProto.getFullYear() &&
-                c.approvalDate
+                new Date(c.protocolDate).getFullYear() === myProto.getFullYear() && c.approvalDate
             );
             if (cohort) msgs.push(t.notificationCohort.replace('{date}', `${myProto.getMonth()+1}/${myProto.getFullYear()}`));
         }
       }
-
       if (isStale) msgs.push(t.staleWarning);
       if (msgs.length > 0) setNotificationMsg(msgs.join(' | '));
     }
@@ -736,11 +556,7 @@ const App: React.FC = () => {
 
   const activeCases = useMemo(() => filterActiveCases(allCases), [allCases]);
   const allFantasyNames = useMemo(() => allCases.map(c => c.fantasyName), [allCases]);
-
-  const globalStats = useMemo(() => {
-     return calculateQuickStats(activeCases);
-  }, [activeCases]);
-
+  const globalStats = useMemo(() => calculateQuickStats(activeCases), [activeCases]);
   const userTypeStats = useMemo(() => {
      if (!userCase) return globalStats;
      const typeSpecificCases = activeCases.filter(c => c.caseType === userCase.caseType);
@@ -750,14 +566,10 @@ const App: React.FC = () => {
   useEffect(() => {
     if (activeCases.length > 0) {
       let targetCases = activeCases;
-      
       if (userCase && userCase.caseType) {
         const specificCases = activeCases.filter(c => c.caseType === userCase.caseType);
-        if (specificCases.length >= 3) {
-            targetCases = specificCases;
-        }
+        if (specificCases.length >= 3) targetCases = specificCases;
       }
-
       const insightStats = calculateQuickStats(targetCases);
       generateStatisticalInsights(insightStats, targetCases, lang).then(setAiInsight);
     }
@@ -765,8 +577,7 @@ const App: React.FC = () => {
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!emailInput) return;
-    if (isMaintenance) return;
+    if (!emailInput || isMaintenance) return;
     setLoginStep('CONFIRM');
   };
 
@@ -788,24 +599,8 @@ const App: React.FC = () => {
   };
 
   const handleUpdateCase = async (updatedCase: CitizenshipCase) => {
-    setAllCases(prev => {
-        const idx = prev.findIndex(c => c.id === updatedCase.id);
-        if (idx >= 0) {
-            const newArr = [...prev];
-            newArr[idx] = updatedCase;
-            return newArr;
-        }
-        return [...prev, updatedCase];
-    });
-    
-    setUserCase(updatedCase);
-    
-    if (session && updatedCase.fantasyName !== session.fantasyName) {
-        setSession({ ...session, fantasyName: updatedCase.fantasyName });
-    }
-
+    updateUserCaseInList(updatedCase);
     await upsertCase(updatedCase);
-    
     setNotificationMsg(null); 
   };
 
@@ -826,23 +621,23 @@ const App: React.FC = () => {
     setPrivacyAccepted(false); 
   };
 
+  const handleShuffleBg = () => {
+      let newImg = bgImage;
+      while (newImg === bgImage && BG_IMAGES.length > 1) {
+          newImg = BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)];
+      }
+      setBgImage(newImg);
+  };
+
+  // Login Screen
   if (!session && !isGuest) {
     return (
       <div 
-        className={`min-h-screen flex flex-col justify-center items-center p-4 font-sans relative transition-all duration-1000 ${
-            bgMode === 'image' ? 'bg-cover bg-center' : 'bg-gradient-to-br from-gray-900 to-black'
-        }`}
-        style={bgMode === 'image' ? {
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('${bgImage}')` 
-        } : {}}
+        className={`min-h-screen flex flex-col justify-center items-center p-4 font-sans relative transition-all duration-1000 ${bgMode === 'image' ? 'bg-cover bg-center' : 'bg-gradient-to-br from-gray-900 to-black'}`}
+        style={bgMode === 'image' ? { backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('${bgImage}')` } : {}}
       >
-        <Suspense fallback={null}>
-          {showPrivacyModal && <PrivacyPolicyModal lang={lang} onClose={() => setShowPrivacyModal(false)} />}
-        </Suspense>
-        
-        <div className="absolute top-4 right-4 z-20">
-            <LanguageSelector lang={lang} setLang={setLang} />
-        </div>
+        <Suspense fallback={null}>{showPrivacyModal && <PrivacyPolicyModal lang={lang} onClose={() => setShowPrivacyModal(false)} />}</Suspense>
+        <div className="absolute top-4 right-4 z-20"><LanguageSelector /></div>
         <div className="max-w-md w-full bg-white rounded shadow-2xl overflow-hidden border-t-8 border-de-black relative z-10 animate-in fade-in zoom-in-95 duration-300">
           <div className="bg-white p-8 text-center flex flex-col items-center relative">
              <div className="flex flex-col w-20 h-14 shadow-md mb-6">
@@ -852,7 +647,6 @@ const App: React.FC = () => {
              </div>
             <h1 className="text-xl font-bold text-gray-800">{t.title}</h1>
           </div>
-          
           <div className="p-8 pt-0">
             {isMaintenance ? (
                 <div className="text-center bg-orange-50 border border-orange-200 p-6 rounded-lg animate-in fade-in">
@@ -868,55 +662,25 @@ const App: React.FC = () => {
                             <label className="block text-xs font-bold text-de-gray uppercase mb-2">{t.loginEmailLabel}</label>
                             <div className="mb-2 p-2 bg-blue-50 border border-blue-100 rounded flex items-start gap-2">
                                 <AlertCircle size={14} className="text-blue-500 mt-0.5 flex-shrink-0" />
-                                <p className="text-[10px] text-blue-800 leading-tight">
-                                    {t.fakeEmailInfo}
-                                </p>
+                                <p className="text-[10px] text-blue-800 leading-tight">{t.fakeEmailInfo}</p>
                             </div>
-                            <input 
-                                type="email" 
-                                value={emailInput} 
-                                onChange={(e) => setEmailInput(e.target.value)} 
-                                className="w-full px-4 py-3 rounded border border-gray-300 focus:ring-2 focus:ring-de-gold focus:border-transparent outline-none transition-all bg-white text-gray-900" 
-                                placeholder={t.loginPlaceholder} 
-                                required 
-                            />
+                            <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full px-4 py-3 rounded border border-gray-300 focus:ring-2 focus:ring-de-gold outline-none transition-all bg-white text-gray-900" placeholder={t.loginPlaceholder} required />
                         </div>
-
                         <div className="flex items-start gap-3 p-3 bg-gray-50 rounded border border-gray-100">
-                        <input 
-                            type="checkbox"
-                            checked={privacyAccepted}
-                            onChange={e => setPrivacyAccepted(e.target.checked)}
-                            className="mt-1 h-4 w-4 text-de-gold border-gray-300 rounded focus:ring-de-gold cursor-pointer flex-shrink-0"
-                            id="privacy-check"
-                        />
+                        <input type="checkbox" checked={privacyAccepted} onChange={e => setPrivacyAccepted(e.target.checked)} className="mt-1 h-4 w-4 text-de-gold border-gray-300 rounded focus:ring-de-gold cursor-pointer flex-shrink-0" id="privacy-check" />
                         <label htmlFor="privacy-check" className="text-xs text-gray-600 cursor-pointer select-none">
                             {t.acceptPrivacy}
-                            <button 
-                            type="button"
-                            onClick={(e) => { e.preventDefault(); setShowPrivacyModal(true); }}
-                            className="block text-de-gold font-bold hover:underline mt-1 flex items-center gap-1"
-                            >
+                            <button type="button" onClick={(e) => { e.preventDefault(); setShowPrivacyModal(true); }} className="block text-de-gold font-bold hover:underline mt-1 flex items-center gap-1">
                             <ShieldCheck size={12} /> {t.privacyLink}
                             </button>
                         </label>
                         </div>
-
-                        <button 
-                            type="submit" 
-                            disabled={loading || !privacyAccepted} 
-                            className="w-full bg-de-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded transition-colors flex justify-center items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
+                        <button type="submit" disabled={loading || !privacyAccepted} className="w-full bg-de-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded transition-colors flex justify-center items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
                         {t.loginButton} <ArrowRight size={16} />
                         </button>
                     </form>
-                    
                     <div className="mt-4 pt-4 border-t border-gray-100 text-center">
-                        <button 
-                            type="button"
-                            onClick={enterGuestMode}
-                            className="text-gray-500 hover:text-de-black font-medium text-sm flex items-center justify-center gap-1 mx-auto transition-colors"
-                        >
+                        <button type="button" onClick={enterGuestMode} className="text-gray-500 hover:text-de-black font-medium text-sm flex items-center justify-center gap-1 mx-auto transition-colors">
                             <Eye size={16} /> {t.guestAccess}
                         </button>
                     </div>
@@ -924,116 +688,49 @@ const App: React.FC = () => {
                 ) : loginStep === 'CONFIRM' ? (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                     <div className="bg-yellow-50 border border-yellow-200 rounded p-5 text-center">
-                        <div className="bg-yellow-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <Mail className="text-yellow-600" />
-                        </div>
+                        <div className="bg-yellow-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"><Mail className="text-yellow-600" /></div>
                         <h3 className="font-bold text-gray-800 mb-2">{t.confirmEmail}</h3>
-                        <p className="text-xl font-bold text-de-black break-all mb-4 bg-white p-2 rounded border border-gray-100 shadow-inner">
-                            {emailInput}
-                        </p>
-                        <div className="flex items-start gap-2 text-left text-xs text-yellow-800 bg-yellow-100/50 p-2 rounded">
-                            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                            <p>{t.ensureEmail}</p>
-                        </div>
+                        <p className="text-xl font-bold text-de-black break-all mb-4 bg-white p-2 rounded border border-gray-100 shadow-inner">{emailInput}</p>
+                        <div className="flex items-start gap-2 text-left text-xs text-yellow-800 bg-yellow-100/50 p-2 rounded"><AlertCircle size={16} className="flex-shrink-0 mt-0.5" /><p>{t.ensureEmail}</p></div>
                     </div>
-
                     <div className="grid grid-cols-2 gap-3">
-                        <button 
-                            onClick={() => setLoginStep('INPUT')}
-                            className="w-full bg-white border border-gray-300 text-gray-600 font-bold py-3 px-4 rounded hover:bg-gray-50 flex items-center justify-center gap-2"
-                        >
-                            <Edit3 size={16} /> {t.edit}
-                        </button>
-                        <button 
-                            onClick={handleLoginConfirm} 
-                            disabled={loading} 
-                            className="w-full bg-de-gold hover:bg-yellow-400 text-de-black font-bold py-3 px-4 rounded transition-colors flex justify-center items-center gap-2 shadow-md"
-                        >
-                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check size={16} />}
-                            {t.confirm}
-                        </button>
+                        <button onClick={() => setLoginStep('INPUT')} className="w-full bg-white border border-gray-300 text-gray-600 font-bold py-3 px-4 rounded hover:bg-gray-50 flex items-center justify-center gap-2"><Edit3 size={16} /> {t.edit}</button>
+                        <button onClick={handleLoginConfirm} disabled={loading} className="w-full bg-de-gold hover:bg-yellow-400 text-de-black font-bold py-3 px-4 rounded transition-colors flex justify-center items-center gap-2 shadow-md">{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check size={16} />}{t.confirm}</button>
                     </div>
                 </div>
                 ) : loginStep === 'USERNAME_SELECTION' ? (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                        <div className="text-center mb-4">
-                            <h3 className="font-bold text-xl text-gray-800">{t.welcome}</h3>
-                            <p className="text-sm text-gray-500">{t.newEmailPrompt}</p>
-                        </div>
-
+                        <div className="text-center mb-4"><h3 className="font-bold text-xl text-gray-800">{t.welcome}</h3><p className="text-sm text-gray-500">{t.newEmailPrompt}</p></div>
                         <div className="flex border-b border-gray-200 mb-4">
-                            <button 
-                                onClick={() => setOnboardingMode('CREATE')}
-                                className={`flex-1 py-2 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-colors ${onboardingMode === 'CREATE' ? 'border-de-gold text-de-black' : 'border-transparent text-gray-400'}`}
-                            >
-                                <UserPlus size={16} /> {t.createNew}
-                            </button>
-                            <button 
-                                onClick={() => setOnboardingMode('CLAIM')}
-                                className={`flex-1 py-2 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-colors ${onboardingMode === 'CLAIM' ? 'border-de-gold text-de-black' : 'border-transparent text-gray-400'}`}
-                            >
-                                <LinkIcon size={16} /> {t.claimExisting}
-                            </button>
+                            <button onClick={() => setOnboardingMode('CREATE')} className={`flex-1 py-2 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-colors ${onboardingMode === 'CREATE' ? 'border-de-gold text-de-black' : 'border-transparent text-gray-400'}`}><UserPlus size={16} /> {t.createNew}</button>
+                            <button onClick={() => setOnboardingMode('CLAIM')} className={`flex-1 py-2 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-colors ${onboardingMode === 'CLAIM' ? 'border-de-gold text-de-black' : 'border-transparent text-gray-400'}`}><LinkIcon size={16} /> {t.claimExisting}</button>
                         </div>
-
                         <form onSubmit={handleFinalizeOnboarding} className="space-y-4">
-                            
                             {onboardingMode === 'CREATE' && (
                                 <div className="space-y-4 animate-in fade-in">
-                                     <div className="bg-blue-50 p-3 rounded border border-blue-100 text-xs text-blue-800">
-                                        <p>{t.createProfileDesc} <strong>{emailInput}</strong>.</p>
-                                     </div>
+                                     <div className="bg-blue-50 p-3 rounded border border-blue-100 text-xs text-blue-800"><p>{t.createProfileDesc} <strong>{emailInput}</strong>.</p></div>
                                     <div>
                                         <label className="block text-xs font-bold text-de-gray uppercase mb-2">{t.chooseFantasyName}</label>
-                                        <input 
-                                            type="text" 
-                                            value={proposedUsername} 
-                                            onChange={(e) => setProposedUsername(e.target.value)} 
-                                            className={`w-full px-4 py-3 rounded border ${usernameError ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-de-gold'} focus:ring-2 focus:border-transparent outline-none transition-all bg-white text-gray-900 font-bold`} 
-                                            placeholder="e.g. Bavarian Eagle"
-                                            required 
-                                        />
+                                        <input type="text" value={proposedUsername} onChange={(e) => setProposedUsername(e.target.value)} className={`w-full px-4 py-3 rounded border ${usernameError ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-de-gold'} focus:ring-2 focus:border-transparent outline-none transition-all bg-white text-gray-900 font-bold`} placeholder="e.g. Bavarian Eagle" required />
                                         {usernameError && <p className="text-xs text-red-500 font-bold mt-2">{usernameError}</p>}
                                     </div>
                                 </div>
                             )}
-
                             {onboardingMode === 'CLAIM' && (
                                 <div className="space-y-4 animate-in fade-in">
-                                     <div className="bg-green-50 p-3 rounded border border-green-100 text-xs text-green-800">
-                                        <p>{t.claimDesc}</p>
-                                     </div>
-                                    
+                                     <div className="bg-green-50 p-3 rounded border border-green-100 text-xs text-green-800"><p>{t.claimDesc}</p></div>
                                      <div>
                                         <label className="block text-xs font-bold text-de-gray uppercase mb-2">{t.searchCase}</label>
                                         <div className="relative">
                                             <Search className="absolute left-3 top-3 text-gray-400" size={16} />
-                                            <input 
-                                                type="text"
-                                                value={claimSearchTerm}
-                                                onChange={(e) => setClaimSearchTerm(e.target.value)}
-                                                className="w-full pl-10 pr-4 py-3 rounded border border-gray-300 focus:ring-2 focus:ring-de-gold outline-none text-sm"
-                                                placeholder={t.searchPlaceholder}
-                                            />
+                                            <input type="text" value={claimSearchTerm} onChange={(e) => setClaimSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 rounded border border-gray-300 focus:ring-2 focus:ring-de-gold outline-none text-sm" placeholder={t.searchPlaceholder} />
                                         </div>
                                      </div>
-
                                      <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50">
-                                        {unclaimedCases.length === 0 ? (
-                                            <div className="p-4 text-center text-xs text-gray-400">{t.noUnclaimed}</div>
-                                        ) : (
+                                        {unclaimedCases.length === 0 ? (<div className="p-4 text-center text-xs text-gray-400">{t.noUnclaimed}</div>) : (
                                             unclaimedCases.map(c => (
-                                                <div 
-                                                    key={c.id} 
-                                                    onClick={() => setSelectedClaimCase(c)}
-                                                    className={`p-3 border-b border-gray-100 last:border-0 cursor-pointer flex justify-between items-center transition-colors ${selectedClaimCase?.id === c.id ? 'bg-de-gold/20 border-l-4 border-l-de-gold' : 'hover:bg-white'}`}
-                                                >
-                                                    <div>
-                                                        <p className="font-bold text-sm text-de-black">{c.fantasyName}</p>
-                                                        <p className="text-[10px] text-gray-500">
-                                                            {c.caseType} • {c.countryOfApplication} • <span className="font-medium text-gray-700">{formatISODateToLocale(c.submissionDate, lang)}</span>
-                                                        </p>
-                                                    </div>
+                                                <div key={c.id} onClick={() => setSelectedClaimCase(c)} className={`p-3 border-b border-gray-100 last:border-0 cursor-pointer flex justify-between items-center transition-colors ${selectedClaimCase?.id === c.id ? 'bg-de-gold/20 border-l-4 border-l-de-gold' : 'hover:bg-white'}`}>
+                                                    <div><p className="font-bold text-sm text-de-black">{c.fantasyName}</p><p className="text-[10px] text-gray-500">{c.caseType} • {c.countryOfApplication} • <span className="font-medium text-gray-700">{formatISODateToLocale(c.submissionDate, lang)}</span></p></div>
                                                     {selectedClaimCase?.id === c.id && <CheckCircleIcon />}
                                                 </div>
                                             ))
@@ -1042,35 +739,19 @@ const App: React.FC = () => {
                                      {usernameError && <p className="text-xs text-red-500 font-bold">{usernameError}</p>}
                                 </div>
                             )}
-
                             <div className="grid grid-cols-2 gap-3 pt-2">
-                                <button 
-                                        type="button"
-                                        onClick={() => setLoginStep('INPUT')}
-                                        className="w-full bg-white border border-gray-300 text-gray-600 font-bold py-3 px-4 rounded hover:bg-gray-50"
-                                    >
-                                        {t.cancel}
-                                    </button>
-                                <button 
-                                    type="submit" 
-                                    disabled={loading} 
-                                    className="w-full bg-de-gold hover:bg-yellow-400 text-de-black font-bold py-3 px-4 rounded transition-colors flex justify-center items-center gap-2 shadow-md"
-                                >
-                                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight size={16} />}
-                                    {onboardingMode === 'CREATE' ? t.createUser : t.claimCaseBtn}
-                                </button>
+                                <button type="button" onClick={() => setLoginStep('INPUT')} className="w-full bg-white border border-gray-300 text-gray-600 font-bold py-3 px-4 rounded hover:bg-gray-50">{t.cancel}</button>
+                                <button type="submit" disabled={loading} className="w-full bg-de-gold hover:bg-yellow-400 text-de-black font-bold py-3 px-4 rounded transition-colors flex justify-center items-center gap-2 shadow-md">{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight size={16} />}{onboardingMode === 'CREATE' ? t.createUser : t.claimCaseBtn}</button>
                             </div>
                         </form>
                     </div>
-                ) : (
-                    <div />
-                )
+                ) : <div />
             )}
           </div>
         </div>
         <div className="mt-8 py-4 flex flex-col items-center justify-center gap-2 text-gray-400">
              <div className="flex items-center gap-3 bg-black/30 px-4 py-2 rounded-full backdrop-blur-sm">
-                 <button onClick={handleToggleBgMode} className="flex items-center gap-1 text-xs hover:text-white transition-colors text-white/70">
+                 <button onClick={() => setBgMode(bgMode === 'image' ? 'simple' : 'image')} className="flex items-center gap-1 text-xs hover:text-white transition-colors text-white/70">
                     {bgMode === 'image' ? <Palette size={12} /> : <ImageIcon size={12} />}
                     {bgMode === 'image' ? t.simpleMode : t.scenicMode}
                  </button>
@@ -1101,12 +782,8 @@ const App: React.FC = () => {
       {showCohortModal && userCase && <CohortModal userCase={userCase} allCases={allCases} onClose={() => setShowCohortModal(false)} lang={lang} />}
 
       <div 
-          className={`min-h-screen font-sans text-de-black transition-all duration-1000 ${
-              bgMode === 'image' ? 'bg-fixed bg-cover bg-center' : 'bg-gray-100'
-          }`}
-          style={bgMode === 'image' ? {
-            backgroundImage: `url('${bgImage}')`
-          } : {}}
+          className={`min-h-screen font-sans text-de-black transition-all duration-1000 ${bgMode === 'image' ? 'bg-fixed bg-cover bg-center' : 'bg-gray-100'}`}
+          style={bgMode === 'image' ? { backgroundImage: `url('${bgImage}')` } : {}}
       >
         <div className={`min-h-screen ${bgMode === 'image' ? 'bg-gray-50/70 backdrop-blur-sm' : ''}`}>
         
@@ -1122,8 +799,7 @@ const App: React.FC = () => {
                 <span className="font-bold text-lg tracking-tight hidden md:block">{t.title}</span>
               </div>
               <div className="flex items-center gap-4 md:gap-6">
-                <div className="hidden md:block"><LanguageSelector lang={lang} setLang={setLang} /></div>
-                
+                <div className="hidden md:block"><LanguageSelector /></div>
                 {!isGuest ? (
                     <div className="hidden md:flex flex-col items-end border-l border-gray-700 pl-4">
                         <div className="flex flex-col items-end">
@@ -1137,12 +813,7 @@ const App: React.FC = () => {
                         <span className="text-xs font-bold uppercase">{t.guestModeActive}</span>
                     </div>
                 )}
-
-                <button 
-                    onClick={handleLogout} 
-                    className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-300 hover:text-white flex items-center gap-2"
-                    title={isGuest ? t.guestLoginPrompt : t.logout}
-                >
+                <button onClick={handleLogout} className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-300 hover:text-white flex items-center gap-2" title={isGuest ? t.guestLoginPrompt : t.logout}>
                     {isGuest ? <LogIn size={20} /> : <LogOut size={20} />}
                 </button>
               </div>
@@ -1155,41 +826,27 @@ const App: React.FC = () => {
         </Suspense>
 
         <main className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-0 sm:py-8 pb-24">
-          <div className="block md:hidden mb-6 px-3 pt-4"><LanguageSelector lang={lang} setLang={setLang} /></div>
+          <div className="block md:hidden mb-6 px-3 pt-4"><LanguageSelector /></div>
           
           {isMaintenance && (
               <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded shadow mb-6 mx-0 sm:mx-0 flex items-start gap-3 animate-in slide-in-from-top-2">
                   <Power className="flex-shrink-0 mt-1" size={20} />
-                  <div className="pr-6">
-                      <p className="font-bold">{t.maintenance}</p>
-                      <p className="text-sm">{t.maintenanceMessage}</p>
-                  </div>
+                  <div className="pr-6"><p className="font-bold">{t.maintenance}</p><p className="text-sm">{t.maintenanceMessage}</p></div>
               </div>
           )}
 
           {fetchError && !isMaintenance && (
             <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded shadow mb-6 mx-0 sm:mx-0 flex items-start gap-3 animate-in slide-in-from-top-2">
               <AlertCircle className="flex-shrink-0 mt-1" size={20} />
-              <div className="pr-6">
-                  <p className="font-bold">Database Connection Issue</p>
-                  <p className="text-sm">{fetchError}. Some data might be unavailable.</p>
-              </div>
+              <div className="pr-6"><p className="font-bold">Database Connection Issue</p><p className="text-sm">{fetchError}. Some data might be unavailable.</p></div>
             </div>
           )}
 
           {notificationMsg && !isMaintenance && (
             <div className="bg-de-gold text-de-black p-4 rounded shadow mb-6 mx-0 sm:mx-0 flex items-start gap-3 animate-in slide-in-from-top-2 relative">
               <BellRing className="flex-shrink-0 mt-1" />
-              <div className="pr-6">
-                  <p className="font-bold">{t.attention}</p>
-                  <p>{notificationMsg}</p>
-              </div>
-              <button 
-                  onClick={() => setNotificationMsg(null)} 
-                  className="absolute top-2 right-2 text-de-black hover:text-gray-700 bg-white/20 rounded-full p-1"
-              >
-                  <X size={16} />
-              </button>
+              <div className="pr-6"><p className="font-bold">{t.attention}</p><p>{notificationMsg}</p></div>
+              <button onClick={() => setNotificationMsg(null)} className="absolute top-2 right-2 text-de-black hover:text-gray-700 bg-white/20 rounded-full p-1"><X size={16} /></button>
             </div>
           )}
 
@@ -1215,19 +872,13 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  
-                  {/* NEW: View My Cohort Button */}
                   {userCase && (
                       <div className="mx-2 sm:mx-0 mb-4 flex justify-end">
-                          <button 
-                              onClick={() => setShowCohortModal(true)}
-                              className="bg-white border border-gray-300 hover:bg-gray-50 text-de-black px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
-                          >
+                          <button onClick={() => setShowCohortModal(true)} className="bg-white border border-gray-300 hover:bg-gray-50 text-de-black px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors">
                               <Users size={16} className="text-de-gold" /> {t.viewCohort}
                           </button>
                       </div>
                   )}
-
                   <CaseForm 
                     initialData={userCase} 
                     userEmail={session?.email || ''} 
@@ -1246,89 +897,50 @@ const App: React.FC = () => {
             {activeTab === 'dashboard' && (
               <Suspense fallback={<div className="col-span-1 xl:col-span-3"><LoadingSpinner /></div>}>
               <div className="col-span-1 xl:col-span-3 space-y-8 animate-in fade-in">
-                  
                   <div className="bg-white p-4 mx-0 sm:mx-0 rounded-xl shadow-sm border border-gray-200 sticky top-20 z-40 bg-opacity-95 backdrop-blur">
                       <div className="flex justify-between items-center gap-3">
-                         <button 
-                            onClick={() => setShowFilters(!showFilters)}
-                            className="flex items-center gap-2 text-de-black font-bold text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded transition-colors"
-                         >
-                            <Filter size={16} />
-                            <span>{t.filters}</span>
-                            {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                         <button onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2 text-de-black font-bold text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded transition-colors">
+                            <Filter size={16} /> <span>{t.filters}</span> {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                          </button>
-
                          <div className="relative flex-1 max-w-sm">
                             <Search className="absolute left-2 top-2.5 text-gray-400" size={14} />
-                            <input 
-                                type="text"
-                                placeholder={t.searchDashboard}
-                                value={dashboardSearchTerm}
-                                onChange={(e) => setDashboardSearchTerm(e.target.value)}
-                                className="w-full pl-8 pr-2 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-de-gold outline-none"
-                            />
+                            <input type="text" placeholder={t.searchDashboard} value={filters.search} onChange={(e) => setFilters({ search: e.target.value })} className="w-full pl-8 pr-2 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-de-gold outline-none" />
                          </div>
                       </div>
-                      
                       {showFilters && (
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-gray-100 animate-in slide-in-from-top-2">
-                            <select 
-                                value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
-                                className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                            >
+                            <select value={filters.month} onChange={(e) => setFilters({ month: e.target.value })} className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold">
                                 <option value="All">{t.allMonths}</option>
-                                {Array.from({length: 12}, (_, i) => (
-                                    <option key={i} value={(i+1).toString()}>{getMonthName(i)}</option>
-                                ))}
+                                {Array.from({length: 12}, (_, i) => (<option key={i} value={(i+1).toString()}>{getMonthName(i)}</option>))}
                             </select>
-
-                            <select 
-                                value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
-                                className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                            >
+                            <select value={filters.year} onChange={(e) => setFilters({ year: e.target.value })} className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold">
                                 <option value="All">{t.allYears}</option>
-                                {Array.from({length: new Date().getFullYear() - 2020 + 2}, (_, i) => (2020 + i).toString()).map(y => (
-                                    <option key={y} value={y}>{y}</option>
-                                ))}
+                                {Array.from({length: new Date().getFullYear() - 2020 + 2}, (_, i) => (2020 + i).toString()).map(y => (<option key={y} value={y}>{y}</option>))}
                             </select>
-
-                            <select 
-                                value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}
-                                className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                            >
+                            <select value={filters.country} onChange={(e) => setFilters({ country: e.target.value })} className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold">
                                 <option value="All">{t.allCountries}</option>
                                 {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
-                            <select 
-                                value={filterType} onChange={(e) => setFilterType(e.target.value)}
-                                className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                            >
+                            <select value={filters.type} onChange={(e) => setFilters({ type: e.target.value })} className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold">
                                 <option value="All">{t.allTypes}</option>
                                 {Object.values(CaseType).sort().map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
-
-                            <select 
-                                value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-                                className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold"
-                            >
+                            <select value={filters.status} onChange={(e) => setFilters({ status: e.target.value })} className="border-gray-300 rounded text-sm p-2 bg-white cursor-pointer focus:ring-de-gold focus:border-de-gold">
                                 <option value="All">{t.allStatuses}</option>
-                                {Object.values(CaseStatus).map(s => (
-                                    <option key={s} value={s}>{STATUS_TRANSLATIONS[lang][s] || s}</option>
-                                ))}
+                                {Object.values(CaseStatus).map(s => (<option key={s} value={s}>{STATUS_TRANSLATIONS[lang][s] || s}</option>))}
                             </select>
                         </div>
                       )}
                   </div>
-
                   <WorldMapStats 
                      cases={filteredCases} 
                      lang={lang} 
-                     loading={dataLoading} 
-                     selectedCountryFilter={filterCountry} 
-                     onSelectCountry={(c) => setFilterCountry(c)}
-                     onSetFilterStatus={setFilterStatus}
+                     loading={isDataLoading} 
+                     selectedCountryFilter={filters.country} 
+                     onSelectCountry={(c) => setFilters({ country: c })}
+                     onSetFilterStatus={(s) => setFilters({ status: s })}
                   />
-                  <StatsDashboard cases={filteredCases} userCase={userCase} lang={lang} loading={dataLoading} />
+                  <StatsDashboard cases={filteredCases} userCase={userCase} lang={lang} loading={isDataLoading} />
                   <div className="mx-0 sm:mx-0"><CommunityFeed cases={filteredCases} lang={lang} /></div>
               </div>
               </Suspense>
@@ -1347,53 +959,35 @@ const App: React.FC = () => {
           {activeTab === 'dashboard' && (
               <div className="bg-white p-4 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 mt-8 -mx-0 sm:mx-0">
                   <div className="flex justify-between items-center mb-4 border-b pb-2">
-                    <h3 className="text-lg font-bold text-de-black">{viewGhosts ? t.ghostCases : t.activeCases}</h3>
-                    {viewGhosts && (
-                      <button 
-                        onClick={() => setViewGhosts(false)}
-                        className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full flex items-center gap-2 transition-colors"
-                      >
+                    <h3 className="text-lg font-bold text-de-black">{filters.viewGhosts ? t.ghostCases : t.activeCases}</h3>
+                    {filters.viewGhosts && (
+                      <button onClick={() => setFilters({ viewGhosts: false })} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full flex items-center gap-2 transition-colors">
                         <ArrowRight size={12} /> {t.backToActive}
                       </button>
                     )}
                   </div>
-                  
                   <div className="flex flex-col sm:flex-row justify-between text-sm mb-4 gap-2">
                       <span className="text-gray-500">{t.showing} {filteredCases.length}</span>
                       <div className="flex gap-4">
                           <span className="text-de-red font-medium">{t.pausedCases}: {allCases.filter(c => !isGhostCase(c) && c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED).length - filteredCases.length}</span>
                           {ghostCount > 0 && (
-                              <button 
-                                  onClick={() => setViewGhosts(!viewGhosts)}
-                                  className={`font-medium flex items-center gap-1 transition-colors hover:underline ${viewGhosts ? 'text-de-black font-bold' : 'text-gray-400 hover:text-gray-600'}`}
-                                  title={viewGhosts ? "Click to hide Ghost Cases" : "Click to view Ghost Cases"}
-                              >
-                                  {viewGhosts ? <EyeOff size={14} /> : <Eye size={14} />} {t.ghostCases}: {ghostCount}
+                              <button onClick={() => setFilters({ viewGhosts: !filters.viewGhosts })} className={`font-medium flex items-center gap-1 transition-colors hover:underline ${filters.viewGhosts ? 'text-de-black font-bold' : 'text-gray-400 hover:text-gray-600'}`} title={filters.viewGhosts ? "Click to hide Ghost Cases" : "Click to view Ghost Cases"}>
+                                  {filters.viewGhosts ? <EyeOff size={14} /> : <Eye size={14} />} {t.ghostCases}: {ghostCount}
                               </button>
                           )}
                       </div>
                   </div>
-                  
                   <div className="border border-gray-100 rounded h-[400px] w-full bg-white">
                       {filteredCases.length > 0 ? (
                           <AutoSizer>
                             {({ height, width }) => (
-                                <List
-                                    height={height}
-                                    width={width}
-                                    itemCount={filteredCases.length}
-                                    itemSize={72}
-                                    itemData={{ cases: filteredCases, lang, onSelect: setSelectedDetailCase }}
-                                >
+                                <List height={height} width={width} itemCount={filteredCases.length} itemSize={72} itemData={{ cases: filteredCases, lang, onSelect: setSelectedDetailCase }}>
                                     {CaseRow}
                                 </List>
                             )}
                           </AutoSizer>
                       ) : (
-                          <div className="flex flex-col items-center justify-center p-8 text-gray-400 h-full">
-                            <p className="italic text-sm mb-2">{t.noCasesFound}</p>
-                            {viewGhosts && <p className="text-xs">No ghost cases match your current filters.</p>}
-                          </div>
+                          <div className="flex flex-col items-center justify-center p-8 text-gray-400 h-full"><p className="italic text-sm mb-2">{t.noCasesFound}</p>{filters.viewGhosts && <p className="text-xs">No ghost cases match your current filters.</p>}</div>
                       )}
                   </div>
               </div>
@@ -1406,7 +1000,7 @@ const App: React.FC = () => {
           
           <div className="mt-8 py-4 flex flex-col items-center justify-center gap-2 text-gray-400 border-t border-gray-200">
               <div className="flex items-center gap-3">
-                  <button onClick={handleToggleBgMode} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
+                  <button onClick={() => setBgMode(bgMode === 'image' ? 'simple' : 'image')} className="flex items-center gap-1 text-xs hover:text-de-black transition-colors text-gray-500">
                       {bgMode === 'image' ? <Palette size={12} /> : <ImageIcon size={12} />}
                       {bgMode === 'image' ? t.simpleMode : t.scenicMode}
                   </button>
@@ -1422,24 +1016,15 @@ const App: React.FC = () => {
               </div>
           </div>
         </main>
-        
         </div>
       </div>
-
       <MobileNavBar activeTab={activeTab} setActiveTab={setActiveTab} t={t} isGuest={isGuest} />
     </>
   );
 };
 
 const TabButton = ({id, label, icon, active, onClick}: any) => (
-    <button 
-        onClick={() => onClick(id)}
-        className={`px-6 py-3 font-bold text-sm rounded-t-lg transition-all whitespace-nowrap ${
-            active === id 
-            ? 'bg-white text-de-red border border-gray-300 border-b-white -mb-px shadow-sm' 
-            : 'bg-gray-100/80 text-gray-500 hover:text-gray-700 hover:bg-gray-200/80'
-        }`}
-    >
+    <button onClick={() => onClick(id)} className={`px-6 py-3 font-bold text-sm rounded-t-lg transition-all whitespace-nowrap ${active === id ? 'bg-white text-de-red border border-gray-300 border-b-white -mb-px shadow-sm' : 'bg-gray-100/80 text-gray-500 hover:text-gray-700 hover:bg-gray-200/80'}`}>
         <span className="flex items-center gap-2">{icon} {label}</span>
     </button>
 );
