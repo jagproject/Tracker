@@ -38,7 +38,8 @@ import {
   Clock,
   Calendar,
   LogIn,
-  TableProperties
+  TableProperties,
+  Info
 } from 'lucide-react';
 import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
@@ -61,17 +62,42 @@ const CommunityFeed = React.lazy(() => import('./components/CommunityFeed').then
 const SuccessTicker = React.lazy(() => import('./components/SuccessTicker').then(module => ({ default: module.SuccessTicker })));
 const PrivacyPolicyModal = React.lazy(() => import('./components/PrivacyPolicyModal').then(module => ({ default: module.PrivacyPolicyModal })));
 
-// High-quality, attractive German landscapes
+// High-quality, diverse German landscapes (Cities, Nature, Culture)
 const BG_IMAGES = [
-  "https://images.unsplash.com/photo-1590059393160-c4d632230491?q=80&w=2670&auto=format&fit=crop", 
-  "https://images.unsplash.com/photo-1534313314376-a7f2c8c5c944?q=80&w=2070&auto=format&fit=crop", 
-  "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2670&auto=format&fit=crop", 
-  "https://images.unsplash.com/photo-1528659576973-2e0f7692120b?q=80&w=2670&auto=format&fit=crop", 
-  "https://images.unsplash.com/photo-1516212110294-4d834927b58b?q=80&w=2574&auto=format&fit=crop", 
-  "https://images.unsplash.com/photo-1500320821405-8fc1732209ca?q=80&w=2670&auto=format&fit=crop", 
-  "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=2670&auto=format&fit=crop", 
-  "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=2613&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1534313314376-a7f2c8c5c944?q=80&w=2070&auto=format&fit=crop", // Neuschwanstein (Winter)
+  "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=2070&auto=format&fit=crop", // Hamburg Speicherstadt
+  "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=2070&auto=format&fit=crop", // Eibsee / Alps
+  "https://images.unsplash.com/photo-1516212110294-4d834927b58b?q=80&w=2070&auto=format&fit=crop", // Heidelberg
+  "https://images.unsplash.com/photo-1590059393160-c4d632230491?q=80&w=2070&auto=format&fit=crop", // Rothenburg ob der Tauber
+  "https://images.unsplash.com/photo-1563828759539-773a9072bd0d?q=80&w=2070&auto=format&fit=crop", // Cologne Cathedral
+  "https://images.unsplash.com/photo-1500320821405-8fc1732209ca?q=80&w=2070&auto=format&fit=crop", // Black Forest
+  "https://images.unsplash.com/photo-1560969184-10fe8719e047?q=80&w=2070&auto=format&fit=crop", // Berlin Brandenburg Gate
+  "https://images.unsplash.com/photo-1595867865317-5f62a7924703?q=80&w=2070&auto=format&fit=crop", // Munich Marienplatz
+  "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop", // Moselle Loop
+  "https://images.unsplash.com/photo-1553549202-3932e8c28723?q=80&w=2070&auto=format&fit=crop"  // Frankfurt Skyline
 ];
+
+const ToastContainer = () => {
+    const { notifications, removeNotification } = useAppStore();
+    return (
+        <div className="fixed top-20 right-4 z-[100] flex flex-col gap-2">
+            {notifications.map(n => (
+                <div 
+                    key={n.id} 
+                    className={`p-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[250px] animate-in slide-in-from-right-10 fade-in duration-300 ${
+                        n.type === 'success' ? 'bg-green-600 text-white' : 
+                        n.type === 'error' ? 'bg-red-600 text-white' : 
+                        n.type === 'warning' ? 'bg-orange-500 text-white' : 'bg-gray-800 text-white'
+                    }`}
+                >
+                    {n.type === 'success' ? <Check size={18}/> : n.type === 'error' ? <AlertCircle size={18}/> : <Info size={18}/>}
+                    <span className="text-sm font-bold flex-1">{n.message}</span>
+                    <button onClick={() => removeNotification(n.id)} className="opacity-50 hover:opacity-100"><X size={16}/></button>
+                </div>
+            ))}
+        </div>
+    );
+};
 
 const LanguageSelector = () => {
   const { lang, setLang } = useAppStore();
@@ -141,6 +167,7 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
     );
 };
 
+// ... [CohortModal and CaseDetailsModal kept as is] ...
 const CohortModal = ({ userCase, allCases, onClose, lang }: { userCase: CitizenshipCase, allCases: CitizenshipCase[], onClose: () => void, lang: Language }) => {
     const t = TRANSLATIONS[lang];
     const statusT = STATUS_TRANSLATIONS[lang];
@@ -365,12 +392,11 @@ const App: React.FC = () => {
   // Use Zustand Store
   const { 
       allCases, userCase, session, lang, activeTab, showAdmin, bgMode, bgImage, filters, fetchError, isMaintenance, isDataLoading,
-      setLang, setActiveTab, setShowAdmin, setBgMode, setBgImage, setSession, setUserCase, setFilters, refreshData, updateUserCaseInList, getFilteredCases, getGhostCount
+      setLang, setActiveTab, setShowAdmin, setBgMode, setBgImage, setSession, setUserCase, setFilters, refreshData, optimisticUpdateCase, getFilteredCases, getGhostCount
   } = useAppStore();
 
   const [emailInput, setEmailInput] = useState('');
   const [loginStep, setLoginStep] = useState<'INPUT' | 'CONFIRM' | 'USERNAME_SELECTION'>('INPUT');
-  const [isMockAuth, setIsMockAuth] = useState(!isSupabaseEnabled());
   const [loading, setLoading] = useState(false);
   const [aiInsight, setAiInsight] = useState<string>("");
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
@@ -389,6 +415,9 @@ const App: React.FC = () => {
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  
+  // Background Image Preloading State
+  const [bgLoaded, setBgLoaded] = useState(false);
 
   const t = TRANSLATIONS[lang];
 
@@ -428,6 +457,25 @@ const App: React.FC = () => {
         if (channel) channel.unsubscribe();
     };
   }, []);
+
+  // Background Image Preloader Effect
+  useEffect(() => {
+    if (bgMode === 'image' && bgImage) {
+        setBgLoaded(false); // Reset to show placeholder
+        const img = new Image();
+        img.src = bgImage;
+        img.onload = () => {
+            setBgLoaded(true);
+        };
+        img.onerror = () => {
+            // Fallback if image fails, maybe switch mode or keep dark background
+            console.warn("Background image failed to load:", bgImage);
+            setBgLoaded(false); 
+        };
+    } else {
+        setBgLoaded(true); // Simple mode is instantly ready
+    }
+  }, [bgImage, bgMode]);
 
   // Compute filtered cases using Store Selector
   const filteredCases = useMemo(() => getFilteredCases(), [allCases, filters]);
@@ -599,8 +647,7 @@ const App: React.FC = () => {
   };
 
   const handleUpdateCase = async (updatedCase: CitizenshipCase) => {
-    updateUserCaseInList(updatedCase);
-    await upsertCase(updatedCase);
+    optimisticUpdateCase(updatedCase);
     setNotificationMsg(null); 
   };
 
@@ -633,9 +680,10 @@ const App: React.FC = () => {
   if (!session && !isGuest) {
     return (
       <div 
-        className={`min-h-screen flex flex-col justify-center items-center p-4 font-sans relative transition-all duration-1000 ${bgMode === 'image' ? 'bg-cover bg-center' : 'bg-gradient-to-br from-gray-900 to-black'}`}
-        style={bgMode === 'image' ? { backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('${bgImage}')` } : {}}
+        className={`min-h-screen flex flex-col justify-center items-center p-4 font-sans relative transition-all duration-1000 ${bgMode === 'image' && bgLoaded ? 'bg-cover bg-center' : 'bg-gradient-to-br from-gray-900 to-black'}`}
+        style={bgMode === 'image' && bgLoaded ? { backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('${bgImage}')` } : {}}
       >
+        <ToastContainer />
         <Suspense fallback={null}>{showPrivacyModal && <PrivacyPolicyModal lang={lang} onClose={() => setShowPrivacyModal(false)} />}</Suspense>
         <div className="absolute top-4 right-4 z-20"><LanguageSelector /></div>
         <div className="max-w-md w-full bg-white rounded shadow-2xl overflow-hidden border-t-8 border-de-black relative z-10 animate-in fade-in zoom-in-95 duration-300">
@@ -761,7 +809,7 @@ const App: React.FC = () => {
                     </button>
                  )}
                  <span className="text-white/30">|</span>
-                 <button onClick={() => setShowAdmin(true)} className="flex items-center gap-1 text-xs hover:text-white transition-colors text-white/70">
+                 <button onClick={() => setShowAdmin(true)} className="flex items-center gap-1 text-xs font-bold bg-white text-black px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors shadow-sm">
                     <Settings size={12} /> {t.ownerAccess}
                  </button>
              </div>
@@ -775,6 +823,7 @@ const App: React.FC = () => {
 
   return (
     <>
+      <ToastContainer />
       <Suspense fallback={<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>}>
         {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
       </Suspense>
@@ -782,8 +831,8 @@ const App: React.FC = () => {
       {showCohortModal && userCase && <CohortModal userCase={userCase} allCases={allCases} onClose={() => setShowCohortModal(false)} lang={lang} />}
 
       <div 
-          className={`min-h-screen font-sans text-de-black transition-all duration-1000 ${bgMode === 'image' ? 'bg-fixed bg-cover bg-center' : 'bg-gray-100'}`}
-          style={bgMode === 'image' ? { backgroundImage: `url('${bgImage}')` } : {}}
+          className={`min-h-screen font-sans text-de-black transition-all duration-1000 ${bgMode === 'image' && bgLoaded ? 'bg-fixed bg-cover bg-center' : 'bg-gray-100'}`}
+          style={bgMode === 'image' && bgLoaded ? { backgroundImage: `url('${bgImage}')` } : {}}
       >
         <div className={`min-h-screen ${bgMode === 'image' ? 'bg-gray-50/70 backdrop-blur-sm' : ''}`}>
         

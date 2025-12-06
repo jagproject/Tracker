@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { CitizenshipCase, UserSession, Language, CaseType, CaseStatus } from '../types';
-import { fetchCases, fetchCaseByEmail, fetchGlobalConfig, getLastFetchError } from '../services/storageService';
+import { fetchCases, fetchCaseByEmail, fetchGlobalConfig, getLastFetchError, upsertCase, deleteCase, restoreCase, hardDeleteCase } from '../services/storageService';
 import { filterActiveCases, isGhostCase } from '../services/statsUtils';
 
 interface FilterState {
@@ -13,12 +13,18 @@ interface FilterState {
   viewGhosts: boolean;
 }
 
+export interface Notification {
+    id: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+}
+
 interface AppState {
   // Data State
   allCases: CitizenshipCase[];
   userCase: CitizenshipCase | undefined;
   isLoading: boolean;
-  isDataLoading: boolean; // For silent background refreshes
+  isDataLoading: boolean; 
   fetchError: string | null;
   isMaintenance: boolean;
 
@@ -31,6 +37,7 @@ interface AppState {
   showAdmin: boolean;
   bgMode: 'image' | 'simple';
   bgImage: string;
+  notifications: Notification[];
 
   // Filter State
   filters: FilterState;
@@ -47,8 +54,17 @@ interface AppState {
   
   // Logic
   refreshData: (silent?: boolean) => Promise<void>;
-  updateUserCaseInList: (updatedCase: CitizenshipCase) => void;
   
+  // Optimistic Actions
+  optimisticUpdateCase: (updatedCase: CitizenshipCase) => Promise<void>;
+  optimisticDeleteCase: (id: string) => Promise<void>;
+  optimisticRestoreCase: (id: string) => Promise<void>;
+  optimisticHardDeleteCase: (id: string) => Promise<void>;
+  
+  // Notification Management
+  addNotification: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
+  removeNotification: (id: string) => void;
+
   // Computed (Getters)
   getFilteredCases: () => CitizenshipCase[];
   getGhostCount: () => number;
@@ -93,7 +109,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeTab: 'myCase',
   showAdmin: false,
   bgMode: (localStorage.getItem('de_tracker_bg_mode') as 'image' | 'simple') || 'image',
-  bgImage: '', // Will be set by App.tsx logic or randomizer
+  bgImage: '',
+  notifications: [],
 
   // Initial Filters
   filters: initialFilters,
@@ -113,6 +130,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       filters: { ...state.filters, ...newFilters } 
   })),
 
+  addNotification: (message, type = 'info') => {
+      const id = crypto.randomUUID();
+      set(state => ({ notifications: [...state.notifications, { id, message, type }] }));
+      setTimeout(() => get().removeNotification(id), 5000);
+  },
+
+  removeNotification: (id) => {
+      set(state => ({ notifications: state.notifications.filter(n => n.id !== id) }));
+  },
+
   refreshData: async (silent = false) => {
     if (!silent) set({ isDataLoading: true });
     
@@ -122,7 +149,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         const error = getLastFetchError();
         
         let maintenance = config.maintenanceMode;
-        // Auto-maintenance safety
         if (loadedCases.length < 790) maintenance = true;
 
         set({ 
@@ -132,7 +158,6 @@ export const useAppStore = create<AppState>((set, get) => ({
             isDataLoading: false
         });
 
-        // If logged in, refresh specific user data to get PII
         const { session } = get();
         if (session) {
             const mine = await fetchCaseByEmail(session.email);
@@ -145,25 +170,78 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  updateUserCaseInList: (updatedCase) => {
+  optimisticUpdateCase: async (updatedCase) => {
+      const prevState = get().allCases;
+      
+      // 1. Optimistic Update
       set((state) => {
           const idx = state.allCases.findIndex(c => c.id === updatedCase.id);
           let newCases = [...state.allCases];
-          if (idx >= 0) {
-              newCases[idx] = updatedCase;
-          } else {
-              newCases.push(updatedCase);
-          }
+          if (idx >= 0) newCases[idx] = updatedCase;
+          else newCases.push(updatedCase);
           
-          // Also update userCase and session name if changed
           const newSession = state.session ? { ...state.session, fantasyName: updatedCase.fantasyName } : null;
-          
-          return {
-              allCases: newCases,
-              userCase: updatedCase,
-              session: newSession
-          };
+          return { allCases: newCases, userCase: updatedCase, session: newSession };
       });
+
+      // 2. Async Call
+      try {
+          const { success, error, isOffline } = await upsertCase(updatedCase);
+          if (!success && !isOffline) {
+              // Rollback on critical failure
+              set({ allCases: prevState });
+              get().addNotification(`Failed to save: ${error}`, 'error');
+          } else if (isOffline) {
+              get().addNotification("Saved offline. Will sync when online.", 'warning');
+          } else {
+              // Success (Silent or subtle)
+              // get().addNotification("Saved successfully", 'success');
+          }
+      } catch (e) {
+          set({ allCases: prevState });
+          get().addNotification("Unexpected save error.", 'error');
+      }
+  },
+
+  optimisticDeleteCase: async (id) => {
+      const prevState = get().allCases;
+      const timestamp = new Date().toISOString();
+
+      // 1. Optimistic Update (Filter out or mark deleted)
+      set((state) => ({
+          allCases: state.allCases.filter(c => c.id !== id) // Remove from active list
+      }));
+
+      // 2. Async Call
+      try {
+          const { success, error } = await deleteCase(id);
+          if (!success) {
+              set({ allCases: prevState }); // Rollback
+              get().addNotification(`Delete failed: ${error}`, 'error');
+          } else {
+              get().addNotification("Case moved to Recycle Bin", 'success');
+          }
+      } catch (e) {
+          set({ allCases: prevState });
+          get().addNotification("Delete error", 'error');
+      }
+  },
+
+  optimisticRestoreCase: async (id) => {
+      // Restore implies moving from Deleted List to Active List.
+      // Since `allCases` in store usually only holds active cases, we might need to re-fetch or assume we have the object available in a separate "deleted" list context.
+      // But for simple "Refresh", we can just call restore and then refresh.
+      // To be purely optimistic, we'd need the deleted object passed in.
+      
+      await restoreCase(id);
+      get().refreshData(true); // Lazy refresh for now as restore is rare admin action
+      get().addNotification("Case restored", 'success');
+  },
+
+  optimisticHardDeleteCase: async (id) => {
+      await hardDeleteCase(id);
+      get().refreshData(true);
+      get().addNotification("Case permanently deleted", 'info');
   },
 
   // Selectors / Getters
