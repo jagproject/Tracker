@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CitizenshipCase, CaseType, CaseStatus, Language } from '../types';
-import { COUNTRIES, TRANSLATIONS, CASE_SPECIFIC_DOCS, COMMON_DOCS, STATUS_TRANSLATIONS } from '../constants';
+import { COUNTRIES, TRANSLATIONS, STATUS_TRANSLATIONS } from '../constants';
 import { Save, Loader2, AlertTriangle, Edit2, ChevronDown, Mail, Power, Clock, CheckCircle2, FileText, Send, UserCircle, CalendarCheck, Check, Lock, Ghost, Zap, CheckSquare, Square } from 'lucide-react';
 import { getDaysDiff, formatDateTimeToLocale, formatDuration, formatISODateToLocale, isGhostCase } from '../services/statsUtils';
 import { Confetti } from './Confetti';
@@ -208,11 +208,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
      return diff !== null ? diff : 0;
   }, [initialData?.lastUpdated]);
 
-  const availableDocs = useMemo(() => {
-    const type = (formData.caseType as CaseType) || CaseType.STAG_5;
-    return CASE_SPECIFIC_DOCS[type] || COMMON_DOCS;
-  }, [formData.caseType]);
-
   const needsCheckIn = daysSinceUpdate >= 30;
   const showCheckIn = initialData && formData.status !== CaseStatus.APPROVED && formData.status !== CaseStatus.CLOSED;
 
@@ -392,18 +387,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
       if (isDuplicate) setNameError(t.usernameTaken);
       else if (newName.length < 3) setNameError(t.usernameShort);
       else setNameError(null);
-  };
-
-  const handleDocToggle = (doc: string) => {
-    if (isLocked || isMaintenanceMode) return;
-    setFormData(prev => {
-        const current = prev.documents || [];
-        if (current.includes(doc)) {
-            return { ...prev, documents: current.filter(d => d !== doc) };
-        } else {
-            return { ...prev, documents: [...current, doc] };
-        }
-    });
   };
 
   const showProtocol = formData.status !== CaseStatus.SUBMITTED || !!formData.protocolDate;
@@ -711,28 +694,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
                     />
                  </div>
             )}
-        </div>
-
-        {/* DOCUMENTS CHECKLIST FEATURE */}
-        <div className="mt-4">
-            <label className={labelClass}>{t.docsChecklist}</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50 p-3 rounded border border-gray-200">
-                {availableDocs.map(doc => (
-                    <label key={doc} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-white rounded transition-colors border border-transparent hover:border-gray-100">
-                        <div className="relative flex items-center">
-                            <input 
-                                type="checkbox"
-                                checked={formData.documents?.includes(doc) || false}
-                                onChange={() => handleDocToggle(doc)}
-                                disabled={isLocked || isMaintenanceMode}
-                                className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-gray-300 shadow-sm focus:ring-1 focus:ring-de-gold checked:bg-de-gold checked:border-de-gold"
-                            />
-                            <Check className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100" size={10} strokeWidth={4} />
-                        </div>
-                        <span className={`text-sm ${formData.documents?.includes(doc) ? 'text-gray-900 font-bold' : 'text-gray-500'}`}>{doc}</span>
-                    </label>
-                ))}
-            </div>
         </div>
 
         <div>
