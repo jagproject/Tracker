@@ -39,9 +39,7 @@ import {
   Calendar,
   LogIn,
   TableProperties,
-  Info,
-  Moon,
-  Sun
+  Info
 } from 'lucide-react';
 import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
@@ -459,7 +457,6 @@ const App: React.FC = () => {
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   
   // Background Image Preloading State
   const [bgLoaded, setBgLoaded] = useState(false);
@@ -524,11 +521,6 @@ const App: React.FC = () => {
         setBgLoaded(true); // Simple mode is instantly ready
     }
   }, [bgImage, bgMode]);
-
-  useEffect(() => {
-      if (isDarkMode) document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-  }, [isDarkMode]);
 
   // Compute filtered cases using Store Selector
   const filteredCases = useMemo(() => getFilteredCases(), [allCases, filters]);
@@ -877,11 +869,7 @@ const App: React.FC = () => {
                 <span className="font-bold text-lg tracking-tight hidden md:block">{t.title}</span>
               </div>
               <div className="flex items-center gap-4 md:gap-6">
-                {/* Dark Mode Toggle */}
-                <button onClick={() => setIsDarkMode(!isDarkMode)} className="text-gray-400 hover:text-white transition-colors">
-                    {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-                </button>
-
+                
                 <div className="hidden md:block"><LanguageSelector /></div>
                 {!isGuest ? (
                     <div className="hidden md:flex flex-col items-end border-l border-gray-700 pl-4">
