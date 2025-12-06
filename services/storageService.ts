@@ -108,6 +108,71 @@ const getLocalConfig = (): AppConfig => {
 
 export const getAppConfig = getLocalConfig;
 
+// Helper: Manage separate local cache for "My Case" to survive public list overwrites
+const saveMyCaseLocally = (email: string, caseData: CitizenshipCase) => {
+    try {
+        const cacheRaw = localStorage.getItem(LOCAL_USER_CACHE_KEY);
+        const cache = cacheRaw ? JSON.parse(cacheRaw) : {};
+        // Store by email as key
+        cache[email.trim().toLowerCase()] = caseData;
+        // Also store by ID for reverse lookup during merge
+        cache[caseData.id] = caseData;
+        localStorage.setItem(LOCAL_USER_CACHE_KEY, JSON.stringify(cache));
+    } catch (e) {
+        console.warn("Failed to save local user cache");
+    }
+};
+
+const loadMyCaseLocally = (email: string): CitizenshipCase | undefined => {
+    try {
+        const cacheRaw = localStorage.getItem(LOCAL_USER_CACHE_KEY);
+        if (!cacheRaw) return undefined;
+        const cache = JSON.parse(cacheRaw);
+        return cache[email.trim().toLowerCase()];
+    } catch (e) {
+        return undefined;
+    }
+};
+
+// Helper: When fetching public data (which has no emails), preserve any emails we already have locally.
+const mergeWithLocalEmails = (remoteCases: CitizenshipCase[]): CitizenshipCase[] => {
+    try {
+        const emailMap = new Map<string, string>();
+
+        // 1. Gather emails from existing main storage
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            const localData = JSON.parse(stored) as CitizenshipCase[];
+            localData.forEach(c => {
+                if (c.id && c.email) emailMap.set(c.id, c.email);
+            });
+        }
+
+        // 2. Gather emails from User Cache (Highest Priority)
+        try {
+            const userCacheRaw = localStorage.getItem(LOCAL_USER_CACHE_KEY);
+            if (userCacheRaw) {
+                const userCache = JSON.parse(userCacheRaw);
+                Object.values(userCache).forEach((c: any) => {
+                    if (c.id && c.email) emailMap.set(c.id, c.email);
+                });
+            }
+        } catch(e) {}
+
+        return remoteCases.map(rc => {
+            // If remote has an email (rare), keep it. 
+            // Otherwise, see if we have it locally.
+            const localEmail = emailMap.get(rc.id);
+            return {
+                ...rc,
+                email: rc.email || localEmail || ''
+            };
+        });
+    } catch (e) {
+        return remoteCases;
+    }
+};
+
 export const fetchCases = async (includeDeleted: boolean = false): Promise<CitizenshipCase[]> => {
   if (supabase) {
     try {
@@ -124,7 +189,7 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
                  const retry = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS_LEGACY);
                  if (retry.data) {
                     lastFetchError = null; 
-                    const cases = filterSystemRecords(mapToCases(retry.data));
+                    const cases = mergeWithLocalEmails(filterSystemRecords(mapToCases(retry.data)));
                     if (!includeDeleted) localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
                     return cases;
                  }
@@ -132,7 +197,7 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
             lastFetchError = `API Error: ${errorMsg}`;
         } else if (data) {
             lastFetchError = null;
-            const cases = filterSystemRecords(mapToCases(data));
+            const cases = mergeWithLocalEmails(filterSystemRecords(mapToCases(data)));
             if (!includeDeleted) localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
             return cases;
         }
@@ -190,50 +255,52 @@ export const checkConnection = async (): Promise<boolean> => {
     }
 };
 
-// Helper: Manage separate local cache for "My Case" to survive public list overwrites
-const saveMyCaseLocally = (email: string, caseData: CitizenshipCase) => {
-    try {
-        const cacheRaw = localStorage.getItem(LOCAL_USER_CACHE_KEY);
-        const cache = cacheRaw ? JSON.parse(cacheRaw) : {};
-        cache[email] = caseData;
-        localStorage.setItem(LOCAL_USER_CACHE_KEY, JSON.stringify(cache));
-    } catch (e) {
-        console.warn("Failed to save local user cache");
-    }
-};
-
-const loadMyCaseLocally = (email: string): CitizenshipCase | undefined => {
-    try {
-        const cacheRaw = localStorage.getItem(LOCAL_USER_CACHE_KEY);
-        if (!cacheRaw) return undefined;
-        const cache = JSON.parse(cacheRaw);
-        return cache[email];
-    } catch (e) {
-        return undefined;
-    }
-};
-
 export const fetchCaseByEmail = async (email: string): Promise<CitizenshipCase | undefined> => {
     const searchEmail = email.trim().toLowerCase();
     
-    // 1. Check Supabase (Remote)
-    if (supabase) {
-        try {
-            const { data, error } = await supabase.from(DB_TABLE).select('*').eq('email', searchEmail).is('deletedAt', null).maybeSingle();
-            if (!error && data) {
-                // Refresh local cache if found remotely
-                saveMyCaseLocally(searchEmail, data as CitizenshipCase);
-                return data as CitizenshipCase;
-            }
-        } catch (e) {}
+    // 1. Check Local User Cache FIRST (Fastest & Most Reliable)
+    const cachedUser = loadMyCaseLocally(searchEmail);
+    if (cachedUser) {
+        return cachedUser;
     }
 
-    // 2. Check Local User Cache (The Fix for "Already Registered" bug)
-    // This ensures that even if 'fetchCases' wiped the email from the main list, we still have the user's data here.
-    const cachedUser = loadMyCaseLocally(searchEmail);
-    if (cachedUser) return cachedUser;
+    // 2. Check Supabase (Remote) - Explicitly query for this email
+    if (supabase) {
+        try {
+            // Attempt 1: Exact Match
+            // We REMOVED the check for 'deletedAt' being null. 
+            // If a user was soft-deleted, we still want to find them so they can "log in" and potentially restore their case by saving it.
+            const { data, error } = await supabase
+                .from(DB_TABLE)
+                .select('*')
+                .eq('email', searchEmail)
+                .limit(1);
 
-    // 3. Fallback to General List (Likely won't work for email lookup due to privacy scrubbing, but safe fallback)
+            if (!error && data && data.length > 0) {
+                const user = data[0] as CitizenshipCase;
+                saveMyCaseLocally(searchEmail, user);
+                return user;
+            }
+
+            // Attempt 2: Case-Insensitive Match (Fallback)
+            const { data: dataIlike } = await supabase
+                .from(DB_TABLE)
+                .select('*')
+                .ilike('email', searchEmail)
+                .limit(1);
+
+            if (dataIlike && dataIlike.length > 0) {
+                const user = dataIlike[0] as CitizenshipCase;
+                saveMyCaseLocally(searchEmail, user);
+                return user;
+            }
+
+        } catch (e) {
+            console.warn("Error fetching user by email:", e);
+        }
+    }
+
+    // 3. Fallback to General List (Only works if public list has loaded AND we previously merged emails)
     const cases = await fetchCases(); 
     return cases.find(c => c.email.trim().toLowerCase() === searchEmail);
 };
@@ -242,8 +309,8 @@ export const fetchCaseByFantasyName = async (name: string): Promise<CitizenshipC
     const searchName = name.trim().toLowerCase();
     if (supabase) {
         try {
-             const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).ilike('fantasyName', searchName).is('deletedAt', null).maybeSingle();
-             if (!error && data) return { ...data, email: '' } as CitizenshipCase;
+             const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).ilike('fantasyName', searchName).limit(1);
+             if (!error && data && data.length > 0) return { ...data[0], email: '' } as CitizenshipCase;
         } catch(e) {}
     }
     const cases = await fetchCases();
@@ -270,12 +337,15 @@ export const upsertCase = async (newCase: CitizenshipCase): Promise<StorageResul
   // 2. Local Write (Always perform for offline capability)
   const stored = localStorage.getItem(STORAGE_KEY);
   let cases: CitizenshipCase[] = stored ? JSON.parse(stored) : [];
+  
   const index = cases.findIndex(c => c.id === caseToSave.id || c.email === normalizedNewEmail);
   if (index >= 0) {
+    // Merge to preserve any existing fields not in payload (though upsert usually is full)
     cases[index] = { ...cases[index], ...caseToSave }; 
   } else {
     cases.push(caseToSave);
   }
+  
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
 
   // 3. Update Local User Cache (Crucial Fix)
