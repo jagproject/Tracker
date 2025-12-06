@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { 
   LayoutDashboard, 
   Globe, 
@@ -45,16 +45,18 @@ import { generateFantasyUsername, generateStatisticalInsights } from './services
 import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig, subscribeToCases, getLastFetchError, fetchGlobalConfig } from './services/storageService';
 import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickStats, formatISODateToLocale, isGhostCase, formatDuration } from './services/statsUtils';
 import { logoutUser, subscribeToAuthChanges, isSupabaseEnabled } from './services/authService';
-import { StatsDashboard } from './components/StatsCharts';
-import { WorldMapStats } from './components/WorldMapStats';
-import { CaseForm } from './components/CaseForm';
-import { AdminTools } from './components/AdminTools';
-import { FAQ } from './components/FAQ';
-import { AIModelTab } from './components/AIModelTab';
-import { CommunityFeed } from './components/CommunityFeed'; 
-import { SuccessTicker } from './components/SuccessTicker'; 
-import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { TRANSLATIONS, COUNTRIES, STATUS_TRANSLATIONS } from './constants';
+
+// Lazy Load Components (Code Splitting)
+const StatsDashboard = React.lazy(() => import('./components/StatsCharts').then(module => ({ default: module.StatsDashboard })));
+const WorldMapStats = React.lazy(() => import('./components/WorldMapStats').then(module => ({ default: module.WorldMapStats })));
+const CaseForm = React.lazy(() => import('./components/CaseForm').then(module => ({ default: module.CaseForm })));
+const AdminTools = React.lazy(() => import('./components/AdminTools').then(module => ({ default: module.AdminTools })));
+const FAQ = React.lazy(() => import('./components/FAQ').then(module => ({ default: module.FAQ })));
+const AIModelTab = React.lazy(() => import('./components/AIModelTab').then(module => ({ default: module.AIModelTab })));
+const CommunityFeed = React.lazy(() => import('./components/CommunityFeed').then(module => ({ default: module.CommunityFeed })));
+const SuccessTicker = React.lazy(() => import('./components/SuccessTicker').then(module => ({ default: module.SuccessTicker })));
+const PrivacyPolicyModal = React.lazy(() => import('./components/PrivacyPolicyModal').then(module => ({ default: module.PrivacyPolicyModal })));
 
 // High-quality, attractive German landscapes (No people, no sad concepts)
 const BG_IMAGES = [
@@ -89,6 +91,16 @@ const LanguageSelector = ({ lang, setLang }: { lang: Language, setLang: (l: Lang
       <button onClick={() => setLang('pt')} className={`hover:text-de-gold transition-colors ${lang === 'pt' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>PT</button>
       <span className="text-gray-300">|</span>
       <button onClick={() => setLang('de')} className={`hover:text-de-gold transition-colors ${lang === 'de' ? 'text-de-gold font-bold' : 'text-gray-500'}`}>DE</button>
+  </div>
+);
+
+// Loading Spinner for Suspense Fallbacks
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center p-12 w-full h-full min-h-[200px]">
+    <div className="flex flex-col items-center gap-2">
+      <Loader2 className="w-8 h-8 animate-spin text-de-gold" />
+      <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Loading...</span>
+    </div>
   </div>
 );
 
@@ -822,7 +834,9 @@ const App: React.FC = () => {
           backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('${bgImage}')` 
         } : {}}
       >
-        {showPrivacyModal && <PrivacyPolicyModal lang={lang} onClose={() => setShowPrivacyModal(false)} />}
+        <Suspense fallback={null}>
+          {showPrivacyModal && <PrivacyPolicyModal lang={lang} onClose={() => setShowPrivacyModal(false)} />}
+        </Suspense>
         
         <div className="absolute top-4 right-4 z-20">
             <LanguageSelector lang={lang} setLang={setLang} />
@@ -1069,14 +1083,18 @@ const App: React.FC = () => {
                  </button>
              </div>
         </div>
-        {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>}>
+          {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
+        </Suspense>
       </div>
     );
   }
 
   return (
     <>
-      {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
+      <Suspense fallback={<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>}>
+        {showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}
+      </Suspense>
       {selectedDetailCase && <CaseDetailsModal caseData={selectedDetailCase} userCase={userCase} onClose={() => setSelectedDetailCase(null)} lang={lang} />}
       {showCohortModal && userCase && <CohortModal userCase={userCase} allCases={allCases} onClose={() => setShowCohortModal(false)} lang={lang} />}
 
@@ -1130,7 +1148,9 @@ const App: React.FC = () => {
           </div>
         </nav>
 
-        {activeTab === 'dashboard' && <SuccessTicker cases={allCases} lang={lang} />}
+        <Suspense fallback={<div className="h-8 bg-gray-900 animate-pulse" />}>
+          {activeTab === 'dashboard' && <SuccessTicker cases={allCases} lang={lang} />}
+        </Suspense>
 
         <main className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-0 sm:py-8 pb-24">
           <div className="block md:hidden mb-6 px-3 pt-4"><LanguageSelector lang={lang} setLang={setLang} /></div>
@@ -1180,6 +1200,7 @@ const App: React.FC = () => {
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-8 mb-8">
             {activeTab === 'myCase' && (
+              <Suspense fallback={<div className="col-span-1 xl:col-span-3"><LoadingSpinner /></div>}>
               <div className="col-span-1 xl:col-span-3 animate-in slide-in-from-left-4 px-0 sm:px-0">
                   <div className="mb-6 mx-2 sm:mx-0">
                     <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl border-l-4 border-de-gold p-6 text-white shadow-lg relative overflow-hidden">
@@ -1217,9 +1238,11 @@ const App: React.FC = () => {
                     isGuest={isGuest}
                   />
               </div>
+              </Suspense>
             )}
 
             {activeTab === 'dashboard' && (
+              <Suspense fallback={<div className="col-span-1 xl:col-span-3"><LoadingSpinner /></div>}>
               <div className="col-span-1 xl:col-span-3 space-y-8 animate-in fade-in">
                   
                   <div className="bg-white p-4 mx-0 sm:mx-0 rounded-xl shadow-sm border border-gray-200 sticky top-20 z-40 bg-opacity-95 backdrop-blur">
@@ -1306,13 +1329,16 @@ const App: React.FC = () => {
                   <StatsDashboard cases={filteredCases} userCase={userCase} lang={lang} loading={dataLoading} />
                   <div className="mx-0 sm:mx-0"><CommunityFeed cases={filteredCases} lang={lang} /></div>
               </div>
+              </Suspense>
             )}
 
             {(activeTab === 'faq' || activeTab === 'ai') && (
+              <Suspense fallback={<div className="xl:col-span-3 col-span-1"><LoadingSpinner /></div>}>
               <div className="xl:col-span-3 col-span-1 px-2 sm:px-0">
                 {activeTab === 'faq' && <FAQ lang={lang} userEmail={session?.email || ''} />}
                 {activeTab === 'ai' && <AIModelTab userCase={userCase} stats={userTypeStats} lang={lang} />}
               </div>
+              </Suspense>
             )}
           </div>
 
