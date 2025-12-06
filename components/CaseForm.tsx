@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useForm, UseFormRegisterReturn } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { CitizenshipCase, CaseType, CaseStatus, Language } from '../types';
 import { COUNTRIES, TRANSLATIONS, STATUS_TRANSLATIONS } from '../constants';
 import { Save, Loader2, AlertTriangle, Edit2, ChevronDown, Mail, Power, Clock, CheckCircle2, FileText, Send, UserCircle, CalendarCheck, Check, Lock, Ghost, Zap, CheckSquare, Square } from 'lucide-react';
@@ -17,31 +20,127 @@ interface CaseFormProps {
   isGuest?: boolean;
 }
 
+// Helper to check for future dates
+const notInFuture = (dateStr: string | undefined | null) => {
+  if (!dateStr) return true;
+  const d = new Date(dateStr);
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  return d <= today;
+};
+
+// Zod Schema Definition
+const createCaseSchema = (t: any) => z.object({
+  fantasyName: z.string().min(3, t.usernameShort || "Username too short").optional(),
+  caseType: z.nativeEnum(CaseType),
+  countryOfApplication: z.string().min(1),
+  status: z.nativeEnum(CaseStatus),
+  submissionDate: z.string().min(1, t.validationError).refine(notInFuture, t.validationError + " (Future date)"),
+  protocolDate: z.string().optional().or(z.literal('')).refine(notInFuture, t.validationError + " (Future date)"),
+  docsRequestDate: z.string().optional().or(z.literal('')).refine(notInFuture, t.validationError + " (Future date)"),
+  approvalDate: z.string().optional().or(z.literal('')).refine(notInFuture, t.validationError + " (Future date)"),
+  closedDate: z.string().optional().or(z.literal('')).refine(notInFuture, t.validationError + " (Future date)"),
+  notes: z.string().optional(),
+  notifySameDateSubmission: z.boolean().optional(),
+  notifySameMonthUrkunde: z.boolean().optional(),
+  notifySubmissionCohortUpdates: z.boolean().optional(),
+  notifyProtocolCohortUpdates: z.boolean().optional(),
+  documents: z.array(z.string()).optional()
+}).superRefine((data, ctx) => {
+    // Chronological Validation
+    const subDate = new Date(data.submissionDate);
+
+    // 1. Protocol Date >= Submission Date
+    if (data.protocolDate) {
+        const protoDate = new Date(data.protocolDate);
+        if (protoDate < subDate) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Protocol date cannot be before Submission date",
+                path: ["protocolDate"]
+            });
+        }
+    }
+
+    // 2. Docs Request >= Protocol (if exists) OR Submission
+    if (data.docsRequestDate) {
+        const docsDate = new Date(data.docsRequestDate);
+        const comparisonDate = data.protocolDate ? new Date(data.protocolDate) : subDate;
+        if (docsDate < comparisonDate) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Docs request cannot be before previous steps",
+                path: ["docsRequestDate"]
+            });
+        }
+    }
+
+    // 3. Approval/Closed >= Docs OR Protocol OR Submission
+    const endStatusDateStr = data.status === CaseStatus.APPROVED ? data.approvalDate : (data.status === CaseStatus.CLOSED ? data.closedDate : null);
+    const endPath = data.status === CaseStatus.APPROVED ? "approvalDate" : "closedDate";
+
+    if (endStatusDateStr) {
+        const endDate = new Date(endStatusDateStr);
+        let comparisonDate = subDate;
+
+        if (data.protocolDate) {
+            const p = new Date(data.protocolDate);
+            if (p > comparisonDate) comparisonDate = p;
+        }
+        if (data.docsRequestDate) {
+            const d = new Date(data.docsRequestDate);
+            if (d > comparisonDate) comparisonDate = d;
+        }
+
+        if (endDate < comparisonDate) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Final date cannot be before previous steps",
+                path: [endPath]
+            });
+        }
+    }
+    
+    // Status Consistency Checks
+    if (data.status === CaseStatus.APPROVED && !data.approvalDate) {
+         ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Approval Date required for Approved status",
+            path: ["approvalDate"]
+        });
+    }
+    if (data.status === CaseStatus.CLOSED && !data.closedDate) {
+         ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Closed Date required for Closed status",
+            path: ["closedDate"]
+        });
+    }
+});
+
+type CaseFormValues = z.infer<ReturnType<typeof createCaseSchema>>;
+
 interface CustomDateInputProps {
   label: string;
-  name: string;
-  value?: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  lang: Language;
+  error?: string;
+  registration: UseFormRegisterReturn;
   required?: boolean;
   disabled?: boolean;
 }
 
-const CustomDateInput: React.FC<CustomDateInputProps> = ({ label, name, value, onChange, lang, required, disabled }) => (
+const CustomDateInput: React.FC<CustomDateInputProps> = ({ label, error, registration, required, disabled }) => (
     <div>
         <label className="block text-xs font-bold text-de-gray uppercase mb-1">
             {label} {required && <span className="text-de-red">*</span>}
         </label>
         <input
             type="date"
-            name={name}
-            value={value || ''}
-            onChange={onChange}
-            required={required}
             disabled={disabled}
-            className={`w-full rounded border border-gray-300 bg-white p-2.5 text-sm focus:ring-2 focus:ring-de-gold focus:border-de-gold outline-none transition-colors 
+            className={`w-full rounded border ${error ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-white'} p-2.5 text-sm focus:ring-2 focus:ring-de-gold focus:border-de-gold outline-none transition-colors 
             ${disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'text-de-black hover:border-gray-400 cursor-pointer'}`}
+            {...registration}
         />
+        {error && <p className="text-xs text-red-500 mt-1 font-bold">{error}</p>}
     </div>
 );
 
@@ -154,25 +253,70 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   const t = TRANSLATIONS[lang];
   const statusT = STATUS_TRANSLATIONS[lang];
 
-  const [formData, setFormData] = useState<Partial<CitizenshipCase>>({
-    caseType: CaseType.STAG_5,
-    countryOfApplication: 'Argentina',
-    status: CaseStatus.SUBMITTED,
-    submissionDate: new Date().toISOString().split('T')[0],
-    notifySameDateSubmission: true,
-    notifySameMonthUrkunde: true,
-    notifySubmissionCohortUpdates: true,
-    notifyProtocolCohortUpdates: true,
-    documents: [] 
-  });
-
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [checkInSuccess, setCheckInSuccess] = useState(false);
+
+  // Zod & Hook Form Setup
+  const formSchema = useMemo(() => createCaseSchema(t), [t]);
+  
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors, isValid }
+  } = useForm<CaseFormValues>({
+    resolver: zodResolver(formSchema),
+    mode: 'onChange', // Validate on change for better UX
+    defaultValues: {
+        caseType: CaseType.STAG_5,
+        countryOfApplication: 'Argentina',
+        status: CaseStatus.SUBMITTED,
+        submissionDate: new Date().toISOString().split('T')[0],
+        fantasyName: fantasyName,
+        notifySameDateSubmission: true,
+        notifySameMonthUrkunde: true,
+        notifySubmissionCohortUpdates: true,
+        notifyProtocolCohortUpdates: true,
+        documents: []
+    }
+  });
+
+  // Watch values for conditional rendering and timeline
+  const watchedStatus = watch('status');
+  const watchedSubmissionDate = watch('submissionDate');
+  const watchedProtocolDate = watch('protocolDate');
+  const watchedDocsDate = watch('docsRequestDate');
+  const watchedApprovalDate = watch('approvalDate');
+  const watchedClosedDate = watch('closedDate');
+  const watchedFantasyName = watch('fantasyName');
+
+  // Initialize Form with Data
+  useEffect(() => {
+    if (initialData) {
+      reset({
+        ...initialData,
+        fantasyName: initialData.fantasyName || fantasyName,
+        protocolDate: initialData.protocolDate || '',
+        docsRequestDate: initialData.docsRequestDate || '',
+        approvalDate: initialData.approvalDate || '',
+        closedDate: initialData.closedDate || '',
+        status: initialData.status || CaseStatus.SUBMITTED,
+        documents: initialData.documents || [],
+        notes: initialData.notes || '',
+        caseType: initialData.caseType || CaseType.STAG_5,
+        countryOfApplication: initialData.countryOfApplication || 'Argentina',
+        submissionDate: initialData.submissionDate || new Date().toISOString().split('T')[0],
+      });
+    } else {
+        setValue('fantasyName', fantasyName);
+    }
+  }, [initialData, fantasyName, reset, setValue]);
 
   // Feature 5: Check if Ghost
   const isGhost = useMemo(() => initialData ? isGhostCase(initialData) : false, [initialData]);
@@ -192,11 +336,11 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   }, [initialData]);
 
   const daysElapsed = useMemo(() => {
-    if (!formData.submissionDate) return 0;
-    const end = formData.approvalDate || formData.closedDate || new Date().toISOString().split('T')[0];
-    const diff = getDaysDiff(formData.submissionDate, end);
+    if (!watchedSubmissionDate) return 0;
+    const end = watchedApprovalDate || watchedClosedDate || new Date().toISOString().split('T')[0];
+    const diff = getDaysDiff(watchedSubmissionDate, end);
     return (diff !== null && diff > 0) ? diff : 0;
-  }, [formData.submissionDate, formData.approvalDate, formData.closedDate]);
+  }, [watchedSubmissionDate, watchedApprovalDate, watchedClosedDate]);
 
   const lastUpdateText = useMemo(() => {
     return formatDateTimeToLocale(initialData?.lastUpdated, lang);
@@ -209,139 +353,53 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   }, [initialData?.lastUpdated]);
 
   const needsCheckIn = daysSinceUpdate >= 30;
-  const showCheckIn = initialData && formData.status !== CaseStatus.APPROVED && formData.status !== CaseStatus.CLOSED;
+  const showCheckIn = initialData && watchedStatus !== CaseStatus.APPROVED && watchedStatus !== CaseStatus.CLOSED;
 
-  useEffect(() => {
-    if (initialData) {
-      setFormData({
-        ...initialData,
-        protocolDate: initialData.protocolDate || undefined,
-        docsRequestDate: initialData.docsRequestDate || undefined,
-        approvalDate: initialData.approvalDate || undefined,
-        closedDate: initialData.closedDate || undefined,
-        status: initialData.status || CaseStatus.SUBMITTED,
-        documents: initialData.documents || []
-      });
-    } else {
-       setFormData(prev => ({...prev, fantasyName}));
-    }
-  }, [initialData, fantasyName]);
-
-  const validate = (): string | null => {
-    if (nameError) return t.usernameTaken;
-    if (!formData.submissionDate) return t.validationError;
-    
-    // Future Date Check for ALL fields
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    
-    const dateFields = [
-        { label: t.submissionDate, val: formData.submissionDate },
-        { label: t.protocolDate, val: formData.protocolDate },
-        { label: t.docsDate, val: formData.docsRequestDate },
-        { label: t.approvalDate, val: formData.approvalDate },
-        { label: t.closedDate, val: formData.closedDate }
-    ];
-
-    for (const f of dateFields) {
-        if (f.val) {
-            const d = new Date(f.val);
-            if (d > today) {
-                return `${f.label}: ${lang === 'es' ? 'No se permiten fechas futuras' : 'Future dates not allowed'}`;
-            }
-        }
-    }
-
-    // --- CHRONOLOGICAL VALIDATION ---
-    const subDate = new Date(formData.submissionDate);
-
-    // 1. Protocol Date >= Submission Date
-    if (formData.protocolDate) {
-        const protoDate = new Date(formData.protocolDate);
-        if (protoDate < subDate) {
-             return lang === 'es' 
-                ? `${t.protocolDate} no puede ser anterior a ${t.submissionDate}.` 
-                : `${t.protocolDate} cannot be before ${t.submissionDate}.`;
-        }
-    }
-
-    // 2. Docs Request >= Protocol (if exists) OR Submission
-    if (formData.docsRequestDate) {
-        const docsDate = new Date(formData.docsRequestDate);
-        const comparisonDate = formData.protocolDate ? new Date(formData.protocolDate) : subDate;
-        const comparisonLabel = formData.protocolDate ? t.protocolDate : t.submissionDate;
-
-        if (docsDate < comparisonDate) {
-            return lang === 'es'
-                ? `${t.docsDate} no puede ser anterior a ${comparisonLabel}.`
-                : `${t.docsDate} cannot be before ${comparisonLabel}.`;
-        }
-    }
-
-    // 3. Approval/Closed >= Docs OR Protocol OR Submission
-    const endStatusDateStr = formData.status === CaseStatus.APPROVED ? formData.approvalDate : (formData.status === CaseStatus.CLOSED ? formData.closedDate : null);
-    const endLabel = formData.status === CaseStatus.APPROVED ? t.approvalDate : t.closedDate;
-
-    if (endStatusDateStr) {
-        const endDate = new Date(endStatusDateStr);
-        let comparisonDate = subDate;
-        let comparisonLabel = t.submissionDate;
-
-        if (formData.protocolDate) {
-            const p = new Date(formData.protocolDate);
-            if (p > comparisonDate) { comparisonDate = p; comparisonLabel = t.protocolDate; }
-        }
-        if (formData.docsRequestDate) {
-            const d = new Date(formData.docsRequestDate);
-            if (d > comparisonDate) { comparisonDate = d; comparisonLabel = t.docsDate; }
-        }
-
-        if (endDate < comparisonDate) {
-            return lang === 'es'
-                ? `${endLabel} no puede ser anterior a ${comparisonLabel}.`
-                : `${endLabel} cannot be before ${comparisonLabel}.`;
-        }
-    }
-
-    return null;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isLocked) return; // Enforce lock
-    saveData();
-  };
-
-  const saveData = () => {
+  const onSubmit = (data: CaseFormValues) => {
     if (isMaintenanceMode) return;
     if (isGuest) return; 
+    if (isLocked) return;
+    
+    // Clear out empty optional dates to undefined/null for backend cleanliness
+    const cleanedData = {
+        ...data,
+        protocolDate: data.protocolDate || undefined,
+        docsRequestDate: data.docsRequestDate || undefined,
+        approvalDate: data.approvalDate || undefined,
+        closedDate: data.closedDate || undefined,
+    };
 
-    const validationMsg = validate();
-    if (validationMsg) {
-      setError(validationMsg);
-      setTimeout(() => setError(null), 5000);
-      return;
-    }
-    setError(null);
     setIsSaving(true);
     
-    if (formData.status === CaseStatus.APPROVED && initialData?.status !== CaseStatus.APPROVED) {
+    if (cleanedData.status === CaseStatus.APPROVED && initialData?.status !== CaseStatus.APPROVED) {
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 8000); 
     }
 
     setTimeout(() => {
       const updatedCase: CitizenshipCase = {
-        ...formData as CitizenshipCase,
+        ...cleanedData as CitizenshipCase,
         id: initialData?.id || crypto.randomUUID(),
         email: userEmail,
-        fantasyName: formData.fantasyName || fantasyName,
+        fantasyName: cleanedData.fantasyName || fantasyName,
         lastUpdated: new Date().toISOString()
       };
       onSave(updatedCase);
       setIsSaving(false);
     }, 800);
   };
+
+  // Handle Name Duplicate Check separately as it depends on external list
+  useEffect(() => {
+      if (!watchedFantasyName) return;
+      const currentStoredName = initialData?.fantasyName || fantasyName;
+      const isDuplicate = existingNames.some(n => 
+          n.toLowerCase() === watchedFantasyName.toLowerCase() && 
+          n.toLowerCase() !== currentStoredName.toLowerCase()
+      );
+      if (isDuplicate) setNameError(t.usernameTaken);
+      else setNameError(null);
+  }, [watchedFantasyName, existingNames, initialData, fantasyName, t.usernameTaken]);
 
   // Feature 5: Ghost Reactivation Handler
   const handleReactivateGhost = () => {
@@ -352,47 +410,28 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
     setCheckInSuccess(true);
     setTimeout(() => setCheckInSuccess(false), 4000);
     
+    // Just trigger a save with current form data but updated timestamp
+    const currentData = watch();
     const now = new Date().toISOString();
-    setFormData(prev => ({ ...prev, lastUpdated: now }));
     
     const updatedCase: CitizenshipCase = {
-        ...formData as CitizenshipCase,
+        ...currentData as CitizenshipCase,
         id: initialData?.id || crypto.randomUUID(),
         email: userEmail,
-        fantasyName: formData.fantasyName || fantasyName,
-        lastUpdated: now
+        lastUpdated: now,
+        // Ensure dates are cleaned
+        protocolDate: currentData.protocolDate || undefined,
+        docsRequestDate: currentData.docsRequestDate || undefined,
+        approvalDate: currentData.approvalDate || undefined,
+        closedDate: currentData.closedDate || undefined,
     };
     onSave(updatedCase);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    let newData = { ...formData, [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value };
-    if (name === 'status') {
-        if (value === CaseStatus.APPROVED) newData.closedDate = undefined;
-        if (value === CaseStatus.CLOSED) newData.approvalDate = undefined;
-    }
-    setFormData(newData);
-  };
-
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newName = e.target.value;
-      setFormData(prev => ({...prev, fantasyName: newName}));
-      
-      const currentStoredName = initialData?.fantasyName || fantasyName;
-      const isDuplicate = existingNames.some(n => 
-          n.toLowerCase() === newName.toLowerCase() && 
-          n.toLowerCase() !== currentStoredName.toLowerCase()
-      );
-      if (isDuplicate) setNameError(t.usernameTaken);
-      else if (newName.length < 3) setNameError(t.usernameShort);
-      else setNameError(null);
-  };
-
-  const showProtocol = formData.status !== CaseStatus.SUBMITTED || !!formData.protocolDate;
-  const showDocs = formData.status === CaseStatus.ADDITIONAL_DOCS || !!formData.docsRequestDate || formData.status === CaseStatus.APPROVED || formData.status === CaseStatus.CLOSED;
-  const safeShowApproved = (formData.status === CaseStatus.APPROVED || !!formData.approvalDate) && formData.status !== CaseStatus.CLOSED;
-  const safeShowClosed = (formData.status === CaseStatus.CLOSED || !!formData.closedDate) && formData.status !== CaseStatus.APPROVED;
+  const showProtocol = watchedStatus !== CaseStatus.SUBMITTED || !!watchedProtocolDate;
+  const showDocs = watchedStatus === CaseStatus.ADDITIONAL_DOCS || !!watchedDocsDate || watchedStatus === CaseStatus.APPROVED || watchedStatus === CaseStatus.CLOSED;
+  const safeShowApproved = (watchedStatus === CaseStatus.APPROVED || !!watchedApprovalDate) && watchedStatus !== CaseStatus.CLOSED;
+  const safeShowClosed = (watchedStatus === CaseStatus.CLOSED || !!watchedClosedDate) && watchedStatus !== CaseStatus.APPROVED;
 
   const inputClass = "w-full rounded border border-gray-300 bg-white p-2.5 text-sm focus:ring-2 focus:ring-de-gold focus:border-de-gold transition-colors";
   const labelClass = "block text-xs font-bold text-de-gray uppercase mb-1";
@@ -447,15 +486,13 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
             <div className="flex items-center gap-2 relative">
                  <input 
                     type="text"
-                    name="fantasyName"
-                    value={formData.fantasyName || ''} 
-                    onChange={handleNameChange}
-                    className={`text-sm font-bold text-de-black bg-gray-50 border rounded px-2 py-1 w-40 text-right focus:ring-2 focus:ring-de-gold outline-none ${nameError ? 'border-red-500 focus:ring-red-200' : 'border-gray-200'}`}
+                    {...register('fantasyName')}
+                    className={`text-sm font-bold text-de-black bg-gray-50 border rounded px-2 py-1 w-40 text-right focus:ring-2 focus:ring-de-gold outline-none ${nameError || errors.fantasyName ? 'border-red-500 focus:ring-red-200' : 'border-gray-200'}`}
                     disabled={isLocked}
                  />
                  {!isLocked && <Edit2 size={14} className="text-gray-400 absolute right-3 pointer-events-none opacity-50" />}
             </div>
-            {nameError && <span className="text-[10px] text-red-500 font-bold mt-1">{nameError}</span>}
+            {(nameError || errors.fantasyName) && <span className="text-[10px] text-red-500 font-bold mt-1">{nameError || errors.fantasyName?.message}</span>}
             
             <span className="text-[10px] text-gray-400 mt-1">
                 {t.lastUpdatedLabel} {lastUpdateText}
@@ -479,19 +516,19 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
       </div>
 
       <VisualGapTimeline 
-        status={formData.status || CaseStatus.SUBMITTED} 
+        status={watchedStatus || CaseStatus.SUBMITTED} 
         dates={{
-            sub: formData.submissionDate,
-            proto: formData.protocolDate,
-            dec: formData.approvalDate || formData.closedDate
+            sub: watchedSubmissionDate,
+            proto: watchedProtocolDate,
+            dec: watchedApprovalDate || watchedClosedDate
         }}
         lang={lang}
       />
 
-      {error && (
+      {Object.keys(errors).length > 0 && (
         <div className="mb-4 p-3 bg-red-50 text-de-red flex items-center gap-2 rounded text-sm font-medium border border-red-100 animate-pulse">
           <AlertTriangle size={16} />
-          {error}
+          {t.validationError}
         </div>
       )}
       
@@ -578,14 +615,12 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className={`space-y-5 ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
+      <form onSubmit={handleSubmit(onSubmit)} className={`space-y-5 ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>{t.caseType} <span className="text-de-red">*</span></label>
             <select
-              name="caseType"
-              value={formData.caseType}
-              onChange={handleChange}
+              {...register('caseType')}
               className={inputClass}
               disabled={isMaintenanceMode || isLocked}
             >
@@ -598,9 +633,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
              <div>
                 <label className={labelClass}>{t.country} <span className="text-de-red">*</span></label>
                 <select
-                name="countryOfApplication"
-                value={formData.countryOfApplication}
-                onChange={handleChange}
+                {...register('countryOfApplication')}
                 className={inputClass}
                 disabled={isMaintenanceMode || isLocked}
                 >
@@ -615,19 +648,15 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <CustomDateInput
                 label={t.submissionDate}
-                name="submissionDate"
-                value={formData.submissionDate}
-                onChange={handleChange}
-                lang={lang}
+                registration={register('submissionDate')}
+                error={errors.submissionDate?.message}
                 required
                 disabled={isMaintenanceMode || isLocked}
             />
             <div>
                 <label className={labelClass}>{t.status} <span className="text-de-red">*</span></label>
                 <select
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
+                {...register('status')}
                 className={inputClass}
                 disabled={isMaintenanceMode || isLocked}
                 >
@@ -645,10 +674,8 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
                 <>
                     <CustomDateInput
                         label={t.protocolDate}
-                        name="protocolDate"
-                        value={formData.protocolDate}
-                        onChange={handleChange}
-                        lang={lang}
+                        registration={register('protocolDate')}
+                        error={errors.protocolDate?.message}
                         disabled={isMaintenanceMode || isLocked}
                     />
                 </>
@@ -658,10 +685,8 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
                 <div className="md:col-span-2">
                      <CustomDateInput
                         label={t.docsDate}
-                        name="docsRequestDate"
-                        value={formData.docsRequestDate}
-                        onChange={handleChange}
-                        lang={lang}
+                        registration={register('docsRequestDate')}
+                        error={errors.docsRequestDate?.message}
                         disabled={isMaintenanceMode || isLocked}
                     />
                 </div>
@@ -671,10 +696,8 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
                  <div className="md:col-span-2 bg-green-50 p-3 rounded border border-green-100">
                      <CustomDateInput
                         label={t.approvalDate}
-                        name="approvalDate"
-                        value={formData.approvalDate}
-                        onChange={handleChange}
-                        lang={lang}
+                        registration={register('approvalDate')}
+                        error={errors.approvalDate?.message}
                         required
                         disabled={isMaintenanceMode || isLocked}
                     />
@@ -685,10 +708,8 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
                  <div className="md:col-span-2 bg-red-50 p-3 rounded border border-red-100">
                      <CustomDateInput
                         label={t.closedDate}
-                        name="closedDate"
-                        value={formData.closedDate}
-                        onChange={handleChange}
-                        lang={lang}
+                        registration={register('closedDate')}
+                        error={errors.closedDate?.message}
                         required
                         disabled={isMaintenanceMode || isLocked}
                     />
@@ -699,9 +720,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
         <div>
            <label className={labelClass}>{t.comments}</label>
            <textarea 
-              name="notes"
-              value={formData.notes || ''}
-              onChange={handleChange}
+              {...register('notes')}
               className={inputClass + " h-20"}
               placeholder="Public notes for community feed (anonymous)"
               disabled={isMaintenanceMode || isLocked}
@@ -712,7 +731,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
             <div className="pt-4">
             <button
                 type="submit"
-                disabled={isSaving || !!nameError || isMaintenanceMode}
+                disabled={isSaving || !!nameError || isMaintenanceMode || Object.keys(errors).length > 0}
                 className="w-full flex items-center justify-center gap-2 bg-de-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg mb-4"
             >
                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
