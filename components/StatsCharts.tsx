@@ -8,6 +8,7 @@ import { CitizenshipCase, Language, CaseStatus } from '../types';
 import { TRANSLATIONS, STATUS_TRANSLATIONS } from '../constants';
 import { calculateAdvancedStats, formatDuration, getDaysDiff, formatISODateToLocale } from '../services/statsUtils';
 import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X, TrendingUp, TrendingDown, Minus, Filter, GitMerge } from 'lucide-react';
+import { InfoTip } from './ui/InfoTip';
 
 interface StatsDashboardProps {
   cases: CitizenshipCase[]; // Receiving filtered cases from App.tsx
@@ -564,6 +565,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
             <div className="flex items-center gap-2 mb-2">
                 <FileText size={16} className="text-gray-400" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{t.totalCases}</p>
+                <InfoTip content={t.tooltipTotalCases} />
             </div>
             <p className="text-xl sm:text-2xl font-bold text-de-black">{stats.totalCases}</p>
           </div>
@@ -572,6 +574,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
             <div className="flex items-center gap-2 mb-2">
                 <Award size={16} className="text-green-500" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{statusT[CaseStatus.APPROVED]}</p>
+                <InfoTip content={t.tooltipApproved} />
             </div>
             <p className="text-xl sm:text-2xl font-bold text-de-black">{stats.approvedCases}</p>
           </div>
@@ -580,6 +583,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
              <div className="flex items-center gap-2 mb-2">
                 <CheckCircle size={16} className="text-gray-600" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{t.avgTotal}</p>
+                <InfoTip content={t.tooltipAvgTotal} />
             </div>
             <p className="text-xl sm:text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysTotal, lang)}</p>
             
@@ -601,6 +605,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
             <div className="flex items-center gap-2 mb-2">
                 <Clock size={16} className="text-blue-400" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{t.avgProtocol}</p>
+                <InfoTip content={t.tooltipAvgProto} />
             </div>
             {/* Format in months/years always */}
             <p className="text-xl sm:text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysToProtocol, lang)}</p>
@@ -609,6 +614,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
              <div className="flex items-center gap-2 mb-2">
                 <CheckCircle size={16} className="text-de-gold" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{t.avgApproval}</p>
+                <InfoTip content={t.tooltipAvgAppr} />
             </div>
             <p className="text-xl sm:text-2xl font-bold text-de-black">{formatDuration(stats.avgDaysToApproval, lang)}</p>
           </div>
@@ -617,6 +623,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
             <div className="flex items-center gap-2 mb-2">
                 <XCircle size={16} className="text-red-500" />
                 <p className="text-xs text-gray-500 font-bold uppercase">{statusT[CaseStatus.CLOSED]}</p>
+                <InfoTip content={t.tooltipClosed} />
             </div>
             <p className="text-xl sm:text-2xl font-bold text-de-black">{stats.closedCases}</p>
           </div>

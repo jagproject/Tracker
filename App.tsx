@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { 
   LayoutDashboard, 
@@ -39,7 +41,8 @@ import {
   Calendar,
   LogIn,
   TableProperties,
-  Info
+  Info,
+  Database
 } from 'lucide-react';
 import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
@@ -50,6 +53,7 @@ import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickS
 import { logoutUser, subscribeToAuthChanges, isSupabaseEnabled } from './services/authService';
 import { TRANSLATIONS, COUNTRIES, STATUS_TRANSLATIONS } from './constants';
 import { useAppStore } from './store/useAppStore';
+import { InfoTip } from './components/ui/InfoTip';
 
 // Lazy Load Components (Code Splitting)
 const StatsDashboard = React.lazy(() => import('./components/StatsCharts').then(module => ({ default: module.StatsDashboard })));
@@ -542,6 +546,7 @@ const App: React.FC = () => {
 
   // Compute filtered cases using Store Selector
   const filteredCases = useMemo(() => getFilteredCases(), [allCases, filters]);
+  const activeCases = useMemo(() => filterActiveCases(allCases), [allCases]);
   const ghostCount = useMemo(() => getGhostCount(), [allCases]);
 
   const unclaimedCases = useMemo(() => {
@@ -639,7 +644,6 @@ const App: React.FC = () => {
     setLoading(false);
   };
 
-  const activeCases = useMemo(() => filterActiveCases(allCases), [allCases]);
   const allFantasyNames = useMemo(() => allCases.map(c => c.fantasyName), [allCases]);
   const globalStats = useMemo(() => calculateQuickStats(activeCases), [activeCases]);
   const userTypeStats = useMemo(() => {
@@ -1022,6 +1026,7 @@ const App: React.FC = () => {
                         </div>
                       )}
                   </div>
+
                   <WorldMapStats 
                      cases={filteredCases} 
                      lang={lang} 
@@ -1030,6 +1035,37 @@ const App: React.FC = () => {
                      onSelectCountry={(c) => setFilters({ country: c })}
                      onSetFilterStatus={(s) => setFilters({ status: s })}
                   />
+
+                  <div className="mx-0 sm:mx-0 mb-4 px-2 sm:px-0">
+                      <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur border border-gray-200 dark:border-gray-700 rounded-lg p-3 flex flex-wrap gap-4 items-center text-xs shadow-sm">
+                          <span className="font-bold text-de-black dark:text-gray-200 uppercase flex items-center gap-2">
+                              <Database size={14} className="text-de-gold"/> {t.dbBreakdown}
+                          </span>
+                          
+                          <div className="flex items-center gap-2">
+                              <span className="text-gray-500 dark:text-gray-400">{t.totalCases}:</span>
+                              <span className="font-mono font-bold text-de-black dark:text-white">{allCases.length}</span>
+                          </div>
+
+                          <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
+
+                          <div className="flex items-center gap-2">
+                              <span className="text-gray-500 dark:text-gray-400">{t.activeCases}:</span>
+                              <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{activeCases.length}</span>
+                              <InfoTip content={t.tooltipActive} />
+                          </div>
+
+                          <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
+
+                          <div className="flex items-center gap-2">
+                              <span className="text-gray-500 dark:text-gray-400">{t.ghostCases}:</span>
+                              <span className="font-mono font-bold text-gray-400">{ghostCount}</span>
+                              <span className="text-[10px] text-gray-400 uppercase font-bold tracking-tighter hidden sm:inline">({t.inactive})</span>
+                              <InfoTip content={t.tooltipGhosts} />
+                          </div>
+                      </div>
+                  </div>
+
                   <StatsDashboard cases={filteredCases} userCase={userCase} lang={lang} loading={isDataLoading} />
                   <div className="mx-0 sm:mx-0"><CommunityFeed cases={filteredCases} lang={lang} /></div>
               </div>
@@ -1049,7 +1085,10 @@ const App: React.FC = () => {
           {activeTab === 'dashboard' && (
               <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 dark:border-gray-700 mt-8 -mx-0 sm:mx-0 transition-colors">
                   <div className="flex justify-between items-center mb-4 border-b dark:border-gray-700 pb-2">
-                    <h3 className="text-lg font-bold text-de-black dark:text-white">{filters.viewGhosts ? t.ghostCases : t.activeCases}</h3>
+                    <h3 className="text-lg font-bold text-de-black dark:text-white flex items-center gap-2">
+                        {filters.viewGhosts ? t.ghostCases : t.activeCases}
+                        {!filters.viewGhosts ? <InfoTip content={t.tooltipActive} /> : <InfoTip content={t.tooltipGhosts} />}
+                    </h3>
                     {filters.viewGhosts && (
                       <button onClick={() => setFilters({ viewGhosts: false })} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full flex items-center gap-2 transition-colors">
                         <ArrowRight size={12} /> {t.backToActive}
@@ -1059,7 +1098,10 @@ const App: React.FC = () => {
                   <div className="flex flex-col sm:flex-row justify-between text-sm mb-4 gap-2">
                       <span className="text-gray-500 dark:text-gray-400">{t.showing} {filteredCases.length}</span>
                       <div className="flex gap-4">
-                          <span className="text-de-red font-medium">{t.pausedCases}: {allCases.filter(c => !isGhostCase(c) && c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED).length - filteredCases.length}</span>
+                          <span className="text-de-red font-medium flex items-center gap-1">
+                              {t.pausedCases}: {allCases.filter(c => !isGhostCase(c) && c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED).length - filteredCases.length}
+                              <InfoTip content={t.tooltipPaused} />
+                          </span>
                           {ghostCount > 0 && (
                               <button onClick={() => setFilters({ viewGhosts: !filters.viewGhosts })} className={`font-medium flex items-center gap-1 transition-colors hover:underline ${filters.viewGhosts ? 'text-de-black font-bold' : 'text-gray-400 hover:text-gray-600'}`} title={filters.viewGhosts ? "Click to hide Ghost Cases" : "Click to view Ghost Cases"}>
                                   {filters.viewGhosts ? <EyeOff size={14} /> : <Eye size={14} />} {t.ghostCases}: {ghostCount}

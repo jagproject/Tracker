@@ -388,7 +388,23 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     probabilityDesc: "Estimated distribution of approval times based on community statistics.",
     likelyDate: "Most Likely",
     today: "Today",
-    probability: "Probability"
+    probability: "Probability",
+
+    // Tooltips
+    tooltipTotalCases: "Total visible cases matching current filters.",
+    tooltipApproved: "Cases that have successfully received the Urkunde (Certificate).",
+    tooltipAvgTotal: "Average time from Submission to Urkunde.",
+    tooltipAvgProto: "Average time from Submission to Aktenzeichen.",
+    tooltipAvgAppr: "Average time from Aktenzeichen to Urkunde.",
+    tooltipClosed: "Cases rejected, withdrawn, or closed administratively.",
+    tooltipActive: "Cases with updates in the last 12 months.",
+    tooltipPaused: "Cases with no updates for over 12 months.",
+    tooltipGhosts: "Inactive cases (>1y no AZ or >4y no decision). Hidden from main stats.",
+    dbBreakdown: "Case Breakdown",
+    dbTotal: "Total Records",
+    dbActive: "Active",
+    dbGhosts: "Ghosts",
+    inactive: "Inactive",
   },
   es: {
     title: "Rastreador de Ciudadanía Alemana",
@@ -663,7 +679,23 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     probabilityDesc: "Distribución estimada de tiempos de aprobación según estadísticas.",
     likelyDate: "Más Probable",
     today: "Hoy",
-    probability: "Probabilidad"
+    probability: "Probabilidad",
+
+    // Tooltips
+    tooltipTotalCases: "Total de casos visibles con filtros actuales.",
+    tooltipApproved: "Casos que recibieron el certificado de ciudadanía (Urkunde).",
+    tooltipAvgTotal: "Tiempo promedio desde Envío hasta Certificado.",
+    tooltipAvgProto: "Tiempo promedio desde Envío hasta Número de Expediente.",
+    tooltipAvgAppr: "Tiempo promedio desde Número de Expediente hasta Certificado.",
+    tooltipClosed: "Solicitudes rechazadas, retiradas o cerradas.",
+    tooltipActive: "Casos actualizados en los últimos 12 meses.",
+    tooltipPaused: "Casos sin actualizaciones > 12 meses.",
+    tooltipGhosts: "Casos inactivos (>1a sin AZ o >4a sin decisión). Ocultos de estadísticas.",
+    dbBreakdown: "Desglose de Casos",
+    dbTotal: "Total Registros",
+    dbActive: "Activos",
+    dbGhosts: "Fantasmas",
+    inactive: "Inactivo",
   },
   de: {
     // ... (Keeping previous translations) ...
@@ -939,7 +971,23 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     probabilityDesc: "Geschätzte Verteilung der Genehmigungszeiten.",
     likelyDate: "Am wahrscheinlichsten",
     today: "Heute",
-    probability: "Wahrscheinlichkeit"
+    probability: "Wahrscheinlichkeit",
+
+    // Tooltips
+    tooltipTotalCases: "Aktuelle sichtbare Fälle (aktiv).",
+    tooltipApproved: "Fälle mit erhaltener Einbürgerungsurkunde.",
+    tooltipAvgTotal: "Zeit von Einreichung bis Urkunde.",
+    tooltipAvgProto: "Zeit von Einreichung bis Aktenzeichen.",
+    tooltipAvgAppr: "Zeit von Aktenzeichen bis Urkunde.",
+    tooltipClosed: "Abgelehnte oder zurückgezogene Anträge.",
+    tooltipActive: "In den letzten 12 Monaten aktualisiert.",
+    tooltipPaused: "Keine Updates seit > 12 Monaten.",
+    tooltipGhosts: "Inaktive Fälle (>1J kein AZ, >4J keine Entsch.). Ausgeblendet.",
+    dbBreakdown: "Fallaufschlüsselung",
+    dbTotal: "Gesamteinträge",
+    dbActive: "Aktiv",
+    dbGhosts: "Geister",
+    inactive: "Inaktiv",
   },
   it: {
      // ... (Keeping previous translations) ...
@@ -1215,7 +1263,23 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     probabilityDesc: "Distribuzione stimata dei tempi di approvazione.",
     likelyDate: "Più Probabile",
     today: "Oggi",
-    probability: "Probabilità"
+    probability: "Probabilità",
+
+    // Tooltips
+    tooltipTotalCases: "Totale casi visibili (attivi).",
+    tooltipApproved: "Casi che hanno ricevuto il certificato (Urkunde).",
+    tooltipAvgTotal: "Tempo da Invio a Urkunde.",
+    tooltipAvgProto: "Tempo da Invio a Protocollo.",
+    tooltipAvgAppr: "Tempo da Protocollo a Urkunde.",
+    tooltipClosed: "Domande respinte o ritirate.",
+    tooltipActive: "Aggiornati negli ultimi 12 mesi.",
+    tooltipPaused: "Nessun aggiornamento > 12 mesi.",
+    tooltipGhosts: "Casi inattivi (>1a no AZ o >4a no decisione). Nascosti.",
+    dbBreakdown: "Ripartizione Casi",
+    dbTotal: "Totale Record",
+    dbActive: "Attivi",
+    dbGhosts: "Fantasmi",
+    inactive: "Inattivo",
   },
   pt: {
     // ... (Keeping previous translations) ...
@@ -1321,7 +1385,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     cardType: "TIPO",
     cardGenerated: "gerado por tracker-de",
     timelineSubmitted: "Enviado",
-    timelineProto: "Protocolo",
+    timelineProto: "Protocollo",
     timelineUrkunde: "Urkunde",
     timelineClosed: "Fechado",
     timelineStatus: "Status",
@@ -1491,6 +1555,22 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     probabilityDesc: "Distribuição estimada de tempos de aprovação.",
     likelyDate: "Mais Provável",
     today: "Hoje",
-    probability: "Probabilidade"
+    probability: "Probabilidade",
+
+    // Tooltips
+    tooltipTotalCases: "Total de casos visíveis (ativos).",
+    tooltipApproved: "Casos que receberam o certificado (Urkunde).",
+    tooltipAvgTotal: "Tempo do Envio até Certificado.",
+    tooltipAvgProto: "Tempo do Envio até Protocolo.",
+    tooltipAvgAppr: "Tempo do Protocolo até Certificado.",
+    tooltipClosed: "Pedidos rejeitados ou retirados.",
+    tooltipActive: "Atualizados nos últimos 12 meses.",
+    tooltipPaused: "Sem atualizações > 12 meses.",
+    tooltipGhosts: "Inativos (>1a sem AZ ou >4a sem decisão). Ocultos.",
+    dbBreakdown: "Detalhamento de Casos",
+    dbTotal: "Total Registros",
+    dbActive: "Ativos",
+    dbGhosts: "Fantasmas",
+    inactive: "Inativo",
   }
 };
