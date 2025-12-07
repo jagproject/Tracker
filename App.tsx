@@ -197,7 +197,11 @@ const CaseRow: React.FC<{ index: number, style: React.CSSProperties, data: CaseR
                 <div className="flex-1 min-w-0 flex items-center justify-between">
                     <span className={`font-bold text-sm truncate mr-2 flex items-center gap-2 ${isGhost ? 'text-gray-500' : 'text-de-black dark:text-gray-200'}`}>
                         {c.fantasyName}
-                        {isGhost && <Ghost size={12} className="text-gray-400" title="Ghost Case (Inactive)" />}
+                        {isGhost && (
+                            <span title="Ghost Case (Inactive)">
+                                <Ghost size={12} className="text-gray-400" />
+                            </span>
+                        )}
                     </span>
                     <div className="flex items-center gap-2 sm:gap-4 text-gray-500 text-xs whitespace-nowrap">
                         <span className="truncate max-w-[80px] sm:max-w-[120px] hidden xs:inline-block bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-600 text-[10px] sm:text-xs">{c.caseType}</span>

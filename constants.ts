@@ -349,6 +349,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     slow: "Slow",
     avgTime: "Avg Time",
     
+    // YoY Charts
+    yoyTitle: "Year over Year Performance",
+    yoyDesc: "Comparing approval speed by submission year. How fast are cases from each year being processed?",
+    monthsSinceSub: "Months since Submission",
+    pctApproved: "% Approved",
+    
     // Monthly Check-in
     checkIn: "Monthly Check-in",
     stillWaiting: "I'm Still Waiting",
@@ -602,6 +608,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     fast: "Rápido",
     slow: "Lento",
     avgTime: "Tiempo Promedio",
+
+    // YoY Charts
+    yoyTitle: "Rendimiento Año a Año (YoY)",
+    yoyDesc: "Comparando velocidad de aprobación por año de envío. ¿Qué tan rápido se procesan los casos de cada año?",
+    monthsSinceSub: "Meses desde el Envío",
+    pctApproved: "% Aprobado",
 
     // Monthly Check-in
     checkIn: "Check-in Mensual",
@@ -858,6 +870,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     slow: "Langsam",
     avgTime: "Ø Zeit",
 
+    // YoY Charts
+    yoyTitle: "Jahresvergleich (YoY)",
+    yoyDesc: "Vergleich der Genehmigungsgeschwindigkeit nach Einreichungsjahr.",
+    monthsSinceSub: "Monate seit Einreichung",
+    pctApproved: "% Genehmigt",
+
     // Monthly Check-in
     checkIn: "Monatlicher Check-in",
     stillWaiting: "Ich warte noch",
@@ -1113,6 +1131,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     slow: "Lento",
     avgTime: "Tempo Medio",
 
+    // YoY Charts
+    yoyTitle: "Rendimento YoY",
+    yoyDesc: "Confronto velocità di approvazione per anno di invio.",
+    monthsSinceSub: "Mesi dall'invio",
+    pctApproved: "% Approvato",
+
     // Monthly Check-in
     checkIn: "Check-in Mensile",
     stillWaiting: "Sto Ancora Aspettando",
@@ -1367,6 +1391,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     fast: "Rápido",
     slow: "Lento",
     avgTime: "Tempo Médio",
+    
+    // YoY Charts
+    yoyTitle: "Desempenho Ano a Ano (YoY)",
+    yoyDesc: "Comparando velocidade de aprovação por ano de envio.",
+    monthsSinceSub: "Meses desde Envio",
+    pctApproved: "% Aprovado",
 
     // Monthly Check-in
     checkIn: "Check-in Mensal",

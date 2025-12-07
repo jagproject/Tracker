@@ -1,11 +1,13 @@
+
+
 import React, { useMemo, useState } from 'react';
 import { 
-  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList, FunnelChart, Funnel, Label
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList, FunnelChart, Funnel, Label, LineChart, Line
 } from 'recharts';
 import { CitizenshipCase, Language, CaseStatus } from '../types';
 import { TRANSLATIONS, STATUS_TRANSLATIONS } from '../constants';
 import { calculateAdvancedStats, formatDuration, getDaysDiff, formatISODateToLocale } from '../services/statsUtils';
-import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X, TrendingUp, TrendingDown, Minus, Filter } from 'lucide-react';
+import { Clock, CheckCircle, FileText, Hourglass, BarChart2, XCircle, Award, X, TrendingUp, TrendingDown, Minus, Filter, GitMerge } from 'lucide-react';
 
 interface StatsDashboardProps {
   cases: CitizenshipCase[]; // Receiving filtered cases from App.tsx
@@ -68,6 +70,109 @@ const DrillDownModal = ({ title, cases, onClose, statusT, lang, t }: { title: st
         </div>
     </div>
 );
+
+// --- Feature: Year Over Year (YoY) Chart ---
+const YearOverYearChart = ({ cases, lang }: { cases: CitizenshipCase[], lang: Language }) => {
+    const t = TRANSLATIONS[lang];
+    
+    // Process Data: Cumulative Approval % by Month for each Year
+    const data = useMemo(() => {
+        const yearsOfInterest = [2021, 2022, 2023, 2024];
+        const monthBuckets: Record<number, Record<string, number>> = {};
+        const maxMonths = 36; // Show up to 3 years curve
+
+        // Initialize buckets
+        for(let i=0; i <= maxMonths; i++) {
+            monthBuckets[i] = { month: i };
+            yearsOfInterest.forEach(y => monthBuckets[i][y] = 0);
+        }
+
+        yearsOfInterest.forEach(year => {
+            const cohort = cases.filter(c => {
+                 if (!c.submissionDate) return false;
+                 return new Date(c.submissionDate).getFullYear() === year;
+            });
+            
+            const totalInCohort = cohort.length;
+            if (totalInCohort < 5) return; // Skip tiny cohorts to avoid noise
+
+            const approvedCases = cohort.filter(c => c.status === CaseStatus.APPROVED && c.approvalDate && c.submissionDate);
+            
+            // Map approval times
+            const approvalTimes = approvedCases.map(c => {
+                const diff = getDaysDiff(c.submissionDate, c.approvalDate!);
+                return diff !== null && diff > 0 ? Math.floor(diff / 30.44) : null;
+            }).filter((d): d is number => d !== null);
+
+            // Calculate Cumulative Counts
+            let cumulativeCount = 0;
+            for(let m=0; m <= maxMonths; m++) {
+                const approvedInThisMonth = approvalTimes.filter(t => t === m).length;
+                cumulativeCount += approvedInThisMonth;
+                const percentage = (cumulativeCount / totalInCohort) * 100;
+                monthBuckets[m][year] = parseFloat(percentage.toFixed(1));
+            }
+        });
+
+        return Object.values(monthBuckets);
+
+    }, [cases]);
+
+    if (data.length === 0) return null;
+
+    const CustomTooltip = ({ active, payload, label }: any) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-white p-3 border border-gray-200 shadow-lg rounded-lg text-xs">
+                    <p className="font-bold text-gray-800 mb-2">{label} {t.monthsSinceSub || "Months"}</p>
+                    {payload.map((p: any) => (
+                         <div key={p.dataKey} className="flex justify-between gap-4" style={{color: p.color}}>
+                             <span className="font-bold">{p.dataKey}</span>
+                             <span>{p.value}%</span>
+                         </div>
+                    ))}
+                </div>
+            );
+        }
+        return null;
+    };
+
+    return (
+        <div className="bg-white p-2 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 mb-8 -mx-0 sm:mx-0">
+             <h3 className="text-lg font-bold text-de-black mb-4 px-4 sm:px-0 pt-4 sm:pt-0 flex items-center gap-2">
+                <GitMerge className="text-purple-600" size={20} /> {t.yoyTitle || "Year over Year Performance"}
+            </h3>
+            <p className="text-xs text-gray-400 mb-4 px-4 sm:px-0">
+                {t.yoyDesc || "Comparison of approval speed (cumulative %) by submission year."}
+            </p>
+            <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={data} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis 
+                            dataKey="month" 
+                            type="number" 
+                            tick={{fontSize: 10}}
+                            label={{ value: t.months || 'Months', position: 'insideBottom', offset: -5, fontSize: 10 }} 
+                        />
+                        <YAxis 
+                            unit="%" 
+                            width={40} 
+                            tick={{fontSize: 10}}
+                            domain={[0, 100]}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend verticalAlign="top" height={36} iconSize={10} wrapperStyle={{fontSize: '10px'}} />
+                        <Line type="monotone" dataKey="2021" stroke="#A9A9A9" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                        <Line type="monotone" dataKey="2022" stroke="#000000" strokeWidth={2} dot={false} activeDot={{ r: 6 }} />
+                        <Line type="monotone" dataKey="2023" stroke="#DD0000" strokeWidth={2} dot={false} activeDot={{ r: 6 }} />
+                        <Line type="monotone" dataKey="2024" stroke="#FFCC00" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+};
 
 // --- Feature: Case Funnel Chart ---
 const CaseFunnelChart = ({ cases, lang }: { cases: CitizenshipCase[], lang: Language }) => {
@@ -516,6 +621,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ cases, userCase,
             <p className="text-xl sm:text-2xl font-bold text-de-black">{stats.closedCases}</p>
           </div>
       </div>
+
+      {/* Feature: Year Over Year Chart */}
+      <YearOverYearChart cases={cases} lang={lang} />
 
       {/* Feature 7: Wait Time Distribution */}
       <WaitTimeDistribution cases={cases} userCase={userCase} t={t} lang={lang} />
