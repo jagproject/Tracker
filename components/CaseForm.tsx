@@ -1,10 +1,12 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useForm, UseFormRegisterReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { CitizenshipCase, CaseType, CaseStatus, Language } from '../types';
+import { CitizenshipCase, CaseType, CaseStatus, Language, StatSummary } from '../types';
 import { COUNTRIES, TRANSLATIONS, STATUS_TRANSLATIONS } from '../constants';
-import { Save, Loader2, AlertTriangle, Edit2, ChevronDown, Mail, Power, Clock, CheckCircle2, FileText, Send, UserCircle, CalendarCheck, Check, Lock, Ghost, Zap, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Save, Loader2, AlertTriangle, Edit2, ChevronDown, Mail, Power, Clock, CheckCircle2, FileText, Send, UserCircle, CalendarCheck, Check, Lock, Ghost, Zap, ArrowRight, ArrowLeft, Heart, Activity, ThumbsUp, XCircle } from 'lucide-react';
 import { getDaysDiff, formatDateTimeToLocale, formatDuration, formatISODateToLocale, isGhostCase } from '../services/statsUtils';
 import { Confetti } from './Confetti';
 import { InfoTip } from './ui/InfoTip';
@@ -19,6 +21,7 @@ interface CaseFormProps {
   onSave: (data: CitizenshipCase) => void;
   isMaintenanceMode?: boolean;
   isGuest?: boolean;
+  stats?: StatSummary; // Added stats for health check
 }
 
 // Helper to check for future dates
@@ -189,7 +192,66 @@ const VisualGapTimeline: React.FC<{ status: CaseStatus, dates: { sub?: string, p
   );
 };
 
-export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fantasyName, existingNames, lang, avgWaitTime, onSave, isMaintenanceMode = false, isGuest = false }) => {
+// Feature 8: Health Widget
+const HealthWidget: React.FC<{ submissionDate?: string, avgDays?: number, lang: Language, status: CaseStatus, type: string }> = ({ submissionDate, avgDays, lang, status, type }) => {
+    const t = TRANSLATIONS[lang];
+    if (!submissionDate || !avgDays || avgDays <= 0 || status === CaseStatus.APPROVED || status === CaseStatus.CLOSED) return null;
+
+    const today = new Date().toISOString().split('T')[0];
+    const waitedDays = getDaysDiff(submissionDate, today) || 0;
+    
+    // Logic:
+    // Green: < 110% of avg
+    // Yellow: 110% - 130% of avg
+    // Red: > 130% of avg
+    
+    const ratio = waitedDays / avgDays;
+    let health = 'Normal';
+    let colorClass = 'bg-green-50 text-green-800 border-green-200';
+    let icon = <ThumbsUp size={18} />;
+    
+    if (ratio < 0.8) {
+        health = t.healthExcellent; // "Excellent"
+        colorClass = 'bg-green-100 text-green-900 border-green-300';
+        icon = <Zap size={18} />;
+    } else if (ratio > 1.3) {
+        health = t.healthCritical; // "Anomaly"
+        colorClass = 'bg-red-50 text-red-800 border-red-200';
+        icon = <XCircle size={18} />;
+    } else if (ratio > 1.1) {
+        health = t.healthSlow; // "Slow"
+        colorClass = 'bg-yellow-50 text-yellow-800 border-yellow-200';
+        icon = <AlertTriangle size={18} />;
+    } else {
+        health = t.healthNormal;
+        colorClass = 'bg-blue-50 text-blue-800 border-blue-200';
+        icon = <Activity size={18} />;
+    }
+
+    return (
+        <div className={`p-4 rounded-xl border flex items-center justify-between mb-6 shadow-sm ${colorClass}`}>
+            <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-full bg-white/50 backdrop-blur-sm`}>
+                    {icon}
+                </div>
+                <div>
+                    <h4 className="font-bold text-sm uppercase tracking-wide flex items-center gap-2">
+                        {t.healthTitle}: {health}
+                    </h4>
+                    <p className="text-xs opacity-90 mt-0.5">
+                        {t.healthDesc} <strong>{type}</strong>.
+                    </p>
+                </div>
+            </div>
+            <div className="text-right">
+                <span className="block font-mono text-xl font-bold">{Math.round(ratio * 100)}%</span>
+                <span className="text-[10px] opacity-75 uppercase font-bold">of Avg Wait</span>
+            </div>
+        </div>
+    );
+};
+
+export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fantasyName, existingNames, lang, avgWaitTime, onSave, isMaintenanceMode = false, isGuest = false, stats }) => {
   const t = TRANSLATIONS[lang];
   const statusT = STATUS_TRANSLATIONS[lang];
 
@@ -197,7 +259,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   const [nameError, setNameError] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [checkInSuccess, setCheckInSuccess] = useState(false);
   
   // Wizard State
   const [currentStep, setCurrentStep] = useState(1);
@@ -237,6 +298,7 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
   const watchedApprovalDate = watch('approvalDate');
   const watchedClosedDate = watch('closedDate');
   const watchedFantasyName = watch('fantasyName');
+  const watchedCaseType = watch('caseType');
 
   useEffect(() => {
     if (initialData) {
@@ -272,13 +334,6 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
     }
     return false;
   }, [initialData]);
-
-  const daysElapsed = useMemo(() => {
-    if (!watchedSubmissionDate) return 0;
-    const end = watchedApprovalDate || watchedClosedDate || new Date().toISOString().split('T')[0];
-    const diff = getDaysDiff(watchedSubmissionDate, end);
-    return (diff !== null && diff > 0) ? diff : 0;
-  }, [watchedSubmissionDate, watchedApprovalDate, watchedClosedDate]);
 
   const lastUpdateText = useMemo(() => {
     return formatDateTimeToLocale(initialData?.lastUpdated, lang);
@@ -421,6 +476,17 @@ export const CaseForm: React.FC<CaseFormProps> = ({ initialData, userEmail, fant
         }}
         lang={lang}
       />
+
+      {/* Feature 8: Health Widget */}
+      {!isLocked && !isGhost && (
+          <HealthWidget 
+            submissionDate={watchedSubmissionDate} 
+            avgDays={stats?.avgDaysTotal || avgWaitTime} 
+            lang={lang} 
+            status={watchedStatus} 
+            type={watchedCaseType} 
+          />
+      )}
 
       {/* Progress Bar for Wizard */}
       <div className="mb-6">

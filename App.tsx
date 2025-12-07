@@ -964,6 +964,7 @@ const App: React.FC = () => {
                     onSave={handleUpdateCase} 
                     isMaintenanceMode={isMaintenance}
                     isGuest={isGuest}
+                    stats={userTypeStats}
                   />
               </div>
               </Suspense>

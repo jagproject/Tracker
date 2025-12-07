@@ -374,6 +374,14 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     searchDashboard: "Search Dashboard...",
     copyReddit: "Copy for Reddit",
     redditCopied: "Copied for Reddit!",
+
+    // HEALTH TRAFFIC LIGHT
+    healthTitle: "Case Health",
+    healthExcellent: "Excellent",
+    healthNormal: "Normal",
+    healthSlow: "Slow",
+    healthCritical: "Anomaly",
+    healthDesc: "Comparing your wait time against community average for",
   },
   es: {
     title: "Rastreador de Ciudadanía Alemana",
@@ -556,7 +564,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     akzSequential: "Número Secuencial",
     akzType: "Tipo de Declaración (ej. EER)",
     glossaryUrkunde: "Certificado de Ciudadanía oficial. Recibirlo significa aprobación total.",
-    glossaryFeststellung: "Determinación de Ciudadanía (Constatación).",
+    glossaryFeststellung: "Determinazione di Cittadinanza (Constatación).",
     glossaryArt116: "Restitución para víctimas de persecución Nazi (Art 116 Ley Fundamental).",
     copyEmail: "Copiar Email",
     contactNote: "Nota: Este formulario abre tu cliente de correo. Si no funciona, copia el email abajo.",
@@ -634,6 +642,14 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     searchDashboard: "Buscar en Dashboard...",
     copyReddit: "Copiar para Reddit",
     redditCopied: "¡Copiado para Reddit!",
+
+    // HEALTH TRAFFIC LIGHT
+    healthTitle: "Salud del Caso",
+    healthExcellent: "Excelente",
+    healthNormal: "Normal",
+    healthSlow: "Lento",
+    healthCritical: "Anomalía",
+    healthDesc: "Comparando tu tiempo de espera contra el promedio de la comunidad para",
   },
   de: {
     // ... (Keeping previous translations) ...
@@ -895,6 +911,14 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     searchDashboard: "Dashboard durchsuchen...",
     copyReddit: "Kopieren für Reddit",
     redditCopied: "Für Reddit kopiert!",
+
+    // HEALTH TRAFFIC LIGHT
+    healthTitle: "Fall-Gesundheit",
+    healthExcellent: "Exzellent",
+    healthNormal: "Normal",
+    healthSlow: "Langsam",
+    healthCritical: "Anomalie",
+    healthDesc: "Vergleich Ihrer Wartezeit mit dem Community-Durchschnitt für",
   },
   it: {
      // ... (Keeping previous translations) ...
@@ -1156,6 +1180,14 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     searchDashboard: "Cerca nel Dashboard...",
     copyReddit: "Copia per Reddit",
     redditCopied: "Copiato per Reddit!",
+
+    // HEALTH TRAFFIC LIGHT
+    healthTitle: "Salute del Caso",
+    healthExcellent: "Eccellente",
+    healthNormal: "Normale",
+    healthSlow: "Lento",
+    healthCritical: "Anomalia",
+    healthDesc: "Confronto tempo di attesa vs media community per",
   },
   pt: {
     // ... (Keeping previous translations) ...
@@ -1399,7 +1431,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     pctApproved: "% Aprovado",
 
     // Monthly Check-in
-    checkIn: "Check-in Mensal",
+    checkIn: "Check-in Mensual",
     stillWaiting: "Ainda Aguardando",
     confirmActive: "Confirmar Status Ativo",
     checkInSuccess: "Obrigado! Seu caso permanece ativo.",
@@ -1417,5 +1449,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     searchDashboard: "Pesquisar Painel...",
     copyReddit: "Copiar para Reddit",
     redditCopied: "Copiado para Reddit!",
+
+    // HEALTH TRAFFIC LIGHT
+    healthTitle: "Saúde do Caso",
+    healthExcellent: "Excelente",
+    healthNormal: "Normal",
+    healthSlow: "Lento",
+    healthCritical: "Anomalia",
+    healthDesc: "Comparando seu tempo de espera com a média da comunidade para",
   }
 };
