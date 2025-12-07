@@ -218,6 +218,41 @@ export const fetchCases = async (includeDeleted: boolean = false): Promise<Citiz
   return [];
 };
 
+// Specialized fetch for unclaimed cases (placeholders)
+// These need to expose the email field (e.g. imported_...) so they can be claimed.
+export const fetchUnclaimedCases = async (): Promise<CitizenshipCase[]> => {
+    let results: CitizenshipCase[] = [];
+    if (supabase) {
+        try {
+            // We select * (including email) but ONLY for cases that match the unclaimed pattern.
+            // This ensures we don't leak real user emails.
+            const { data, error } = await supabase
+                .from(DB_TABLE)
+                .select('*')
+                .or('email.ilike.imported_%,email.ilike.unclaimed_%')
+                .limit(500);
+            
+            if (!error && data) {
+                results = mapToCases(data);
+            }
+        } catch (e) {
+            console.warn("Fetch unclaimed failed", e);
+        }
+    }
+    
+    // Offline / Local Storage fallback
+    if (results.length === 0) {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            try {
+                const localCases: CitizenshipCase[] = JSON.parse(stored);
+                results = localCases.filter(c => c.email && (c.email.startsWith('imported_') || c.email.startsWith('unclaimed_')));
+            } catch(e) {}
+        }
+    }
+    return results;
+};
+
 const mapToCases = (data: any[]): CitizenshipCase[] => {
     return data.map(c => ({
         ...c,

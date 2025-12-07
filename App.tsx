@@ -45,7 +45,7 @@ import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { CitizenshipCase, UserSession, CaseType, CaseStatus, Language } from './types';
 import { generateFantasyUsername, generateStatisticalInsights } from './services/geminiService';
-import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig, subscribeToCases, getLastFetchError, fetchGlobalConfig } from './services/storageService';
+import { fetchCases, fetchCaseByEmail, upsertCase, fetchCaseByFantasyName, isCaseUnclaimed, claimCase, getAppConfig, subscribeToCases, getLastFetchError, fetchGlobalConfig, fetchUnclaimedCases } from './services/storageService';
 import { getDaysDiff, filterActiveCases, calculateAdvancedStats, calculateQuickStats, formatISODateToLocale, isGhostCase, formatDuration } from './services/statsUtils';
 import { logoutUser, subscribeToAuthChanges, isSupabaseEnabled } from './services/authService';
 import { TRANSLATIONS, COUNTRIES, STATUS_TRANSLATIONS } from './constants';
@@ -462,6 +462,9 @@ const App: React.FC = () => {
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   
+  // New State for Claim List (Fetched securely)
+  const [unclaimedList, setUnclaimedList] = useState<CitizenshipCase[]>([]);
+  
   // Background Image Preloading State
   const [bgLoaded, setBgLoaded] = useState(false);
 
@@ -507,6 +510,17 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Effect to fetch unclaimed cases when switching to Claim mode
+  useEffect(() => {
+      if (onboardingMode === 'CLAIM') {
+          setLoading(true);
+          fetchUnclaimedCases().then(cases => {
+              setUnclaimedList(cases);
+              setLoading(false);
+          });
+      }
+  }, [onboardingMode]);
+
   // Background Image Preloader Effect
   useEffect(() => {
     if (bgMode === 'image' && bgImage) {
@@ -531,15 +545,15 @@ const App: React.FC = () => {
   const ghostCount = useMemo(() => getGhostCount(), [allCases]);
 
   const unclaimedCases = useMemo(() => {
-      const unclaimed = allCases.filter(c => isCaseUnclaimed(c));
-      if (!claimSearchTerm) return unclaimed;
+      const source = unclaimedList.length > 0 ? unclaimedList : [];
+      if (!claimSearchTerm) return source;
       const lowerTerm = claimSearchTerm.toLowerCase();
-      return unclaimed.filter(c => 
+      return source.filter(c => 
           c.fantasyName.toLowerCase().includes(lowerTerm) ||
           c.countryOfApplication.toLowerCase().includes(lowerTerm) ||
           (c.submissionDate && c.submissionDate.includes(lowerTerm))
       );
-  }, [allCases, claimSearchTerm]);
+  }, [unclaimedList, claimSearchTerm]);
 
   const handleSessionStart = async (email: string) => {
     if (isMaintenance) return; 
