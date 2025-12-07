@@ -81,6 +81,7 @@ export interface StatSummary {
   byCountry: { name: string; value: number }[];
   byStatus: { name: string; value: number }[];
   waitingStats?: AdvancedStats;
+  approvalStats?: AdvancedStats; // New: Stats for Gaussian Curve
 }
 
 export interface AuditLogEntry {

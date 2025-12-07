@@ -1,15 +1,25 @@
 
-import React, { useState } from 'react';
+
+
+import React, { useState, useMemo } from 'react';
 import { CitizenshipCase, StatSummary, Language } from '../types';
 import { predictCaseTimeline } from '../services/geminiService';
 import { TRANSLATIONS } from '../constants';
-import { formatDuration, formatISODateToLocale } from '../services/statsUtils';
-import { Sparkles, BrainCircuit, Loader2, CalendarPlus, Clock } from 'lucide-react';
+import { formatDuration, formatISODateToLocale, getDaysDiff } from '../services/statsUtils';
+import { Sparkles, BrainCircuit, Loader2, CalendarPlus, Clock, TrendingUp } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 interface AIModelTabProps {
   userCase?: CitizenshipCase;
   stats: StatSummary;
   lang: Language;
+}
+
+// Normal Distribution PDF
+function normalPDF(x: number, mean: number, stdDev: number): number {
+  if (stdDev === 0) return x === mean ? 1 : 0;
+  const variance = stdDev * stdDev;
+  return (1 / (Math.sqrt(2 * Math.PI * variance))) * Math.exp(-(Math.pow(x - mean, 2)) / (2 * variance));
 }
 
 export const AIModelTab: React.FC<AIModelTabProps> = ({ userCase, stats, lang }) => {
@@ -42,6 +52,45 @@ export const AIModelTab: React.FC<AIModelTabProps> = ({ userCase, stats, lang })
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${startStr}/${endStr}&details=${encodeURIComponent(details)}`;
     window.open(url, '_blank');
   };
+
+  // --- Gaussian Curve Data Generation ---
+  const curveData = useMemo(() => {
+      if (!userCase || !stats.approvalStats || stats.approvalStats.count < 3) return null;
+
+      const submissionTime = new Date(userCase.submissionDate).getTime();
+      const today = new Date().getTime();
+      const meanDays = stats.approvalStats.mean;
+      const stdDevDays = stats.approvalStats.stdDev || (meanDays * 0.2); // Fallback assumption if no stdDev
+
+      // Generate points from -3 sigma to +3 sigma
+      const points = [];
+      const sigmaStart = meanDays - (3 * stdDevDays);
+      const sigmaEnd = meanDays + (3 * stdDevDays);
+      const step = (sigmaEnd - sigmaStart) / 40; // 40 points for smoothness
+
+      let maxY = 0;
+
+      for (let x = sigmaStart; x <= sigmaEnd; x += step) {
+          if (x < 0) continue; // No negative days
+          const y = normalPDF(x, meanDays, stdDevDays);
+          if (y > maxY) maxY = y;
+          
+          // Calculate actual date
+          const dateObj = new Date(submissionTime + (x * 24 * 60 * 60 * 1000));
+          
+          points.push({
+              days: Math.round(x),
+              dateStr: formatISODateToLocale(dateObj.toISOString(), lang),
+              prob: y,
+              timestamp: dateObj.getTime()
+          });
+      }
+
+      // Determine where "Today" falls
+      const todayDays = (today - submissionTime) / (1000 * 60 * 60 * 24);
+
+      return { points, meanDays, todayDays, maxY };
+  }, [userCase, stats, lang]);
 
   if (!userCase) {
     return (
@@ -146,6 +195,61 @@ export const AIModelTab: React.FC<AIModelTabProps> = ({ userCase, stats, lang })
                 )}
             </div>
         </div>
+
+        {/* Feature: Gaussian Probability Curve */}
+        {curveData && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-in slide-in-from-bottom-2 w-full">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-de-black flex items-center gap-2">
+                        <TrendingUp className="text-purple-500" size={20} /> {t.probabilityCurve}
+                    </h3>
+                    <div className="flex items-center gap-4 text-xs font-bold">
+                        <div className="flex items-center gap-1 text-red-500"><div className="w-2 h-2 rounded-full bg-red-500"></div> {t.today}</div>
+                        <div className="flex items-center gap-1 text-green-600"><div className="w-2 h-2 rounded-full bg-green-500"></div> {t.likelyDate}</div>
+                    </div>
+                </div>
+                
+                <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={curveData.points} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="colorProb" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <XAxis 
+                                dataKey="dateStr" 
+                                tick={{fontSize: 10}} 
+                                minTickGap={30}
+                            />
+                            <YAxis hide />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <Tooltip 
+                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                labelStyle={{ fontWeight: 'bold', color: '#333' }}
+                                formatter={(value: any) => [(value * 1000).toFixed(2), t.probability]}
+                            />
+                            <ReferenceLine x={curveData.points.find(p => Math.abs(p.days - curveData.meanDays) < 5)?.dateStr} stroke="green" strokeDasharray="3 3" label={{ position: 'top', value: 'Avg', fill: 'green', fontSize: 10 }} />
+                            
+                            {/* Only show "Today" if it falls within range */}
+                            {curveData.todayDays > curveData.points[0].days && curveData.todayDays < curveData.points[curveData.points.length-1].days && (
+                                <ReferenceLine x={curveData.points.find(p => Math.abs(p.days - curveData.todayDays) < 5)?.dateStr} stroke="red" strokeDasharray="3 3" label={{ position: 'top', value: t.today, fill: 'red', fontSize: 10 }} />
+                            )}
+
+                            <Area 
+                                type="monotone" 
+                                dataKey="prob" 
+                                stroke="#8884d8" 
+                                fillOpacity={1} 
+                                fill="url(#colorProb)" 
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+                <p className="text-xs text-gray-400 text-center mt-2">{t.probabilityDesc}</p>
+            </div>
+        )}
 
         {/* Bottom: Full Width Reasoning */}
         {prediction && (

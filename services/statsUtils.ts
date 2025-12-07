@@ -1,5 +1,7 @@
 
 
+
+
 import { CitizenshipCase, AdvancedStats, CaseStatus, StatSummary, Language } from "../types";
 
 const MONTH_NAMES: Record<Language, string[]> = {
@@ -292,6 +294,8 @@ export const calculateQuickStats = (subsetCases: CitizenshipCase[]): StatSummary
         avgDaysToProtocol: calcMean(subToProtocol),
         avgDaysToApproval: calcMean(protoToApproval),
         avgDaysTotal: calcMean(subToApproval),
+        waitingStats: calculateAdvancedStats(subsetCases.filter(c => c.status !== CaseStatus.APPROVED && c.status !== CaseStatus.CLOSED).map(c => getDaysDiff(c.submissionDate, new Date().toISOString()) || 0)),
+        approvalStats: calculateAdvancedStats(subToApproval), // New: Calculate advanced stats for completed cases (for Bell Curve)
         byType,
         byCountry: byCountry.sort((a,b) => b.value - a.value),
         byStatus: [],

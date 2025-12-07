@@ -382,6 +382,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     healthSlow: "Slow",
     healthCritical: "Anomaly",
     healthDesc: "Comparing your wait time against community average for",
+
+    // GAUSSIAN CURVE
+    probabilityCurve: "Probability Curve",
+    probabilityDesc: "Estimated distribution of approval times based on community statistics.",
+    likelyDate: "Most Likely",
+    today: "Today",
+    probability: "Probability"
   },
   es: {
     title: "Rastreador de Ciudadanía Alemana",
@@ -650,6 +657,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     healthSlow: "Lento",
     healthCritical: "Anomalía",
     healthDesc: "Comparando tu tiempo de espera contra el promedio de la comunidad para",
+
+    // GAUSSIAN CURVE
+    probabilityCurve: "Curva de Probabilidad",
+    probabilityDesc: "Distribución estimada de tiempos de aprobación según estadísticas.",
+    likelyDate: "Más Probable",
+    today: "Hoy",
+    probability: "Probabilidad"
   },
   de: {
     // ... (Keeping previous translations) ...
@@ -919,6 +933,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     healthSlow: "Langsam",
     healthCritical: "Anomalie",
     healthDesc: "Vergleich Ihrer Wartezeit mit dem Community-Durchschnitt für",
+
+    // GAUSSIAN CURVE
+    probabilityCurve: "Wahrscheinlichkeitskurve",
+    probabilityDesc: "Geschätzte Verteilung der Genehmigungszeiten.",
+    likelyDate: "Am wahrscheinlichsten",
+    today: "Heute",
+    probability: "Wahrscheinlichkeit"
   },
   it: {
      // ... (Keeping previous translations) ...
@@ -1101,7 +1122,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     akzDate: "Data",
     akzSequential: "Sequenziale",
     akzType: "Tipo",
-    glossaryUrkunde: "Certificato di cittadinanza.",
+    glossaryUrkunde: "Certificado di cittadinanza.",
     glossaryFeststellung: "Determinazione cittadinanza.",
     glossaryArt116: "Articolo 116 (Persecuzione).",
     copyEmail: "Copia Email",
@@ -1188,6 +1209,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     healthSlow: "Lento",
     healthCritical: "Anomalia",
     healthDesc: "Confronto tempo di attesa vs media community per",
+
+    // GAUSSIAN CURVE
+    probabilityCurve: "Curva di Probabilità",
+    probabilityDesc: "Distribuzione stimata dei tempi di approvazione.",
+    likelyDate: "Più Probabile",
+    today: "Oggi",
+    probability: "Probabilità"
   },
   pt: {
     // ... (Keeping previous translations) ...
@@ -1457,5 +1485,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     healthSlow: "Lento",
     healthCritical: "Anomalia",
     healthDesc: "Comparando seu tempo de espera com a média da comunidade para",
+
+    // GAUSSIAN CURVE
+    probabilityCurve: "Curva de Probabilidade",
+    probabilityDesc: "Distribuição estimada de tempos de aprovação.",
+    likelyDate: "Mais Provável",
+    today: "Hoje",
+    probability: "Probabilidade"
   }
 };
