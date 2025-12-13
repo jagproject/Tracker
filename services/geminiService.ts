@@ -4,6 +4,63 @@ import { TRANSLATIONS } from "../constants";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+// --- SMART CACHING SYSTEM ---
+const CACHE_PREFIX = 'gemini_cache_v1_';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 Hours
+
+interface CacheEntry {
+    timestamp: number;
+    data: any;
+}
+
+const getCacheKey = (key: string) => `${CACHE_PREFIX}${key}`;
+
+// Simple hash for prompt/data to use as key
+const hashCode = (str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash;
+    }
+    return hash.toString();
+};
+
+const getCachedData = <T>(uniqueKey: string): T | null => {
+    try {
+        const raw = localStorage.getItem(getCacheKey(uniqueKey));
+        if (!raw) return null;
+        
+        const entry: CacheEntry = JSON.parse(raw);
+        if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+            localStorage.removeItem(getCacheKey(uniqueKey));
+            return null;
+        }
+        return entry.data as T;
+    } catch (e) {
+        return null;
+    }
+};
+
+const setCachedData = (uniqueKey: string, data: any) => {
+    try {
+        const entry: CacheEntry = {
+            timestamp: Date.now(),
+            data
+        };
+        localStorage.setItem(getCacheKey(uniqueKey), JSON.stringify(entry));
+    } catch (e) {
+        // Storage likely full, clear old cache
+        console.warn("Cache full, clearing old entries...");
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(CACHE_PREFIX)) {
+                localStorage.removeItem(key);
+            }
+        }
+    }
+};
+
 // Fallback names in case of API quota limits (429 Errors)
 const FALLBACK_NAMES = [
   "Bavarian Eagle", "Black Forest Bear", "Alpine Wolf", "Rhine Navigator", 
@@ -54,6 +111,7 @@ const logAiError = (context: string, error: any) => {
 
 // Generate a fantasy username
 export const generateFantasyUsername = async (seed: string): Promise<string> => {
+  // Names are cheap/fast, maybe don't cache or cache shortly? Let's not cache names for variety.
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -72,6 +130,12 @@ export const generateFantasyUsername = async (seed: string): Promise<string> => 
 
 // Generate insights based on statistics
 export const generateStatisticalInsights = async (stats: StatSummary, cases: CitizenshipCase[], lang: Language): Promise<string> => {
+  // Cache Key based on stats count + today's date + language
+  // This ensures we only re-run if data changes significantly or language changes
+  const cacheKey = `insight_${stats.totalCases}_${stats.approvedCases}_${lang}_${new Date().toISOString().split('T')[0]}`;
+  const cached = getCachedData<string>(cacheKey);
+  if (cached) return cached;
+
   try {
     const langMap: Record<Language, string> = {
         en: "English",
@@ -85,7 +149,7 @@ export const generateStatisticalInsights = async (stats: StatSummary, cases: Cit
     // Check if we are analyzing a specific subset or all
     const typeCount = new Set(cases.map(c => c.caseType)).size;
     const isSpecific = typeCount === 1;
-    const contextStr = isSpecific && cases.length > 0 ? `specifically for ${cases[0].caseType} cases` : "for all German Citizenship cases";
+    // const contextStr = isSpecific && cases.length > 0 ? `specifically for ${cases[0].caseType} cases` : "for all German Citizenship cases";
 
     const prompt = `
       Act as a data analyst for a German Citizenship Application Tracker.
@@ -112,7 +176,10 @@ export const generateStatisticalInsights = async (stats: StatSummary, cases: Cit
       contents: prompt,
     });
 
-    return response.text?.trim() || "";
+    const result = response.text?.trim() || "";
+    if (result) setCachedData(cacheKey, result);
+    return result;
+
   } catch (error: any) {
     logAiError("Insights", error);
     
@@ -162,6 +229,13 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
     // Translate Confidence
     const t = TRANSLATIONS[lang];
     const translatedConfidence = rawConfidence === 'High' ? t.confHigh : (rawConfidence === 'Medium' ? t.confMedium : t.confLow);
+
+    // Cache key for prediction explanation
+    // We cache based on the Case ID, Status, and Today's Date. 
+    // If stats change drastically, user might get cached reasoning for 24h which is acceptable.
+    const cacheKey = `prediction_${userCase.id}_${userCase.status}_${estimatedDateStr}_${lang}`;
+    const cached = getCachedData<any>(cacheKey);
+    if (cached) return cached;
 
     try {
         const langMap: Record<Language, string> = {
@@ -223,13 +297,15 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
         
         const parsed = JSON.parse(text);
         
-        // Safety: Force the date/confidence to be the calculated ones in case AI hallucinated
-        return {
+        const result = {
             date: estimatedDateStr,
             confidence: translatedConfidence,
             confidenceScore: rawConfidence, // Return raw score for logic
             reasoning: parsed.reasoning || "Analysis generated based on community statistics."
         };
+
+        setCachedData(cacheKey, result);
+        return result;
 
     } catch (error: any) {
         logAiError("Prediction", error);
@@ -250,6 +326,7 @@ export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: Stat
 
 // Feature 8: Detect Anomalies
 export const detectAnomalies = async (cases: CitizenshipCase[]): Promise<any[]> => {
+    // Only run this manually via Admin panel, so maybe skip caching or short cache
     try {
         // We send a simplified version of cases to save tokens, removing irrelevant fields
         const simplifiedCases = cases.map(c => ({

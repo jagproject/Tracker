@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { 
   LayoutDashboard, 
@@ -54,6 +52,7 @@ import { logoutUser, subscribeToAuthChanges, isSupabaseEnabled } from './service
 import { TRANSLATIONS, COUNTRIES, STATUS_TRANSLATIONS } from './constants';
 import { useAppStore } from './store/useAppStore';
 import { InfoTip } from './components/ui/InfoTip';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // Lazy Load Components (Code Splitting)
 const StatsDashboard = React.lazy(() => import('./components/StatsCharts').then(module => ({ default: module.StatsDashboard })));
@@ -85,10 +84,14 @@ const ToastContainer = () => {
     const { notifications, removeNotification } = useAppStore();
     return (
         <div className="fixed top-20 right-4 z-[100] flex flex-col gap-2">
+            <AnimatePresence>
             {notifications.map(n => (
-                <div 
+                <motion.div 
                     key={n.id} 
-                    className={`p-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[250px] animate-in slide-in-from-right-10 fade-in duration-300 ${
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 50 }}
+                    className={`p-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[250px] ${
                         n.type === 'success' ? 'bg-green-600 text-white' : 
                         n.type === 'error' ? 'bg-red-600 text-white' : 
                         n.type === 'warning' ? 'bg-orange-500 text-white' : 'bg-gray-800 text-white'
@@ -97,8 +100,9 @@ const ToastContainer = () => {
                     {n.type === 'success' ? <Check size={18}/> : n.type === 'error' ? <AlertCircle size={18}/> : <Info size={18}/>}
                     <span className="text-sm font-bold flex-1">{n.message}</span>
                     <button onClick={() => removeNotification(n.id)} className="opacity-50 hover:opacity-100"><X size={16}/></button>
-                </div>
+                </motion.div>
             ))}
+            </AnimatePresence>
         </div>
     );
 };
@@ -729,7 +733,7 @@ const App: React.FC = () => {
         <div className="absolute top-4 right-4 z-20"><LanguageSelector /></div>
         
         {/* LOGIN FORM CONTENT UNCHANGED */}
-        <div className="max-w-md w-full bg-white rounded shadow-2xl overflow-hidden border-t-8 border-de-black relative z-10 animate-in fade-in zoom-in-95 duration-300">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full bg-white rounded shadow-2xl overflow-hidden border-t-8 border-de-black relative z-10 animate-in fade-in zoom-in-95 duration-300">
           <div className="bg-white p-8 text-center flex flex-col items-center relative">
              <div className="flex flex-col w-20 h-14 shadow-md mb-6">
                 <div className="h-1/3 bg-black w-full rounded-t-sm"></div>
@@ -839,7 +843,7 @@ const App: React.FC = () => {
                 ) : <div />
             )}
           </div>
-        </div>
+        </motion.div>
         <div className="mt-8 py-4 flex flex-col items-center justify-center gap-2 text-gray-400">
              <div className="flex items-center gap-3 bg-black/30 px-4 py-2 rounded-full backdrop-blur-sm">
                  <button onClick={() => setBgMode(bgMode === 'image' ? 'simple' : 'image')} className="flex items-center gap-1 text-xs hover:text-white transition-colors text-white/70">
@@ -950,7 +954,15 @@ const App: React.FC = () => {
             <TabButton id='faq' label={t.faq} icon={<HelpCircle size={16} />} active={activeTab} onClick={setActiveTab} />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-8 mb-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
+                className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-8 mb-8"
+            >
             {activeTab === 'myCase' && (
               <Suspense fallback={<div className="col-span-1 xl:col-span-3"><LoadingSpinner /></div>}>
               <div className="col-span-1 xl:col-span-3 animate-in slide-in-from-left-4 px-0 sm:px-0">
@@ -1080,7 +1092,8 @@ const App: React.FC = () => {
               </div>
               </Suspense>
             )}
-          </div>
+          </motion.div>
+          </AnimatePresence>
 
           {activeTab === 'dashboard' && (
               <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-none sm:rounded-xl shadow-sm border-y sm:border border-gray-200 dark:border-gray-700 mt-8 -mx-0 sm:mx-0 transition-colors">
