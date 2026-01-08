@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { 
-  LayoutDashboard, Globe, Users, ShieldCheck, LogOut, AlertCircle, Sparkles, BellRing, Settings, Mail, Check, HelpCircle, Monitor, User, Power, ChevronDown, ChevronUp, Filter, Search, UserPlus, Link as LinkIcon, Ghost, Eye, EyeOff, Palette, Image as ImageIcon, RefreshCw, LogIn, Database, X, ArrowRight, Edit3, Loader2, Info, ShieldAlert, FileLock
+  LayoutDashboard, Globe, Users, ShieldCheck, LogOut, AlertCircle, Sparkles, BellRing, Settings, Mail, Check, HelpCircle, Monitor, User, Power, ChevronDown, ChevronUp, Filter, Search, UserPlus, Link as LinkIcon, Ghost, Eye, EyeOff, Palette, Image as ImageIcon, RefreshCw, LogIn, Database, X, ArrowRight, Edit3, Loader2, Info, ShieldAlert, FileLock, UsersRound, SearchCode, Calendar, ArrowLeft
 } from 'lucide-react';
 import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
@@ -33,6 +33,14 @@ const BG_IMAGES = [
   "https://images.unsplash.com/photo-1590059393160-c4d632230491?q=80&w=2070&auto=format&fit=crop",
   "https://images.unsplash.com/photo-1563828759539-773a9072bd0d?q=80&w=2070&auto=format&fit=crop"
 ];
+
+const GermanFlag = ({ size = "sm" }: { size?: "sm" | "md" }) => (
+    <div className={`flex flex-col ${size === "sm" ? "w-6 h-4" : "w-8 h-5"} rounded-sm overflow-hidden border border-black/10 shrink-0 shadow-sm`}>
+        <div className="h-1/3 bg-black"></div>
+        <div className="h-1/3 bg-de-red"></div>
+        <div className="h-1/3 bg-de-gold"></div>
+    </div>
+);
 
 const ToastContainer = () => {
     const { notifications, removeNotification } = useAppStore();
@@ -118,16 +126,26 @@ const App: React.FC = () => {
   } = useAppStore();
 
   const [emailInput, setEmailInput] = useState('');
-  const [loginStep, setLoginStep] = useState<'INPUT' | 'CONFIRM' | 'USERNAME_SELECTION'>('INPUT');
+  const [loginStep, setLoginStep] = useState<'INPUT' | 'CONFIRM' | 'ONBOARDING_CHOICE' | 'INITIAL_DETAILS' | 'USERNAME_SELECTION' | 'CLAIM_CASE'>('INPUT');
   const [loading, setLoading] = useState(false);
   const [aiInsight, setAiInsight] = useState<string>("");
   const [selectedDetailCase, setSelectedDetailCase] = useState<CitizenshipCase | null>(null);
   const [isGuest, setIsGuest] = useState(false);
-  const [onboardingMode, setOnboardingMode] = useState<'CREATE' | 'CLAIM'>('CREATE');
   const [proposedUsername, setProposedUsername] = useState('');
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [unclaimedCases, setUnclaimedCases] = useState<CitizenshipCase[]>([]);
+  const [claimSearch, setClaimSearch] = useState('');
+
+  // Initial Details State for Onboarding
+  const [newCaseData, setNewCaseData] = useState({
+      caseType: CaseType.STAG_5,
+      country: 'Argentina',
+      status: CaseStatus.SUBMITTED,
+      submissionDate: new Date().toISOString().split('T')[0]
+  });
+
   const t = TRANSLATIONS[lang];
 
   useEffect(() => {
@@ -158,12 +176,41 @@ const App: React.FC = () => {
         setLoading(false);
         setLoginStep('INPUT'); 
     } else {
-        setLoginStep('USERNAME_SELECTION');
-        const genName = await generateFantasyUsername(cleanEmail.split('@')[0]);
-        setProposedUsername(genName);
-        setOnboardingMode('CREATE'); 
+        setLoginStep('ONBOARDING_CHOICE');
         setLoading(false);
     }
+  };
+
+  const handleStartCreateNew = () => {
+    setLoginStep('INITIAL_DETAILS');
+  };
+
+  const handleDetailsSubmitted = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setLoading(true);
+      setLoginStep('USERNAME_SELECTION');
+      const genName = await generateFantasyUsername(emailInput.split('@')[0]);
+      setProposedUsername(genName);
+      setLoading(false);
+  };
+
+  const handleStartClaim = async () => {
+    setLoading(true);
+    const orphanCases = await fetchUnclaimedCases();
+    setUnclaimedCases(orphanCases);
+    setLoginStep('CLAIM_CASE');
+    setLoading(false);
+  };
+
+  const handleFinalizeClaim = async (selectedCase: CitizenshipCase) => {
+    if (isMaintenance) return;
+    setLoading(true);
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const updated = await claimCase(selectedCase, cleanEmail);
+    setSession({ email: cleanEmail, fantasyName: updated.fantasyName, isAuthenticated: true, language: 'en' });
+    setUserCase(updated);
+    setLoginStep('INPUT');
+    setLoading(false);
   };
 
   const handleFinalizeOnboarding = async (e: React.FormEvent) => {
@@ -177,7 +224,17 @@ const App: React.FC = () => {
     const existing = await fetchCaseByFantasyName(finalName);
     if (existing) { setUsernameError(t.usernameTaken); setLoading(false); return; }
     
-    const newUser = { id: crypto.randomUUID(), email: cleanEmail, fantasyName: finalName, caseType: CaseType.STAG_5, countryOfApplication: 'Unknown', status: CaseStatus.SUBMITTED, submissionDate: new Date().toISOString().split('T')[0], lastUpdated: new Date().toISOString() };
+    const newUser: CitizenshipCase = { 
+        id: crypto.randomUUID(), 
+        email: cleanEmail, 
+        fantasyName: finalName, 
+        caseType: newCaseData.caseType, 
+        countryOfApplication: newCaseData.country, 
+        status: newCaseData.status, 
+        submissionDate: newCaseData.submissionDate, 
+        lastUpdated: new Date().toISOString() 
+    };
+    
     await upsertCase(newUser);
     setSession({ email: cleanEmail, fantasyName: finalName, isAuthenticated: true, language: 'en' });
     setUserCase(newUser);
@@ -225,16 +282,50 @@ const App: React.FC = () => {
                       </button>
                   </div>
               </div>
-              <div className="mt-6 text-center text-[10px] text-gray-400">
-                  &copy; {new Date().getFullYear()} Community Project. Built for the r/GermanCitizenship community.
-              </div>
           </div>
       </footer>
   );
 
+  const filteredOrphans = useMemo(() => {
+    if (!claimSearch) return unclaimedCases;
+    const term = claimSearch.toLowerCase();
+    return unclaimedCases.filter(c => 
+        c.fantasyName.toLowerCase().includes(term) || 
+        c.countryOfApplication.toLowerCase().includes(term)
+    );
+  }, [unclaimedCases, claimSearch]);
+
+  const cohortCount = useMemo(() => {
+    if (!userCase) return 0;
+    const subDate = new Date(userCase.submissionDate);
+    const month = subDate.getMonth() + 1;
+    const year = subDate.getFullYear();
+    return allCases.filter(c => {
+        const d = new Date(c.submissionDate);
+        return d.getMonth() + 1 === month && d.getFullYear() === year && c.caseType === userCase.caseType;
+    }).length;
+  }, [userCase, allCases]);
+
+  const handleViewCohort = () => {
+    if (!userCase) return;
+    const subDate = new Date(userCase.submissionDate);
+    setFilters({
+        month: (subDate.getMonth() + 1).toString(),
+        year: subDate.getFullYear().toString(),
+        type: userCase.caseType,
+        status: 'All',
+        search: ''
+    });
+    setActiveTab('dashboard');
+  };
+
   if (!session && !isGuest) {
     return (
-      <div className={`min-h-screen flex flex-col justify-center items-center p-4 font-sans relative transition-all duration-1000 bg-gradient-to-br from-gray-900 to-black`}>
+      <div 
+        className={`min-h-screen flex flex-col justify-center items-center p-4 font-sans relative transition-all duration-1000 ${bgMode === 'image' ? 'bg-fixed bg-cover bg-center' : 'bg-gradient-to-br from-gray-900 to-black'}`}
+        style={bgMode === 'image' ? { backgroundImage: `url('${bgImage}')` } : {}}
+      >
+        <div className={`fixed inset-0 ${bgMode === 'image' ? 'bg-black/50 backdrop-blur-sm' : ''}`}></div>
         <ToastContainer />
         <Suspense fallback={null}>{showPrivacyModal && <PrivacyPolicyModal lang={lang} onClose={() => setShowPrivacyModal(false)} />}</Suspense>
         <Suspense fallback={null}>{showAdmin && <AdminTools lang={lang} onClose={() => setShowAdmin(false)} onDataChange={refreshData} />}</Suspense>
@@ -243,12 +334,10 @@ const App: React.FC = () => {
         
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full bg-white rounded-xl shadow-2xl overflow-hidden border-t-8 border-de-black relative z-10 p-8 my-12">
             <div className="text-center mb-6">
-                <div className="flex flex-col w-12 h-8 shadow-sm mb-4 mx-auto">
-                    <div className="h-1/3 bg-black w-full"></div>
-                    <div className="h-1/3 bg-de-red w-full"></div>
-                    <div className="h-1/3 bg-de-gold w-full"></div>
+                <div className="flex items-center justify-center gap-3 mb-4">
+                    <GermanFlag size="md" />
+                    <h1 className="text-xl font-bold text-gray-800 tracking-tight">{t.title}</h1>
                 </div>
-                <h1 className="text-xl font-bold text-gray-800 tracking-tight">{t.title}</h1>
             </div>
             
             {isMaintenance ? (
@@ -284,10 +373,64 @@ const App: React.FC = () => {
                         </button>
                     </div>
                 </div>
-            ) : loginStep === 'USERNAME_SELECTION' ? (
+            ) : loginStep === 'ONBOARDING_CHOICE' ? (
                 <div className="space-y-6 animate-in fade-in">
                     <div className="text-center">
                         <h3 className="font-bold text-xl text-gray-800">{t.welcome}</h3>
+                        <p className="text-sm text-gray-500 mt-1">{t.newEmailPrompt}</p>
+                    </div>
+                    <div className="space-y-4">
+                        <button onClick={handleStartCreateNew} className="w-full p-4 border-2 border-gray-100 hover:border-de-gold rounded-xl transition-all text-left group flex items-center gap-4">
+                            <div className="bg-blue-50 p-2 rounded-lg group-hover:bg-de-gold transition-colors"><UserPlus size={20} className="text-blue-600 group-hover:text-de-black" /></div>
+                            <div><span className="font-bold block text-de-black">{t.createNew}</span><span className="text-xs text-gray-500">Crea un perfil desde cero.</span></div>
+                        </button>
+                        <button onClick={handleStartClaim} className="w-full p-4 border-2 border-gray-100 hover:border-de-gold rounded-xl transition-all text-left group flex items-center gap-4">
+                            <div className="bg-orange-50 p-2 rounded-lg group-hover:bg-de-gold transition-colors"><LinkIcon size={20} className="text-orange-600 group-hover:text-de-black" /></div>
+                            <div><span className="font-bold block text-de-black">{t.claimExisting}</span><span className="text-xs text-gray-500">Vincula un caso de la planilla anterior.</span></div>
+                        </button>
+                        <button onClick={() => setLoginStep('INPUT')} className="w-full text-center text-xs text-gray-400 hover:text-de-black uppercase font-bold tracking-widest transition-colors">Volver al inicio</button>
+                    </div>
+                </div>
+            ) : loginStep === 'INITIAL_DETAILS' ? (
+                <div className="space-y-5 animate-in slide-in-from-right-4">
+                    <div className="flex items-center gap-2 mb-2">
+                        <button onClick={() => setLoginStep('ONBOARDING_CHOICE')} className="p-1 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={18} /></button>
+                        <h3 className="font-bold text-lg text-gray-800">Detalles del Trámite</h3>
+                    </div>
+                    <form onSubmit={handleDetailsSubmitted} className="space-y-4">
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">{t.caseType}</label>
+                                <select value={newCaseData.caseType} onChange={e => setNewCaseData({...newCaseData, caseType: e.target.value as CaseType})} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-de-gold">
+                                    {Object.values(CaseType).map(v => <option key={v} value={v}>{v}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">{t.country}</label>
+                                <select value={newCaseData.country} onChange={e => setNewCaseData({...newCaseData, country: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-de-gold">
+                                    {COUNTRIES.map(v => <option key={v} value={v}>{v}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">{t.status}</label>
+                                <select value={newCaseData.status} onChange={e => setNewCaseData({...newCaseData, status: e.target.value as CaseStatus})} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-de-gold">
+                                    {Object.values(CaseStatus).map(v => <option key={v} value={v}>{STATUS_TRANSLATIONS[lang][v]}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">{t.submissionDate}</label>
+                                <input type="date" value={newCaseData.submissionDate} onChange={e => setNewCaseData({...newCaseData, submissionDate: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-de-gold" required />
+                            </div>
+                        </div>
+                        <button type="submit" className="w-full bg-de-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded transition-all flex justify-center items-center gap-2 shadow-lg">
+                            Continuar <ArrowRight size={16} />
+                        </button>
+                    </form>
+                </div>
+            ) : loginStep === 'USERNAME_SELECTION' ? (
+                <div className="space-y-6 animate-in fade-in">
+                    <div className="text-center">
+                        <h3 className="font-bold text-xl text-gray-800">Casi listo...</h3>
                         <p className="text-sm text-gray-500">Generando identidad anónima...</p>
                     </div>
                     <form onSubmit={handleFinalizeOnboarding} className="space-y-4">
@@ -301,12 +444,34 @@ const App: React.FC = () => {
                         </button>
                     </form>
                 </div>
+            ) : loginStep === 'CLAIM_CASE' ? (
+                <div className="space-y-4 animate-in fade-in flex flex-col h-[400px]">
+                    <div className="shrink-0">
+                        <div className="flex items-center gap-2 mb-2">
+                            <button onClick={() => setLoginStep('ONBOARDING_CHOICE')} className="p-1 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={18} /></button>
+                            <h3 className="font-bold text-lg text-gray-800">{t.claimCaseBtn}</h3>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-4">Busca tu caso en la planilla histórica.</p>
+                        <div className="relative mb-2">
+                            <Search className="absolute left-3 top-3 text-gray-400" size={16} />
+                            <input type="text" placeholder={t.searchPlaceholder} value={claimSearch} onChange={e => setClaimSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm border rounded focus:ring-1 focus:ring-de-gold outline-none" />
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto border rounded divide-y bg-gray-50">
+                        {filteredOrphans.length > 0 ? filteredOrphans.map(c => (
+                            <button key={c.id} onClick={() => handleFinalizeClaim(c)} className="w-full p-3 text-left hover:bg-white flex justify-between items-center group transition-colors">
+                                <div><span className="font-bold block text-sm group-hover:text-de-gold">{c.fantasyName}</span><span className="text-[10px] text-gray-400">{c.countryOfApplication} • {c.caseType}</span></div>
+                                <ArrowRight size={14} className="text-gray-300 group-hover:text-de-gold" />
+                            </button>
+                        )) : <div className="p-8 text-center text-gray-400 text-sm">No se encontraron casos.</div>}
+                    </div>
+                </div>
             ) : null}
         </motion.div>
         
-        <div className="flex gap-4 text-xs font-bold uppercase tracking-widest text-gray-500 mt-4">
+        <div className="relative z-10 flex gap-4 text-xs font-bold uppercase tracking-widest text-white/70 mt-4">
             <button onClick={() => setShowPrivacyModal(true)} className="hover:text-de-gold transition-colors">{t.privacyTitle}</button>
-            <span className="text-gray-700">|</span>
+            <span className="opacity-30">|</span>
             <button onClick={() => setShowAdmin(true)} className="hover:text-de-red transition-colors">{t.admin}</button>
         </div>
       </div>
@@ -322,7 +487,10 @@ const App: React.FC = () => {
 
             <nav className="bg-de-black/95 backdrop-blur text-white shadow-lg sticky top-0 z-50 border-b-4 border-de-red">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-                    <div className="flex items-center gap-3"><span className="font-bold text-lg tracking-tight">{t.title}</span></div>
+                    <div className="flex items-center gap-3">
+                        <GermanFlag />
+                        <span className="font-bold text-lg tracking-tight">{t.title}</span>
+                    </div>
                     <div className="flex items-center gap-4">
                         <LanguageSelector />
                         {!isGuest && <div className="hidden md:block text-right"><span className="text-[10px] text-gray-400 uppercase font-bold block leading-none">Usuario</span><span className="text-sm font-bold text-de-gold leading-none">{session?.fantasyName}</span></div>}
@@ -345,9 +513,27 @@ const App: React.FC = () => {
                     <motion.div key={activeTab} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-8">
                         {activeTab === 'myCase' && (
                             <div className="space-y-6">
-                                <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl border-l-4 border-de-gold p-6 text-white flex items-start gap-4 shadow-lg">
-                                    <Sparkles className="text-de-gold shrink-0" />
-                                    <div><h3 className="font-bold text-lg text-de-gold">{t.aiAnalysis}</h3><p className="text-gray-300 text-sm">{aiInsight || "Cargando análisis..."}</p></div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl border-l-4 border-de-gold p-6 text-white flex items-start gap-4 shadow-lg h-full">
+                                        <Sparkles className="text-de-gold shrink-0" />
+                                        <div><h3 className="font-bold text-lg text-de-gold">{t.aiAnalysis}</h3><p className="text-gray-300 text-sm">{aiInsight || "Cargando análisis..."}</p></div>
+                                    </div>
+                                    
+                                    <div className="bg-gradient-to-r from-de-red to-red-900 rounded-xl border-l-4 border-de-gold p-6 text-white flex items-center justify-between gap-4 shadow-lg">
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-white/10 p-3 rounded-full"><UsersRound className="text-de-gold" /></div>
+                                            <div>
+                                                <h3 className="font-bold text-lg text-white">{t.cohort}</h3>
+                                                <p className="text-red-100 text-xs">{cohortCount} usuarios iguales a ti</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={handleViewCohort}
+                                            className="bg-white text-de-red font-bold px-4 py-2 rounded-lg text-xs uppercase tracking-wider hover:bg-gray-100 transition-colors shadow-md"
+                                        >
+                                            {t.viewCohort}
+                                        </button>
+                                    </div>
                                 </div>
                                 <CaseForm initialData={userCase} userEmail={session?.email || ''} fantasyName={session?.fantasyName || 'Guest'} existingNames={allCases.map(c => c.fantasyName)} lang={lang} avgWaitTime={userTypeStats.avgDaysTotal} onSave={optimisticUpdateCase} isMaintenanceMode={isMaintenance} isGuest={isGuest} stats={userTypeStats} />
                             </div>
