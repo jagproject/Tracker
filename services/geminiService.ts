@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { CitizenshipCase, StatSummary, Language, CaseType } from "../types";
 import { TRANSLATIONS } from "../constants";
@@ -14,17 +15,6 @@ interface CacheEntry {
 }
 
 const getCacheKey = (key: string) => `${CACHE_PREFIX}${key}`;
-
-// Simple hash for prompt/data to use as key
-const hashCode = (str: string) => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = (hash << 5) - hash + char;
-        hash = hash & hash;
-    }
-    return hash.toString();
-};
 
 const getCachedData = <T>(uniqueKey: string): T | null => {
     try {
@@ -50,7 +40,6 @@ const setCachedData = (uniqueKey: string, data: any) => {
         };
         localStorage.setItem(getCacheKey(uniqueKey), JSON.stringify(entry));
     } catch (e) {
-        // Storage likely full, clear old cache
         console.warn("Cache full, clearing old entries...");
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -61,7 +50,6 @@ const setCachedData = (uniqueKey: string, data: any) => {
     }
 };
 
-// Fallback names in case of API quota limits (429 Errors)
 const FALLBACK_NAMES = [
   "Bavarian Eagle", "Black Forest Bear", "Alpine Wolf", "Rhine Navigator", 
   "Hanseatic Sailor", "Saxon Climber", "Baltic Amber", "Teutonic Knight",
@@ -69,7 +57,6 @@ const FALLBACK_NAMES = [
   "Elbe River", "Danube Swimmer", "Harz Mountain", "Cologne Spire"
 ];
 
-// DATA INJECTED FROM OFFICIAL BVA PDF REPORTS (2021-2025) & COMMUNITY ANALYSIS
 const OFFICIAL_DATA_CONTEXT = `
 OFFICIAL BVA STATISTICS (SOURCE: Internal Report Stand 30.06.2025, specifically for StAG 5):
 1. BACKLOG SURGE: The 'Antragsbestand' (Backlog) for StAG 5 is growing rapidly. 
@@ -85,39 +72,31 @@ OFFICIAL BVA STATISTICS (SOURCE: Internal Report Stand 30.06.2025, specifically 
    - Analysis: The BVA is currently processing StAG 5 cases at nearly DOUBLE the rate of previous years (projected ~4,500 for 2025), but incoming applications still outpace them.
 
 COMMUNITY CONTEXT (r/GermanCitizenship & Forums):
-- **REDDIT ANALYSIS (Source: /r/GermanCitizenship/comments/1cb9zek)**: The BVA received ~40,000 total citizenship applications in 2023, a significant jump from ~28,000 in 2022. This "far more applications" trend confirms that despite efficiency gains (doubling output), the gap between intake and output is widening. Wait times are likely to increase for newer cohorts unless BVA staffing scales linearly.
-- "Task Forces": Users report that straightforward StAG 5 cases are sometimes pulled from the pile and processed in "batches", leading to lucky 9-12 month approvals.
-- "Old Cases": Older Feststellung cases (2022-2023) often seem "stuck" while newer StAG 5 cases move faster.
-- Aktenzeichen: Currently taking 2-4 months to receive after submission.
+- **REDDIT ANALYSIS**: The BVA received ~40,000 total citizenship applications in 2023. Wait times are likely to increase for newer cohorts unless BVA staffing scales.
+- "Task Forces": Straightforward cases are sometimes pulled for batch processing.
+- "Old Cases": Older Feststellung cases (2022-2023) often seem slower than newer StAG 5 cases.
 `;
 
-// Helper to strip Markdown formatting from JSON responses
 const cleanJson = (text: string) => {
   return text.replace(/^```(json)?\n?/i, '').replace(/\n?```$/, '').trim();
 };
 
-// Helper to sanitize AI errors in console (prevents leaking keys or raw JSON)
 const logAiError = (context: string, error: any) => {
   const msg = error instanceof Error ? error.message : JSON.stringify(error);
-  
-  if (msg.includes("API key") || msg.includes("expired") || msg.includes("403") || msg.includes("400")) {
-      console.warn(`[Gemini] ${context}: AI Service unavailable (Auth/Key Expired). Using fallback.`);
-  } else if (msg.includes("429") || msg.includes("quota")) {
+  if (msg.includes("429") || msg.includes("quota")) {
       console.warn(`[Gemini] ${context}: Quota Exceeded. Using fallback.`);
   } else {
       console.warn(`[Gemini] ${context} error:`, error);
   }
 };
 
-// Generate a fantasy username
 export const generateFantasyUsername = async (seed: string): Promise<string> => {
-  // Names are cheap/fast, maybe don't cache or cache shortly? Let's not cache names for variety.
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: `Generate a single, creative, anonymous fantasy username based loosely on the concept of "${seed}" or German mythology/nature. 
       It should be 2-3 words max. No numbers. Title case. Examples: "Black Forest Eagle", "Alpine River", "Teutonic Knight", "Golden Bear".
-      Return ONLY the name, nothing else.`,
+      Return ONLY the name string, nothing else.`,
     });
     return response.text?.trim() || "Anonymous Wanderer";
   } catch (error) {
@@ -128,244 +107,143 @@ export const generateFantasyUsername = async (seed: string): Promise<string> => 
   }
 };
 
-// Generate insights based on statistics
 export const generateStatisticalInsights = async (stats: StatSummary, cases: CitizenshipCase[], lang: Language): Promise<string> => {
-  // Cache Key based on stats count + today's date + language
-  // This ensures we only re-run if data changes significantly or language changes
   const cacheKey = `insight_${stats.totalCases}_${stats.approvedCases}_${lang}_${new Date().toISOString().split('T')[0]}`;
   const cached = getCachedData<string>(cacheKey);
   if (cached) return cached;
 
   try {
-    const langMap: Record<Language, string> = {
-        en: "English",
-        es: "Spanish",
-        de: "German",
-        it: "Italian",
-        pt: "Portuguese"
-    };
+    const langMap: Record<Language, string> = { en: "English", es: "Spanish", de: "German", it: "Italian", pt: "Portuguese" };
     const targetLang = langMap[lang] || "English";
     
-    // Check if we are analyzing a specific subset or all
-    const typeCount = new Set(cases.map(c => c.caseType)).size;
-    const isSpecific = typeCount === 1;
-    // const contextStr = isSpecific && cases.length > 0 ? `specifically for ${cases[0].caseType} cases` : "for all German Citizenship cases";
-
     const prompt = `
       Act as a data analyst for a German Citizenship Application Tracker.
-      
       INTERNAL TRACKER DATA:
       - Total Cases Tracked: ${stats.totalCases}
       - Avg Time to Protocol: ${stats.avgDaysToProtocol} days
       - Avg Time to Approval: ${stats.avgDaysToApproval} days
-      - Avg Total Duration: ${stats.avgDaysTotal} days
-      
-      EXTERNAL CONTEXT (BVA OFFICIAL & REDDIT):
+      EXTERNAL CONTEXT:
       ${OFFICIAL_DATA_CONTEXT}
 
-      Task:
-      Analyze the "Internal Tracker Data" in the context of the "External Context".
-      Are our community stats matching the official acceleration trend in 2025?
-      Provide a concise, 2-sentence insight in ${targetLang}. 
-      CRITICAL: The output MUST be entirely in ${targetLang}. Do not use English unless the target language is English.
-      Be encouraging but realistic about the backlog (mention the surge in applications). Do not use markdown.
+      Task: Provide a concise, 2-sentence insight in ${targetLang} about whether community trends match official BVA data. 
+      CRITICAL: The output MUST be entirely in ${targetLang}. Do not use markdown.
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 
     const result = response.text?.trim() || "";
     if (result) setCachedData(cacheKey, result);
     return result;
-
   } catch (error: any) {
     logAiError("Insights", error);
-    
-    // Fallback messages
     const fallbackMap: Record<Language, string> = {
-        en: "AI Analysis unavailable due to high traffic. Based on data, processing times vary significantly by case type.",
-        es: "Análisis de IA no disponible por alto tráfico. Los tiempos varían significativamente según el tipo de caso.",
-        de: "KI-Analyse aufgrund hohen Aufkommens nicht verfügbar. Bearbeitungszeiten variieren je nach Falltyp.",
-        it: "Analisi IA non disponibile. I tempi di elaborazione variano in base al tipo di caso.",
-        pt: "Análise de IA indisponível. Os tempos de processamento variam significativamente por tipo de caso."
+        en: "Processing times vary significantly by case type. Please check the charts for detailed breakdowns.",
+        es: "Los tiempos de procesamiento varían significativamente según el tipo de caso.",
+        de: "Die Bearbeitungszeiten variieren je nach Falltyp erheblich.",
+        it: "I tempi di elaborazione variano significativamente in base al tipo di caso.",
+        pt: "Os tempos de processamento variam significativamente por tipo de caso."
     };
     return fallbackMap[lang] || fallbackMap['en'];
   }
 };
 
 export const predictCaseTimeline = async (userCase: CitizenshipCase, stats: StatSummary, lang: Language) => {
-    // 1. DETERMINISTIC CALCULATION (Math first, AI second)
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-    
-    // Determine Anchor Date and Remaining Days based on Stats
     let anchorDate = new Date(userCase.submissionDate);
-    let avgWaitDays = stats.avgDaysTotal || 730; // Fallback 2 years
+    let avgWaitDays = stats.avgDaysTotal || 730;
     let calculationMethod = "Submission Date + Avg Total Time";
 
-    // If protocol exists, use Protocol -> Approval average which is more accurate
     if (userCase.protocolDate) {
         anchorDate = new Date(userCase.protocolDate);
         if (stats.avgDaysToApproval > 0) {
             avgWaitDays = stats.avgDaysToApproval;
             calculationMethod = "Protocol Date + Avg Wait (Protocol to Urkunde)";
         } else {
-            // Fallback if we have protocol date but no stats for that phase
-             avgWaitDays = Math.max(0, (stats.avgDaysTotal || 730) - 120); // Estimate protocol takes ~4 months
+             avgWaitDays = Math.max(0, (stats.avgDaysTotal || 730) - 120);
         }
     }
 
-    // Calculate Target Date
     const estimatedDateObj = new Date(anchorDate.getTime() + (avgWaitDays * ONE_DAY_MS));
     const estimatedDateStr = estimatedDateObj.toISOString().split('T')[0];
 
-    // Calculate Confidence Statistically (Not AI feeling)
-    // Rule: Need > 10 samples for High, > 3 for Medium.
     let rawConfidence: 'High' | 'Medium' | 'Low' = "Low";
     if (stats.totalCases > 15) rawConfidence = "High";
     else if (stats.totalCases > 5) rawConfidence = "Medium";
 
-    // Translate Confidence
     const t = TRANSLATIONS[lang];
     const translatedConfidence = rawConfidence === 'High' ? t.confHigh : (rawConfidence === 'Medium' ? t.confMedium : t.confLow);
 
-    // Cache key for prediction explanation
-    // We cache based on the Case ID, Status, and Today's Date. 
-    // If stats change drastically, user might get cached reasoning for 24h which is acceptable.
     const cacheKey = `prediction_${userCase.id}_${userCase.status}_${estimatedDateStr}_${lang}`;
     const cached = getCachedData<any>(cacheKey);
     if (cached) return cached;
 
     try {
-        const langMap: Record<Language, string> = {
-            en: "English",
-            es: "Spanish",
-            de: "German",
-            it: "Italian",
-            pt: "Portuguese"
-        };
+        const langMap: Record<Language, string> = { en: "English", es: "Spanish", de: "German", it: "Italian", pt: "Portuguese" };
         const targetLang = langMap[lang] || "English";
 
         const prompt = `
-            Act as an expert immigration data analyst for German Citizenship applications (BVA).
+            Act as an expert immigration data analyst. Explain the reasoning behind our calculated prediction of ${estimatedDateStr}.
+            USER CASE: Type ${userCase.caseType}, Country ${userCase.countryOfApplication}.
+            EXTERNAL KNOWLEDGE: ${OFFICIAL_DATA_CONTEXT}
             
-            We have mathematically calculated a prediction for this case.
-            Your job is NOT to guess the date, but to EXPLAIN the reasoning behind our calculation using specific context.
-            
-            CALCULATED DATA (Do not change these):
-            - Predicted Date: ${estimatedDateStr}
-            - Confidence Level: ${rawConfidence}
-            - Method: ${calculationMethod}
-            - Sample Size: ${stats.totalCases} cases of type ${userCase.caseType}
-            
-            USER CASE DETAILS:
-            - Type: ${userCase.caseType}
-            - Country: ${userCase.countryOfApplication}
-            - Submission: ${userCase.submissionDate}
-            - Protocol: ${userCase.protocolDate || 'Not yet received'}
-            
-            EXTERNAL KNOWLEDGE BASE (USE THIS TO EXPLAIN):
-            ${OFFICIAL_DATA_CONTEXT}
-            
-            INSTRUCTIONS:
-            Return a JSON object.
-            1. Use the "date" provided above: "${estimatedDateStr}"
-            2. Use the "confidence" provided above: "${translatedConfidence}"
-            3. Write a "reasoning" paragraph (approx 100-150 words) in ${targetLang}. 
-               - CRITICAL: The reasoning text MUST be entirely in ${targetLang}.
-               - If the case is StAG 5, explicitly mention the BVA's 2025 acceleration trend (doubling approvals) but temper it with the Reddit data about the "surge in new applications" (~40k in 2023).
-               - If the case is NOT StAG 5, mention that Feststellung/Others are generally slower than StAG 5 based on Reddit reports.
-               - Mention that this prediction combines our community tracker data with official trends.
-            
-            JSON Schema:
+            Return a JSON object:
             {
-                "date": "YYYY-MM-DD",
-                "confidence": "string",
-                "reasoning": "string"
+                "date": "${estimatedDateStr}",
+                "confidence": "${translatedConfidence}",
+                "reasoning": "Reasoning in ${targetLang} (approx 100 words). Mention BVA acceleration vs application surge."
             }
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: prompt,
             config: { responseMimeType: "application/json" }
         });
         
         const text = cleanJson(response.text || "");
-        if (!text) throw new Error("Empty response");
-        
         const parsed = JSON.parse(text);
         
         const result = {
             date: estimatedDateStr,
             confidence: translatedConfidence,
-            confidenceScore: rawConfidence, // Return raw score for logic
+            confidenceScore: rawConfidence,
             reasoning: parsed.reasoning || "Analysis generated based on community statistics."
         };
 
         setCachedData(cacheKey, result);
         return result;
-
     } catch (error: any) {
         logAiError("Prediction", error);
-        
-        // Use mathematical fallback
-        const fallbackReasoning = lang === 'es' 
-            ? `Cálculo matemático directo basado en el promedio de ${avgWaitDays} días observados en ${stats.totalCases} casos similares. (Estado: Offline Mode)` 
-            : `Direct mathematical calculation based on average of ${avgWaitDays} days observed in ${stats.totalCases} similar cases. (Status: Offline Mode)`;
-
         return {
             date: estimatedDateStr,
             confidence: translatedConfidence,
             confidenceScore: rawConfidence,
-            reasoning: fallbackReasoning
+            reasoning: lang === 'es' ? `Cálculo basado en el promedio de ${avgWaitDays} días.` : `Calculation based on average of ${avgWaitDays} days.`
         };
     }
 };
 
-// Feature 8: Detect Anomalies
 export const detectAnomalies = async (cases: CitizenshipCase[]): Promise<any[]> => {
-    // Only run this manually via Admin panel, so maybe skip caching or short cache
     try {
-        // We send a simplified version of cases to save tokens, removing irrelevant fields
         const simplifiedCases = cases.map(c => ({
             id: c.id,
             name: c.fantasyName,
             country: c.countryOfApplication,
             submission: c.submissionDate,
             approval: c.approvalDate,
-            protocol: c.protocolDate,
             type: c.caseType
         }));
 
-        const prompt = `
-            Analyze this JSON dataset of citizenship applications for anomalies.
-            
-            Look for:
-            1. Duplicates: Cases with same submission date + country + case type but different names (likely same person submitted twice).
-            2. Logical Date Errors: Approval Date before Submission Date, dates in the future (relative to today ${new Date().toISOString().split('T')[0]}).
-            3. Suspicious Data: Submission date very old (> 5 years ago) but status is Submitted (Ghost).
-            
-            Return a JSON ARRAY of objects with:
-            - id: string
-            - name: string
-            - issueType: "Duplicate" | "Date Error" | "Suspicious"
-            - details: string (explanation)
-            
-            Dataset (first 100 for safety if large):
-            ${JSON.stringify(simplifiedCases.slice(0, 100))}
-        `;
-
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
+            model: 'gemini-3-flash-preview',
+            contents: `Analyze for anomalies (duplicates, logical date errors): ${JSON.stringify(simplifiedCases.slice(0, 100))}. Return JSON array of {id, name, issueType, details}.`,
             config: { responseMimeType: "application/json" }
         });
 
-        const text = cleanJson(response.text || "[]");
-        return JSON.parse(text);
-
+        return JSON.parse(cleanJson(response.text || "[]"));
     } catch (error) {
         logAiError("AnomalyDetect", error);
         return [];
