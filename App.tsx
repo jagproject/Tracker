@@ -367,7 +367,7 @@ const App: React.FC = () => {
                         <p className="text-lg font-bold text-de-black break-all">{emailInput}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                        <button onClick={() => setLoginStep('INPUT')} className="w-full bg-white border border-gray-300 text-gray-600 font-bold py-3 px-4 rounded hover:bg-gray-50 transition-colors">Volver</button>
+                        <button onClick={() => setLoginStep('INPUT')} className="w-full bg-white border border-gray-300 text-gray-600 font-bold py-3 px-4 rounded hover:bg-gray-50 transition-colors">{t.loginGoBack}</button>
                         <button onClick={handleLoginConfirm} disabled={loading} className="w-full bg-de-gold hover:bg-yellow-400 text-de-black font-bold py-3 px-4 rounded transition-all flex justify-center items-center shadow-md">
                             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : t.confirm}
                         </button>
@@ -382,20 +382,20 @@ const App: React.FC = () => {
                     <div className="space-y-4">
                         <button onClick={handleStartCreateNew} className="w-full p-4 border-2 border-gray-100 hover:border-de-gold rounded-xl transition-all text-left group flex items-center gap-4">
                             <div className="bg-blue-50 p-2 rounded-lg group-hover:bg-de-gold transition-colors"><UserPlus size={20} className="text-blue-600 group-hover:text-de-black" /></div>
-                            <div><span className="font-bold block text-de-black">{t.createNew}</span><span className="text-xs text-gray-500">Crea un perfil desde cero.</span></div>
+                            <div><span className="font-bold block text-de-black">{t.createNew}</span><span className="text-xs text-gray-500">{t.createProfileDescAlt}</span></div>
                         </button>
                         <button onClick={handleStartClaim} className="w-full p-4 border-2 border-gray-100 hover:border-de-gold rounded-xl transition-all text-left group flex items-center gap-4">
                             <div className="bg-orange-50 p-2 rounded-lg group-hover:bg-de-gold transition-colors"><LinkIcon size={20} className="text-orange-600 group-hover:text-de-black" /></div>
-                            <div><span className="font-bold block text-de-black">{t.claimExisting}</span><span className="text-xs text-gray-500">Vincula un caso de la planilla anterior.</span></div>
+                            <div><span className="font-bold block text-de-black">{t.claimExisting}</span><span className="text-xs text-gray-500">{t.claimProfileDescAlt}</span></div>
                         </button>
-                        <button onClick={() => setLoginStep('INPUT')} className="w-full text-center text-xs text-gray-400 hover:text-de-black uppercase font-bold tracking-widest transition-colors">Volver al inicio</button>
+                        <button onClick={() => setLoginStep('INPUT')} className="w-full text-center text-xs text-gray-400 hover:text-de-black uppercase font-bold tracking-widest transition-colors">{t.backToHome}</button>
                     </div>
                 </div>
             ) : loginStep === 'INITIAL_DETAILS' ? (
                 <div className="space-y-5 animate-in slide-in-from-right-4">
                     <div className="flex items-center gap-2 mb-2">
                         <button onClick={() => setLoginStep('ONBOARDING_CHOICE')} className="p-1 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={18} /></button>
-                        <h3 className="font-bold text-lg text-gray-800">Detalles del Trámite</h3>
+                        <h3 className="font-bold text-lg text-gray-800">{t.caseDetails}</h3>
                     </div>
                     <form onSubmit={handleDetailsSubmitted} className="space-y-4">
                         <div className="space-y-3">
@@ -423,15 +423,15 @@ const App: React.FC = () => {
                             </div>
                         </div>
                         <button type="submit" className="w-full bg-de-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded transition-all flex justify-center items-center gap-2 shadow-lg">
-                            Continuar <ArrowRight size={16} />
+                            {t.continueBtn} <ArrowRight size={16} />
                         </button>
                     </form>
                 </div>
             ) : loginStep === 'USERNAME_SELECTION' ? (
                 <div className="space-y-6 animate-in fade-in">
                     <div className="text-center">
-                        <h3 className="font-bold text-xl text-gray-800">Casi listo...</h3>
-                        <p className="text-sm text-gray-500">Generando identidad anónima...</p>
+                        <h3 className="font-bold text-xl text-gray-800">{t.almostReady}</h3>
+                        <p className="text-sm text-gray-500">{t.generatingIdentity}</p>
                     </div>
                     <form onSubmit={handleFinalizeOnboarding} className="space-y-4">
                         <div className="relative">
@@ -451,7 +451,7 @@ const App: React.FC = () => {
                             <button onClick={() => setLoginStep('ONBOARDING_CHOICE')} className="p-1 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={18} /></button>
                             <h3 className="font-bold text-lg text-gray-800">{t.claimCaseBtn}</h3>
                         </div>
-                        <p className="text-xs text-gray-500 mb-4">Busca tu caso en la planilla histórica.</p>
+                        <p className="text-xs text-gray-500 mb-4">{t.searchHistorical}</p>
                         <div className="relative mb-2">
                             <Search className="absolute left-3 top-3 text-gray-400" size={16} />
                             <input type="text" placeholder={t.searchPlaceholder} value={claimSearch} onChange={e => setClaimSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm border rounded focus:ring-1 focus:ring-de-gold outline-none" />
@@ -463,7 +463,7 @@ const App: React.FC = () => {
                                 <div><span className="font-bold block text-sm group-hover:text-de-gold">{c.fantasyName}</span><span className="text-[10px] text-gray-400">{c.countryOfApplication} • {c.caseType}</span></div>
                                 <ArrowRight size={14} className="text-gray-300 group-hover:text-de-gold" />
                             </button>
-                        )) : <div className="p-8 text-center text-gray-400 text-sm">No se encontraron casos.</div>}
+                        )) : <div className="p-8 text-center text-gray-400 text-sm">{t.noCasesFoundSearch}</div>}
                     </div>
                 </div>
             ) : null}
@@ -493,7 +493,7 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-4">
                         <LanguageSelector />
-                        {!isGuest && <div className="hidden md:block text-right"><span className="text-[10px] text-gray-400 uppercase font-bold block leading-none">Usuario</span><span className="text-sm font-bold text-de-gold leading-none">{session?.fantasyName}</span></div>}
+                        {!isGuest && <div className="hidden md:block text-right"><span className="text-[10px] text-gray-400 uppercase font-bold block leading-none">{t.userLabel}</span><span className="text-sm font-bold text-de-gold leading-none">{session?.fantasyName}</span></div>}
                         <button onClick={handleLogout} className="p-2 hover:bg-gray-800 rounded-full text-gray-300 transition-colors">{isGuest ? <LogIn size={20} /> : <LogOut size={20} />}</button>
                     </div>
                 </div>
@@ -516,7 +516,7 @@ const App: React.FC = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl border-l-4 border-de-gold p-6 text-white flex items-start gap-4 shadow-lg h-full">
                                         <Sparkles className="text-de-gold shrink-0" />
-                                        <div><h3 className="font-bold text-lg text-de-gold">{t.aiAnalysis}</h3><p className="text-gray-300 text-sm">{aiInsight || "Cargando análisis..."}</p></div>
+                                        <div><h3 className="font-bold text-lg text-de-gold">{t.aiAnalysis}</h3><p className="text-gray-300 text-sm">{aiInsight || t.loadingAnalysis}</p></div>
                                     </div>
                                     
                                     <div className="bg-gradient-to-r from-de-red to-red-900 rounded-xl border-l-4 border-de-gold p-6 text-white flex items-center justify-between gap-4 shadow-lg">
@@ -524,7 +524,7 @@ const App: React.FC = () => {
                                             <div className="bg-white/10 p-3 rounded-full"><UsersRound className="text-de-gold" /></div>
                                             <div>
                                                 <h3 className="font-bold text-lg text-white">{t.cohort}</h3>
-                                                <p className="text-red-100 text-xs">{cohortCount} usuarios iguales a ti</p>
+                                                <p className="text-red-100 text-xs">{cohortCount} {t.similarUsers}</p>
                                             </div>
                                         </div>
                                         <button 

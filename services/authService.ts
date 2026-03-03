@@ -13,8 +13,8 @@ const MANUAL_URL = "https://jnauwnljmlurqtziqqch.supabase.co";
 const MANUAL_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpuYXV3bmxqbWx1cnF0emlxcWNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwMjA3OTQsImV4cCI6MjA3OTU5Njc5NH0.x2AUqWSlAnsyMuiqQ4eHPr4czpwh0W978ZQOWuMIhnk";
 
 // Intentamos leer de variables de entorno primero (Best Practice), si no, usamos las manuales.
-const ENV_URL = (import.meta as any).env?.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || MANUAL_URL;
-const ENV_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || MANUAL_KEY;
+const ENV_URL = (import.meta as any).env?.VITE_SUPABASE_URL || MANUAL_URL;
+const ENV_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || MANUAL_KEY;
 
 const isConfigured = !!(ENV_URL && ENV_KEY && ENV_URL.startsWith('http'));
 

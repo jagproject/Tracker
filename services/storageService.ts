@@ -255,7 +255,7 @@ export const fetchCaseByFantasyName = async (name: string): Promise<CitizenshipC
     if (supabase) {
         try {
              const { data, error } = await supabase.from(DB_TABLE).select(PUBLIC_COLUMNS).ilike('fantasyName', searchName).limit(1);
-             if (!error && data && data.length > 0) return { ...data[0], email: '' } as CitizenshipCase;
+             if (!error && data && data.length > 0) return { ...(data[0] as any), email: '' } as CitizenshipCase;
         } catch(e) {}
     }
     const cases = await fetchCases();

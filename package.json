@@ -9,21 +9,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@faker-js/faker": "^10.1.0",
     "@google/genai": "^1.30.0",
+    "@hookform/resolvers": "^3.3.4",
+    "@supabase/supabase-js": "2.45.1",
+    "framer-motion": "11.0.8",
+    "lucide-react": "^0.554.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "@faker-js/faker": "^10.1.0",
-    "lucide-react": "^0.554.0",
-    "recharts": "^3.4.1",
-    "@supabase/supabase-js": "2.45.1",
-    "react-window": "1.8.10",
-    "react-virtualized-auto-sizer": "1.0.24",
-    "zod": "3.22.4",
     "react-hook-form": "7.51.0",
-    "@hookform/resolvers": "^5.2.2",
-    "zustand": "4.5.2",
-    "framer-motion": "11.0.8",
-    "react-intersection-observer": "9.8.1"
+    "react-intersection-observer": "9.8.1",
+    "react-virtualized-auto-sizer": "1.0.24",
+    "react-window": "1.8.10",
+    "recharts": "^3.4.1",
+    "zod": "3.22.4",
+    "zustand": "4.5.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
